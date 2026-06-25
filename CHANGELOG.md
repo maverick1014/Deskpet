@@ -6,14 +6,19 @@ is pre-release, so versions are milestone markers rather than published releases
 
 ## [Unreleased] — Animation discovery (ongoing)
 
-New lifelike animations being added one at a time:
+New lifelike animations being added one at a time.
+
+## [1.1.0] — 2026-06-25 — Lifelike animations & a patient, loving pet
+
+First feature release on top of v1.0.1. Bundles the recent animation work:
 - 🐧 **Belly slide** · 🪽 **wing flap** · 🤧 **sneeze** (drawn puff) · 💗 **heart-eyes** when
   petted · 👀 **watches the cursor**
 - 🐦 **Peck** — curiously dips its head to peck a little crumb off the ground
-- 🥱 **Yawn** — a big sleepy yawn (eyes scrunch shut, beak gapes, leans back) [1/10]
-- 🪶 **Preen** — grooms its feathers (leans to its side, nibbling); a downy feather drifts off [2/10]
-- 😴 **Doze** — drowsily nods off: the head sinks down, then jerks back up as it catches itself [3/10]
-- 👋 **Wave hello** — a cheery side-to-side greeting; also fires when your cursor first comes near [4/10]
+- 🥱 **Yawn** — a big sleepy yawn (eyes scrunch shut, beak gapes, leans back)
+- 🪶 **Preen** — grooms its feathers (leans to its side, nibbling); a downy feather drifts off
+- 😴 **Doze** — drowsily nods off: the head sinks down, then jerks back up as it catches itself
+- 👋 **Wave hello** — a cheery side-to-side greeting; also fires when your cursor first comes near
+- 💗 **"Misses you, waits patiently"** behaviour and hand-drawn activity props
 
 ## [0.11.0] — 2026-06-25 — Hand-drawn props & a patient, loving pet
 
