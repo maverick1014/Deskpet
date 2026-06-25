@@ -3,7 +3,7 @@ import StatusBar from './components/StatusBar.jsx';
 import ContextMenu from './components/ContextMenu.jsx';
 import SettingsPanel from './components/SettingsPanel.jsx';
 import {
-  loadState, saveState, getStage, moveWindow, onStageUpdate, setInteractive, quitApp,
+  loadState, saveState, getStage, moveWindow, onStageUpdate, setInteractive, quitApp, onRecenter,
 } from './store.js';
 import { genPersonality, normPersonality, traitLabel } from './personality.js';
 import { DIA, pick, greetingPool } from './dialogue.js';
@@ -88,6 +88,7 @@ export default class App extends React.Component {
     window.addEventListener('mousemove', this._onHover);
     window.addEventListener('beforeunload', this._onUnload);
     this._offStage = onStageUpdate((st) => this.applyStage(st));
+    this._offRecenter = onRecenter(() => this.recenter());
 
     this._hintTimer = setTimeout(() => { if (this._mounted) this.setState({ hint: false }); }, 7000);
     this.refreshInteractive();
@@ -112,6 +113,7 @@ export default class App extends React.Component {
     window.removeEventListener('mousemove', this._onHover);
     window.removeEventListener('beforeunload', this._onUnload);
     if (this._offStage) this._offStage();
+    if (this._offRecenter) this._offRecenter();
   }
 
   componentDidUpdate() { this.refreshInteractive(); }
@@ -595,6 +597,26 @@ export default class App extends React.Component {
     this.p.x = clamp(this.p.x, this.minX, this.maxX);
     this.p.y = clamp(this.p.y, this.minY, this.maxY);
     this.pushWindow(true);
+  }
+
+  // Recall the pet to the centre of the work area. Triggered from the tray icon
+  // or the right-click menu — the rescue hatch for when the penguin has wandered
+  // (or been dragged) off-screen and can't be reached. Interrupts whatever it's
+  // doing, re-clamps, snaps the window back, and persists the new spot.
+  recenter() {
+    if (!this.work) return;
+    this.stand();
+    this.p.action = 'idle';
+    this.p.busy = false;
+    this.p.dragging = false;
+    this.p.x = clamp(this.work.x + this.work.width / 2 - this.WIN_W / 2, this.minX, this.maxX);
+    this.ground = clamp(this.work.y + this.work.height / 2 - this.PEN_H / 2 - this.offY, this.minY, this.maxY);
+    this.p.y = this.ground;
+    this.p.tx = this.p.x;
+    this._placed = true;
+    this.pushWindow(true);
+    this.save();
+    if (this._mounted) this.speak('我回来啦~', 1800, true);
   }
 
   pushWindow(force) {
@@ -1506,6 +1528,7 @@ export default class App extends React.Component {
             onPlay={() => { this.closeMenu(); this.playFree(); }}
             onSit={this.sitAct}
             onStudy={this.studyAct} onWork={this.workAct} onMedicine={this.openMedicine}
+            onCenter={() => { this.closeMenu(); this.recenter(); }}
             onSettings={this.openSettings} onQuit={this.quit}
           />
         )}

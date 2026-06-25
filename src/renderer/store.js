@@ -46,3 +46,8 @@ export function setInteractive(flag) {
 export function quitApp() {
   if (api && api.quit) api.quit();
 }
+
+export function onRecenter(cb) {
+  if (api && api.onRecenter) return api.onRecenter(cb);
+  return () => {};
+}

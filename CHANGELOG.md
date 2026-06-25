@@ -8,6 +8,23 @@ is pre-release, so versions are milestone markers rather than published releases
 
 New lifelike animations being added one at a time.
 
+## [1.1.1] — 2026-06-25 — System tray & off-screen rescue (Windows fixes)
+
+### Added
+- **System-tray icon** ("collapse section") — the pet runs as a background app
+  and is now always reachable from the tray, even though it stays out of the
+  taskbar. Tray menu: recall pet to centre · show · hide · quit.
+- **"Bring pet to centre" / 回到中央** rescue action, available three ways:
+  - the tray menu,
+  - **double-clicking the tray icon**, and
+  - the pet's **right-click menu**.
+  Recovers the penguin when it has wandered or been dragged off-screen.
+
+### Fixed
+- **Windows: pet could disappear off-screen with no way to get it back** — with
+  no taskbar entry there was no recovery path. The tray icon + recall-to-centre
+  give a reliable way to summon it back.
+
 ## [1.1.0] — 2026-06-25 — Lifelike animations & a patient, loving pet
 
 First feature release on top of v1.0.1. Bundles the recent animation work:
