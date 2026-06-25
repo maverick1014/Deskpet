@@ -9,6 +9,7 @@
     "!**/*.map"
   ],
   "asarUnpack": ["**/node_modules/better-sqlite3/**"],
+  "afterPack": "scripts/adhoc-sign.js",
   "mac": {
     "category": "public.app-category.entertainment",
     "icon": "build/icon.icns",

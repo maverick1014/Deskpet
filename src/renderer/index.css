@@ -101,6 +101,10 @@ html, body {
   border-radius: 9px;
   cursor: pointer;
 }
+.egg-pick { transition: transform .12s ease; }
+.egg-pick:hover { transform: translateY(-3px) scale(1.06); }
+.egg-pick:active { transform: scale(.96); }
+
 .menu-item:hover { background: #eef2ff; }
 .menu-item.danger { color: #ff5a5f; }
 .menu-item.danger:hover { background: #ffeef0; }

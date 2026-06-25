@@ -18,6 +18,8 @@ const DEFAULTS = {
   education: 0,   // 0 未入学 / 1 小学 / 2 中学 / 3 大学 (gates work pay)
   study: 0,       // study sessions toward the next education level
   money: 200,     // earned by working (gated by education)
+  gender: null,   // 'boy' | 'girl', chosen at onboarding (null → show onboarding)
+  playTime: 0,    // total online seconds; ≥ 2 days → egg hatches into a penguin
   mood: 'happy',
   name: 'Pengu',
   volume: 60,

@@ -76,6 +76,8 @@ function loadSqlite() {
     study: num(prefs.study, DEFAULTS.study),
     sick: prefs.sick ? prefs.sick : null,
     dead: prefs.dead === '1',
+    gender: prefs.gender ? prefs.gender : null,
+    playTime: num(prefs.playTime, DEFAULTS.playTime),
     money: num(prefs.money, DEFAULTS.money),
     energy: num(s.energy, DEFAULTS.energy),
     cleanliness: num(s.cleanliness, DEFAULTS.cleanliness),
@@ -130,6 +132,8 @@ function saveSqlite(d) {
   up.run('study', String(Math.round(num(d.study, DEFAULTS.study))));
   up.run('sick', d.sick ? String(d.sick) : '');
   up.run('dead', d.dead ? '1' : '');
+  up.run('gender', d.gender ? String(d.gender) : '');
+  up.run('playTime', String(Math.round(num(d.playTime, DEFAULTS.playTime))));
   up.run('money', String(Math.round(num(d.money, DEFAULTS.money))));
   up.run('ts', String(d.ts || Date.now()));
 }

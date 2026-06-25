@@ -20,6 +20,11 @@ const WORK_PAY = [8, 16, 28, 50];        // pay per shift by education tier
 const WORK_JOB = ['打零工', '清洁工', '店员', '程序员'];
 const SICK_TIER = { mild: 1, medium: 2, severe: 3 };
 
+// Growth: a freshly hatched pet starts as an egg/baby and becomes a full penguin
+// after this much total online time. (Tunable — lower it to test the hatch.)
+const GROW_SECONDS = 2 * 24 * 3600; // 2 days
+const GENDER_COLOR = { boy: '#ff4d57', girl: '#ff8fce' }; // ribbon / scarf colour
+
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 export default class App extends React.Component {
@@ -27,7 +32,8 @@ export default class App extends React.Component {
     fullness: 70, energy: 80, cleanliness: 100, happiness: 80, mood: 'happy',
     health: 100, sick: null, dead: false, education: 0, study: 0,
     name: 'Pengu', volume: 60, speed: 1, opacity: 100,
-    money: 200, shopCat: null,
+    money: 200, gender: null, playTime: 0, onboard: null,
+    shopCat: null,
     menu: null, settingsOpen: false, emote: null, say: null, hint: true, hover: false, hoverStat: null, loaded: false,
     entering: true, traits: '',
   };
@@ -111,6 +117,7 @@ export default class App extends React.Component {
     this.applyStage(st);
     await this.load();
     this.setState({ traits: traitLabel(this.personality) });
+    if (!this.state.gender) { this.setState({ onboard: 'gender', entering: false }); return; } // new pet → choose egg + name
     if (this.state.dead) { this.setState({ entering: false }); return; } // dead pets show the revive overlay, no entrance
 
     // Entrance: the pet hops out of Doraemon's "Anywhere Door" on launch.
@@ -175,6 +182,7 @@ export default class App extends React.Component {
   playFree = () => {
     if (this.busyBlocked()) return;
     if (this.state.hover || this.state.shopCat) this.setState({ hover: false, hoverStat: null, shopCat: null });
+    if (!this.isGrown()) { this.ballAct(); return; } // a baby in the egg can only play ball
     const r = Math.random();
     if (r < 0.34) this.ballAct();
     else if (r < 0.6) this.badmintonAct();
@@ -225,6 +233,24 @@ export default class App extends React.Component {
     this.speak(line, 3000, true);
   }
 
+  // ---- onboarding / growth -------------------------------------------------
+  chooseGender = (g) => this.setState({ gender: g, onboard: 'name' });
+  finishOnboard = () => {
+    const name = (this.state.name || '').trim() || 'Pengu';
+    this._wasGrown = false;
+    this.setState({ name, onboard: null, playTime: 0 }, () => this.save());
+    this.rebirth(`你好呀，我是${name}~ 🥚`); // the egg pops out of the Anywhere Door
+  };
+  hatch = () => {
+    this.spawn('play'); this.sfx('play');
+    this.p.action = 'enter'; this.p.busy = true;
+    this.p.aStart = performance.now(); this.p.aDur = 1000;
+    clearTimeout(this._enterT);
+    this._enterT = setTimeout(() => { if (this.p.action === 'enter') { this.p.action = 'idle'; this.p.busy = false; } }, 1050);
+    this.speak('我长大啦！🎉🐧', 3500, true);
+    this.save();
+  };
+
   // ---- school / work / medicine -------------------------------------------
   openMedicine = () => { this.closeMenu(); this.setState({ shopCat: 'medicine', hover: true }); };
   useMedicine = (item) => {
@@ -258,6 +284,7 @@ export default class App extends React.Component {
   studyAct = () => {
     if (this.busyBlocked()) return;
     this.closeMenu();
+    if (!this.isGrown()) { this.speak(pick(DIA.tooYoung), 2400, true); return; }
     if (this.state.education >= 3) { this.speak('已经大学毕业啦！🎓', 2200, true); return; }
     if (this.state.sick) { this.speak('生病了，先看医生吧…🤒', 2200, true); return; }
     if (this.state.energy < 12) { this.speak('太困了，想睡觉…😴', 2200, true); return; }
@@ -279,6 +306,7 @@ export default class App extends React.Component {
   workAct = () => {
     if (this.busyBlocked()) return;
     this.closeMenu();
+    if (!this.isGrown()) { this.speak(pick(DIA.tooYoung), 2400, true); return; }
     if (this.state.sick) { this.speak('生病了不能上班…🤒', 2200, true); return; }
     if (this.state.energy < 18) { this.speak('太累了，先休息…😴', 2200, true); return; }
     this.touch();
@@ -353,7 +381,7 @@ export default class App extends React.Component {
   // ---- window click-through toggle (hit-test bypass) ----------------------
   refreshInteractive() {
     const s = this.state;
-    const v = !!(this._overPen || this.p.dragging || s.hover || s.shopCat || s.menu || s.settingsOpen || s.dead);
+    const v = !!(this._overPen || this.p.dragging || s.hover || s.shopCat || s.menu || s.settingsOpen || s.dead || s.onboard);
     if (v !== this._iv) { this._iv = v; setInteractive(v); }
   }
   // Show the care panel while the cursor is over the penguin OR the open panel
@@ -402,13 +430,26 @@ export default class App extends React.Component {
       sleepy: sw(idle, [[6, this.CLOSED]]),
       eat: sw(idle, [[5, '..DLLELLLLELLD..'], [6, '..DLELELLELELD..'], [8, '..DLLLLOOLLLLD..']]),
     };
+    // Egg / baby stage: a head poking out of a cracked egg — shell cap on top,
+    // egg shell as the lower body, with a gender-coloured ribbon band (R).
+    const egg = [
+      '.....KK.KK......', '...KKKKKKKKKK...', '..KKKKKKKKKKKK..', '...DDDDDDDDDD...',
+      '..DDDDDDDDDDDD..', '..DLLLLLLLLLLD..', '..DLLEELLEELLD..', '..DLCLLOOLLCLD..',
+      '..DLLLLLLLLLLD..', '..DDLLLLLLLLDD..', '.KKKKKKKKKKKKKK.', 'KKKKRRRRRRRRKKKK',
+      'KKKKKKKKKKKKKKKK', '.KKKKKKKKKKKKKK.', '..KKKKKKKKKKKK..', '...KKKKKKKKKK...',
+    ];
+    this.EGG = egg;
+    this.EGG_BLINK = sw(egg, [[6, '..DLLLLLLLLLLD..']]); // eyes shut (squint)
   }
   pal() {
-    return { '.': null, D: BODY, L: '#ffffff', O: BEAK, S: SCARF, E: '#1a1f3d', C: '#ff9bbb', T: '#5bc8ff', G: '#9c8a63' };
+    const ribbon = GENDER_COLOR[this.state.gender] || SCARF;
+    return { '.': null, D: BODY, L: '#ffffff', O: BEAK, S: ribbon, E: '#1a1f3d', C: '#ff9bbb', T: '#5bc8ff', G: '#9c8a63', K: '#fde7c4', R: ribbon };
   }
   swap(g, i, row) { const c = g.slice(); c[i] = row; return c; }
   withClosed(g) { return this.swap(g, 6, this.CLOSED); }
   withFeet(g, which) { return this.swap(g, 15, which ? this.FEET_A : this.FEET_B); }
+  // Grown once enough online time has accrued; before that it's an egg/baby.
+  isGrown() { return (this.state.playTime || 0) >= GROW_SECONDS; }
   // Smudge a few belly pixels with grime when the pet is dirty (low cleanliness).
   withDirt(g) {
     const c = g.slice();
@@ -491,6 +532,31 @@ export default class App extends React.Component {
 
   render2d(t, sp) {
     const p = this.p;
+
+    // ---- egg / baby stage: render the egg sprite with its own little poses ----
+    if (!this.isGrown()) {
+      let g = p.blinkOn ? this.EGG_BLINK : this.EGG;
+      if (this.state.cleanliness <= 25) g = this.withDirt(g);
+      if (this.ensureCtx()) this.draw(g);
+      let jy = 0, rot = 0, sy = 1;
+      const dead = p.action === 'dead';
+      if (dead) { rot = 78 * p.facing; jy = -22; }
+      else if (p.action === 'ball' || p.action === 'play' || p.action === 'enter') {
+        let pr = (t - p.aStart) / p.aDur; if (pr > 1) pr = 1;
+        jy = p.action === 'enter' ? Math.sin(pr * Math.PI) * 42 : Math.abs(Math.sin(pr * Math.PI * 3)) * 22;
+        sy = 1 + Math.sin(pr * Math.PI * 4) * 0.05;
+      } else if (p.action === 'eat' || p.action === 'bath') { rot = Math.sin(t / 90) * 6; }
+      else if (p.action === 'sleep') { rot = -8; jy = -3; }
+      else { rot = Math.sin(t / 520) * 3 + (p.action === 'walk' ? Math.sin(t / 95) * 4 : 0); } // gentle wobble
+      if (this.spriteRef.current) {
+        this.spriteRef.current.style.transform = `translateY(${(-jy).toFixed(1)}px) rotate(${rot.toFixed(1)}deg) scaleX(${p.facing}) scaleY(${sy.toFixed(3)})`;
+        this.spriteRef.current.style.filter = dead ? 'grayscale(1) brightness(1.25)' : 'none';
+        this.spriteRef.current.style.opacity = dead ? '0.65' : '1';
+      }
+      if (this.shadowRef.current) { this.shadowRef.current.style.transform = 'scaleX(1)'; this.shadowRef.current.style.opacity = '0.34'; }
+      return;
+    }
+
     let face = this.G.idle;
     if (p.action === 'dead') face = this.G.sad;
     else if (p.action === 'sleep') face = this.G.sleepy;
@@ -570,7 +636,7 @@ export default class App extends React.Component {
   recompute() { this.setState((s) => ({ mood: this.calcMood(s) })); }
 
   tick = () => {
-    if (this.state.dead) return; // a departed pet has no needs until revived
+    if (this.state.dead || this.state.onboard) return; // no needs while dead or onboarding
     // This is a 24/7 idle pet, but tuned to be playable: a full pet gets hungry
     // in ~2.5–3h (tick = 1s; rates per-second). Appetite trait nudges the speed.
     // Health/sickness stay slow (below) so faster needs don't make it sick easily.
@@ -594,8 +660,13 @@ export default class App extends React.Component {
       else if (fullness > 55 && cleanliness > 55 && happiness > 45 && energy > 30) hd += 0.003;
       const health = clamp(s.health + hd, 0, 100);
       const mood = this.calcMood({ fullness, energy, cleanliness, happiness });
-      return { fullness, cleanliness, happiness, energy, health, mood };
+      return { fullness, cleanliness, happiness, energy, health, mood, playTime: (s.playTime || 0) + 1 };
     });
+
+    // Growth: enough total online time → the egg hatches into a penguin (once).
+    if (!this._wasGrown && this.state.gender && (this.state.playTime || 0) >= GROW_SECONDS) {
+      this._wasGrown = true; this.hatch();
+    }
 
     // Enter / leave the slumped "too hungry to move" state (hysteresis 15/22).
     const projFull = Math.max(0, this.state.fullness - aRate);
@@ -697,6 +768,7 @@ export default class App extends React.Component {
     else if (s.energy < 30) pool = DIA.sleepy;
     else if (s.happiness < 30) pool = DIA.unhappy;
     else if (P.attachment > 60 && since > 40000) pool = DIA.lonely;
+    if (!this.isGrown() && pool === DIA.bored) pool = DIA.baby; // childish babble when content
     this.speak(pick(pool));
   }
 
@@ -913,7 +985,7 @@ export default class App extends React.Component {
     }
     this.refreshInteractive();
   };
-  onDouble = (e) => { e.preventDefault(); clearTimeout(this._clickT); this.dance(); };
+  onDouble = (e) => { e.preventDefault(); clearTimeout(this._clickT); if (this.isGrown()) this.dance(); else this.ballAct(); };
   onContext = (e) => {
     e.preventDefault();
     const r = this.rootRef.current.getBoundingClientRect();
@@ -985,11 +1057,15 @@ export default class App extends React.Component {
     let d = null;
     try { d = await loadState(); } catch (e) { /* ignore */ }
     this.personality = normPersonality(d && d.personality);
-    if (!d) { this.setState({ loaded: true }); this.save(); return; }
+    if (!d) { this.setState({ loaded: true }); return; } // brand-new pet → onboarding (boot)
     const st = {};
-    ['fullness', 'energy', 'cleanliness', 'happiness', 'health', 'sick', 'dead', 'education', 'study', 'money', 'mood', 'name', 'volume', 'speed', 'opacity'].forEach((k) => {
+    ['fullness', 'energy', 'cleanliness', 'happiness', 'health', 'sick', 'dead', 'education', 'study', 'gender', 'playTime', 'money', 'mood', 'name', 'volume', 'speed', 'opacity'].forEach((k) => {
       if (d[k] != null) st[k] = d[k];
     });
+    // Pre-onboarding saves (existing pets) had no gender → treat as an already-
+    // grown boy so they keep their pet instead of being sent back to an egg.
+    if (st.gender == null) { st.gender = 'boy'; if (st.playTime == null) st.playTime = GROW_SECONDS; }
+    this._wasGrown = (st.playTime != null ? st.playTime : 0) >= GROW_SECONDS;
     // A pet that died stays dead across restarts (revive / restart from the overlay).
     if (st.dead) { this.p.action = 'dead'; this.p.busy = true; }
     // Migrate saves from the old inverted "hunger" stat (0=full) → fullness.
@@ -1016,7 +1092,7 @@ export default class App extends React.Component {
     saveState({
       fullness: s.fullness, energy: s.energy, cleanliness: s.cleanliness, happiness: s.happiness,
       health: s.health, sick: s.sick, dead: s.dead, education: s.education, study: s.study,
-      money: s.money, mood: s.mood,
+      gender: s.gender, playTime: s.playTime, money: s.money, mood: s.mood,
       name: s.name, volume: s.volume, speed: s.speed, opacity: s.opacity,
       personality: this.personality,
       x: this.p.x, y: this.p.y, ts: Date.now(),
@@ -1066,7 +1142,7 @@ export default class App extends React.Component {
           onPointerDown={this.onDown}
           onContextMenu={this.onContext}
           onDoubleClick={this.onDouble}
-          style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: 112, height: 130, cursor: 'grab', touchAction: 'none', zIndex: 30 }}
+          style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: 112, height: 130, cursor: 'grab', touchAction: 'none', zIndex: 30, display: s.onboard ? 'none' : 'block' }}
         >
           {/* Anywhere Door — pops up behind the pet during the launch entrance */}
           {s.entering && (
@@ -1142,6 +1218,41 @@ export default class App extends React.Component {
             onStudy={this.studyAct} onWork={this.workAct} onMedicine={this.openMedicine}
             onSettings={this.openSettings} onQuit={this.quit}
           />
+        )}
+
+        {/* onboarding — choose an egg (gender), then name the pet */}
+        {s.onboard && (
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 85 }}>
+            <div onPointerDown={this.stopDown} style={{ width: 212, background: '#fff', border: '3px solid #222a55', borderRadius: 18, padding: 16, textAlign: 'center', boxShadow: '0 8px 0 rgba(34,42,85,.25)', animation: 'popIn .2s ease-out' }}>
+              {s.onboard === 'gender' ? (
+                <>
+                  <div style={{ fontWeight: 900, fontSize: 14, color: '#222a55', marginBottom: 3 }}>选择你的小伙伴</div>
+                  <div style={{ fontSize: 10.5, fontWeight: 700, color: '#8a93c2', marginBottom: 15 }}>挑一颗蛋，开始养成 🥚</div>
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: 24 }}>
+                    {[['boy', '男孩', GENDER_COLOR.boy], ['girl', '女孩', GENDER_COLOR.girl]].map(([g, label, color]) => (
+                      <div key={g} className="egg-pick" onClick={() => this.chooseGender(g)} style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                        <div style={{ position: 'relative', width: 56, height: 72 }}>
+                          <div style={{ width: '100%', height: '100%', background: 'linear-gradient(#fff7e6,#fde7c4)', border: '3px solid #e0b074', borderRadius: '50% 50% 50% 50% / 60% 60% 42% 42%', boxShadow: '0 4px 0 rgba(180,140,80,.25)' }} />
+                          <div style={{ position: 'absolute', left: -3, right: -3, top: '48%', height: 11, background: color, borderRadius: 3, border: '2px solid rgba(0,0,0,.1)' }} />
+                          <div style={{ position: 'absolute', left: '50%', top: '48%', width: 14, height: 14, marginLeft: -7, marginTop: -2, borderRadius: '52% 52% 50% 50% / 62% 62% 40% 40%', background: color, border: '2px solid rgba(255,255,255,.55)' }} />
+                        </div>
+                        <span style={{ fontSize: 12, fontWeight: 900, color: '#222a55' }}>{label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ fontSize: 30, lineHeight: 1 }}>🥚</div>
+                  <div style={{ fontWeight: 900, fontSize: 14, color: '#222a55', margin: '8px 0 10px' }}>给{s.gender === 'girl' ? '她' : '他'}取个名字</div>
+                  <input autoFocus value={s.name} onChange={this.setName} maxLength={12}
+                    onKeyDown={(e) => { if (e.key === 'Enter') this.finishOnboard(); }}
+                    style={{ width: '100%', border: '2px solid #222a55', borderRadius: 9, padding: '8px 10px', fontFamily: "'Nunito'", fontWeight: 800, fontSize: 14, color: '#222a55', textAlign: 'center', outline: 'none', marginBottom: 12 }} />
+                  <div onClick={this.finishOnboard} style={{ background: '#222a55', color: '#fff', padding: 9, borderRadius: 11, fontWeight: 900, fontSize: 13, cursor: 'pointer', boxShadow: '0 4px 0 rgba(34,42,85,.3)' }}>就叫这个名字！🐣</div>
+                </>
+              )}
+            </div>
+          </div>
         )}
 
         {/* death / revive overlay */}

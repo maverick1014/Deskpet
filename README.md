@@ -7,6 +7,32 @@ An interactive penguin that lives on your desktop. Built from the
 See [`FEATURES.md`](./FEATURES.md) for the features list (done · next phase ·
 backlog) and [`CHANGELOG.md`](./CHANGELOG.md) for the dated development history.
 
+## Download & install
+
+Grab the latest installer from the
+[**Releases** page](https://github.com/maverick1014/Deskpet/releases/latest):
+
+| Platform | File |
+| --- | --- |
+| macOS (Apple Silicon) | `Deskpet-*-arm64.dmg` |
+| Windows | `Deskpet.Setup.*.exe` |
+
+The app is **not signed with a paid certificate**, so your OS shows a one-time
+warning on first launch. It is safe to bypass:
+
+- **macOS** — open the `.dmg`, drag Deskpet to Applications, then **right-click
+  the app → Open** (first launch only). If macOS still claims the app *"is
+  damaged"*, clear the download quarantine once in Terminal and reopen:
+  ```bash
+  xattr -cr /Applications/Deskpet.app
+  ```
+- **Windows** — run the installer; if SmartScreen appears, click **More info →
+  Run anyway**.
+
+> Eliminating the warning entirely requires an Apple Developer ID + notarization
+> ($99/yr) and a Windows code-signing certificate. The build is otherwise
+> ad-hoc signed so the friendlier "unidentified developer" prompt is shown.
+
 ## Quick start
 
 ```bash
