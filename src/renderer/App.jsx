@@ -25,7 +25,7 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 export default class App extends React.Component {
   state = {
     fullness: 70, energy: 80, cleanliness: 100, happiness: 80, mood: 'happy',
-    health: 100, sick: null, education: 0, study: 0,
+    health: 100, sick: null, dead: false, education: 0, study: 0,
     name: 'Pengu', volume: 60, speed: 1, opacity: 100,
     money: 200, shopCat: null,
     menu: null, settingsOpen: false, emote: null, say: null, hint: true, hover: false, hoverStat: null, loaded: false,
@@ -67,17 +67,6 @@ export default class App extends React.Component {
     this.paintStatic();
     this.boot();
 
-    // Entrance: the pet hops out of Doraemon's "Anywhere Door" on launch.
-    this.p.action = 'enter';
-    this.p.busy = true;
-    this.p.aStart = performance.now();
-    this.p.aDur = 1000;
-    setTimeout(() => { if (this._mounted) { this.sfx('play'); this.spawn('play'); } }, 220);
-    this._enterT = setTimeout(() => {
-      if (this.p.action === 'enter') { this.p.action = 'idle'; this.p.busy = false; }
-      if (this._mounted) this.setState({ entering: false });
-    }, 1050);
-
     this._last = performance.now();
     this._raf = requestAnimationFrame(this.loop);
     this._tick = setInterval(this.tick, 1000);
@@ -105,6 +94,7 @@ export default class App extends React.Component {
     clearTimeout(this._sitT);
     clearTimeout(this._greetT);
     clearTimeout(this._enterT);
+    clearTimeout(this._restT);
     clearTimeout(this._hideHoverT);
     clearInterval(this._bathBub);
     window.removeEventListener('pointermove', this._onMove);
@@ -121,10 +111,20 @@ export default class App extends React.Component {
     this.applyStage(st);
     await this.load();
     this.setState({ traits: traitLabel(this.personality) });
-    // Greet once on launch, by time of day.
+    if (this.state.dead) { this.setState({ entering: false }); return; } // dead pets show the revive overlay, no entrance
+
+    // Entrance: the pet hops out of Doraemon's "Anywhere Door" on launch.
+    this.p.action = 'enter'; this.p.busy = true;
+    this.p.aStart = performance.now(); this.p.aDur = 1000;
+    setTimeout(() => { if (this._mounted) { this.sfx('play'); this.spawn('play'); } }, 220);
+    this._enterT = setTimeout(() => {
+      if (this.p.action === 'enter') { this.p.action = 'idle'; this.p.busy = false; }
+      if (this._mounted) this.setState({ entering: false });
+    }, 1050);
+    // Greet once the entrance lands, by time of day.
     this._greetT = setTimeout(() => {
       if (this._mounted) this.speak(pick(greetingPool(new Date().getHours())), 2800, true);
-    }, 1200);
+    }, 1250);
   }
 
   touch() { this._lastInteract = Date.now(); }
@@ -182,6 +182,49 @@ export default class App extends React.Component {
     else this.playAct();
   };
 
+  // ---- death / revive ------------------------------------------------------
+  die = () => {
+    if (this.state.dead) return;
+    clearTimeout(this._sitT);
+    this.p.action = 'dead'; this.p.busy = true;
+    this.setState({ dead: true, sick: this.state.sick || 'severe', hover: false, hoverStat: null, shopCat: null, menu: null });
+    this.sfx('sleep');
+    this.speak('呜…我撑不住了…💀', 4000, true);
+    this.save();
+  };
+  revive = () => {
+    if (this.state.money < 400) { this.speak('钱不够买复活丹…💸', 2200, true); return; }
+    this._weakUntil = performance.now() + 90000; // ~1 "day" of weakness (-30% work pay)
+    this.setState((s) => ({
+      money: s.money - 400, dead: false, sick: null, health: 60,
+      fullness: Math.max(s.fullness, 45), cleanliness: Math.max(s.cleanliness, 45),
+      happiness: Math.max(s.happiness, 45), energy: Math.max(s.energy, 55),
+    }), () => this.save());
+    this.rebirth('我…我回来啦！✨');
+  };
+  restart = () => {
+    this.personality = genPersonality();
+    this._weakUntil = 0;
+    this.setState({
+      dead: false, sick: null, health: 100,
+      fullness: 70, energy: 80, cleanliness: 100, happiness: 80,
+      education: 0, study: 0, money: 200, mood: 'happy',
+      traits: traitLabel(this.personality),
+    }, () => this.save());
+    this.rebirth('你好呀，我是新来的~ 🐧');
+  };
+  // Shared "pop back to life" hop + greeting (reuses the Anywhere-Door entrance).
+  rebirth(line) {
+    this.p.action = 'enter'; this.p.busy = true;
+    this.p.aStart = performance.now(); this.p.aDur = 1000;
+    this.touch(); this.sfx('play'); this.spawn('play');
+    clearTimeout(this._enterT);
+    this._enterT = setTimeout(() => {
+      if (this.p.action === 'enter') { this.p.action = 'idle'; this.p.busy = false; }
+    }, 1050);
+    this.speak(line, 3000, true);
+  }
+
   // ---- school / work / medicine -------------------------------------------
   openMedicine = () => { this.closeMenu(); this.setState({ shopCat: 'medicine', hover: true }); };
   useMedicine = (item) => {
@@ -199,7 +242,17 @@ export default class App extends React.Component {
     }), () => this.save());
     this._sickDur = 0;
     this.setEmote('💊', 1600);
-    this.speak(cured ? '好多了，谢谢你~ 😊' : '感觉好一点了…还得再吃药 💊', 2600, true);
+    this.speak(cured ? '好多了，去休息一下~ 😴' : '感觉好一点了…还得再吃药 💊', 2600, true);
+    if (cured) {
+      // 静养: a short rest after treatment that recovers a little more health.
+      this.p.busy = true; this.p.action = 'sleep';
+      clearTimeout(this._restT);
+      this._restT = setTimeout(() => {
+        if (this.p.action === 'sleep' && !this.state.dead) { this.p.action = 'idle'; this.p.busy = false; }
+        this.setState((s) => ({ health: Math.min(100, s.health + 12) }));
+        this.recompute();
+      }, 3200);
+    }
   };
 
   studyAct = () => {
@@ -230,7 +283,8 @@ export default class App extends React.Component {
     if (this.state.energy < 18) { this.speak('太累了，先休息…😴', 2200, true); return; }
     this.touch();
     const edu = this.state.education;
-    const pay = WORK_PAY[edu];
+    const weak = this._weakUntil && performance.now() < this._weakUntil; // post-revival weakness
+    const pay = Math.round(WORK_PAY[edu] * (weak ? 0.7 : 1));
     this.p.busy = true; this.p.action = 'work';
     this.floatEmoji('💼', 3200); this.speak(`${WORK_JOB[edu]}·${pick(DIA.work)}`, 2600, true);
     setTimeout(() => {
@@ -299,7 +353,7 @@ export default class App extends React.Component {
   // ---- window click-through toggle (hit-test bypass) ----------------------
   refreshInteractive() {
     const s = this.state;
-    const v = !!(this._overPen || this.p.dragging || s.hover || s.shopCat || s.menu || s.settingsOpen);
+    const v = !!(this._overPen || this.p.dragging || s.hover || s.shopCat || s.menu || s.settingsOpen || s.dead);
     if (v !== this._iv) { this._iv = v; setInteractive(v); }
   }
   // Show the care panel while the cursor is over the penguin OR the open panel
@@ -425,7 +479,7 @@ export default class App extends React.Component {
 
     // Idle FPS throttle: only redraw at ~18fps when nothing is animating, full
     // rate while walking/playing/blinking/dragging. Saves CPU on an always-on app.
-    const lowKey = p.action === 'idle' || p.action === 'weak' || p.action === 'sit';
+    const lowKey = p.action === 'idle' || p.action === 'weak' || p.action === 'sit' || p.action === 'dead';
     const animating = !lowKey || p.blinkOn || p.dragging;
     if (animating || t - (this._lastDraw || 0) >= 55) {
       this._lastDraw = t;
@@ -438,7 +492,8 @@ export default class App extends React.Component {
   render2d(t, sp) {
     const p = this.p;
     let face = this.G.idle;
-    if (p.action === 'sleep') face = this.G.sleepy;
+    if (p.action === 'dead') face = this.G.sad;
+    else if (p.action === 'sleep') face = this.G.sleepy;
     else if (p.action === 'play' || p.action === 'dance' || p.action === 'ball' || p.action === 'badminton' || p.action === 'bath') face = this.G.happy;
     else if (p.action === 'sit') face = this.G.happy;
     else if (p.action === 'weak') face = this.G.sad;
@@ -485,11 +540,14 @@ export default class App extends React.Component {
     if (p.action === 'sit') { sy = 0.82; jy = -10; }   // squash + lower = sitting
     if (p.action === 'weak') { sy = 0.6; jy = -16 + Math.sin(t / 650) * 1.5; tilt = 5 * p.facing; } // slumped, too hungry
     if (p.action === 'sleep') { tilt = -12; jy = -10; }
+    if (p.action === 'dead') { tilt = 90 * p.facing; jy = -28; }  // toppled over on the ground
     const bob = p.action === 'walk' ? -Math.abs(Math.sin(t / 110)) * 4 : (p.action === 'idle' ? Math.sin(t / 720) * 2 : 0);
 
     if (this.spriteRef.current) {
       this.spriteRef.current.style.transform =
         `translateY(${(bob - jy).toFixed(1)}px) rotate(${(tilt + rot).toFixed(1)}deg) scaleX(${p.facing}) scaleY(${sy.toFixed(3)})`;
+      this.spriteRef.current.style.filter = p.action === 'dead' ? 'grayscale(1) brightness(1.25)' : 'none';
+      this.spriteRef.current.style.opacity = p.action === 'dead' ? '0.65' : '1';
     }
     if (this.shadowRef.current) {
       const k = Math.max(0.4, 1 - jy / 120);
@@ -512,6 +570,7 @@ export default class App extends React.Component {
   recompute() { this.setState((s) => ({ mood: this.calcMood(s) })); }
 
   tick = () => {
+    if (this.state.dead) return; // a departed pet has no needs until revived
     // This is a 24/7 idle pet, but tuned to be playable: a full pet gets hungry
     // in ~2.5–3h (tick = 1s; rates per-second). Appetite trait nudges the speed.
     // Health/sickness stay slow (below) so faster needs don't make it sick easily.
@@ -603,6 +662,9 @@ export default class App extends React.Component {
 
     this.maybeChatter();
     if (this.p.action === 'weak' && Math.random() < 0.14) this.speak(pick(DIA.weak));
+
+    // Death: total neglect drains health to 0 (you'll have seen the 🤒 warnings).
+    if (this.state.health <= 0 && !this.state.dead) this.die();
 
     this._saveCtr = (this._saveCtr || 0) + 1;
     if (this._saveCtr >= 5) { this._saveCtr = 0; this.save(); }
@@ -925,9 +987,11 @@ export default class App extends React.Component {
     this.personality = normPersonality(d && d.personality);
     if (!d) { this.setState({ loaded: true }); this.save(); return; }
     const st = {};
-    ['fullness', 'energy', 'cleanliness', 'happiness', 'health', 'sick', 'education', 'study', 'money', 'mood', 'name', 'volume', 'speed', 'opacity'].forEach((k) => {
+    ['fullness', 'energy', 'cleanliness', 'happiness', 'health', 'sick', 'dead', 'education', 'study', 'money', 'mood', 'name', 'volume', 'speed', 'opacity'].forEach((k) => {
       if (d[k] != null) st[k] = d[k];
     });
+    // A pet that died stays dead across restarts (revive / restart from the overlay).
+    if (st.dead) { this.p.action = 'dead'; this.p.busy = true; }
     // Migrate saves from the old inverted "hunger" stat (0=full) → fullness.
     if (st.fullness == null && d.hunger != null) st.fullness = clamp(100 - Number(d.hunger), 0, 100);
     // Offline decay while the app was closed: only 20% of the live rate, and no
@@ -951,7 +1015,7 @@ export default class App extends React.Component {
     const s = this.state;
     saveState({
       fullness: s.fullness, energy: s.energy, cleanliness: s.cleanliness, happiness: s.happiness,
-      health: s.health, sick: s.sick, education: s.education, study: s.study,
+      health: s.health, sick: s.sick, dead: s.dead, education: s.education, study: s.study,
       money: s.money, mood: s.mood,
       name: s.name, volume: s.volume, speed: s.speed, opacity: s.opacity,
       personality: this.personality,
@@ -1029,8 +1093,12 @@ export default class App extends React.Component {
           )}
 
           {/* sick indicator — a feverish face bobbing by the head while ill */}
-          {s.sick && (
+          {s.sick && !s.dead && (
             <div className="fly" style={{ left: 76, top: 6, fontSize: 17, animation: 'buzz3 2.4s ease-in-out infinite' }}>🤒</div>
+          )}
+          {/* a little spirit drifting up from a departed pet */}
+          {s.dead && (
+            <div className="fly" style={{ left: 58, top: -2, fontSize: 18, animation: 'buzz2 3s ease-in-out infinite' }}>👻</div>
           )}
 
           {/* tip pill — above the head, briefly at startup */}
@@ -1074,6 +1142,20 @@ export default class App extends React.Component {
             onStudy={this.studyAct} onWork={this.workAct} onMedicine={this.openMedicine}
             onSettings={this.openSettings} onQuit={this.quit}
           />
+        )}
+
+        {/* death / revive overlay */}
+        {s.dead && (
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 80 }}>
+            <div onPointerDown={this.stopDown} style={{ width: 204, background: '#fff', border: '3px solid #222a55', borderRadius: 18, padding: 16, textAlign: 'center', boxShadow: '0 8px 0 rgba(34,42,85,.25)', animation: 'popIn .2s ease-out' }}>
+              <div style={{ fontSize: 30, lineHeight: 1 }}>🥀</div>
+              <div style={{ fontFamily: "'Nunito'", fontWeight: 900, fontSize: 14, color: '#222a55', margin: '8px 0 3px' }}>{s.name || 'Pengu'} 离开了…</div>
+              <div style={{ fontSize: 10.5, fontWeight: 700, color: '#8a93c2', marginBottom: 13 }}>太久没人照顾了 💔</div>
+              <div onClick={this.revive} style={{ background: s.money >= 400 ? '#ff6fa5' : '#cfd4e6', color: '#fff', padding: 9, borderRadius: 11, fontWeight: 900, fontSize: 13, cursor: 'pointer', marginBottom: 8, boxShadow: '0 4px 0 rgba(34,42,85,.2)' }}>💊 复活丹 · ¥400</div>
+              <div onClick={this.restart} style={{ background: '#222a55', color: '#fff', padding: 9, borderRadius: 11, fontWeight: 900, fontSize: 13, cursor: 'pointer', boxShadow: '0 4px 0 rgba(34,42,85,.3)' }}>🔄 重新养一只</div>
+              <div style={{ fontSize: 9.5, fontWeight: 700, color: '#b9bed3', marginTop: 9 }}>💰 {s.money}</div>
+            </div>
+          </div>
         )}
 
         {/* settings */}

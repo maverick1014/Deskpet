@@ -4,6 +4,18 @@ All notable changes to **Pengu — Desktop Pet** (桌面宠物企鹅) are docume
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/); the project
 is pre-release, so versions are milestone markers rather than published releases.
 
+## [0.8.0] — 2026-06-25 — Death & revival (health loop complete)
+
+### Added
+- **Death** — if total neglect drains 健康 (health) to 0, the pet dies: it topples
+  over, greys out, and a 👻 drifts up. The state persists across restarts.
+- **Revive overlay** — a dead pet shows two choices:
+  - **复活丹 (¥400)** → revived with restored health and a ~1-"day" weakness
+    (−30% work pay) afterward, with a "pop back to life" hop.
+  - **重新养一只** → start over with a brand-new pet (fresh personality + stats).
+- **静养 (rest)** — taking medicine now ends with a short rest that recovers a little
+  extra health, instead of a purely instant cure.
+
 ## [0.7.0] — 2026-06-25 — Idle-pet balancing & launch entrance
 
 ### Added

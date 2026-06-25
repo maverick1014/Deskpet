@@ -1,8 +1,11 @@
-# Pengu — Desktop Pet Companion 🐧
+# Deskpet — Desktop Pet Companion 🐧
 
 An interactive penguin that lives on your desktop. Built from the
 `Pengu Desktop Pet.dc.html` design, implemented per the `CLAUDE.md` handoff spec
 (Electron + React + Canvas 2D + SQLite).
+
+See [`FEATURES.md`](./FEATURES.md) for the features list (done · next phase ·
+backlog) and [`CHANGELOG.md`](./CHANGELOG.md) for the dated development history.
 
 ## Quick start
 

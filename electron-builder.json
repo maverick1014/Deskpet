@@ -1,6 +1,6 @@
 {
-  "appId": "com.maverick.qqpenguin",
-  "productName": "Pengu",
+  "appId": "com.maverick.deskpet",
+  "productName": "Deskpet",
   "files": [
     "main.js",
     "preload.js",
@@ -11,11 +11,24 @@
   "asarUnpack": ["**/node_modules/better-sqlite3/**"],
   "mac": {
     "category": "public.app-category.entertainment",
-    "target": ["dmg"]
+    "icon": "build/icon.icns",
+    "target": ["dmg", "zip"]
   },
   "win": {
+    "icon": "build/icon.ico",
     "target": ["nsis"]
   },
+  "linux": {
+    "icon": "build/icon.png",
+    "category": "Game",
+    "target": ["AppImage"]
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true
+  },
+  "publish": [{ "provider": "github" }],
   "directories": {
     "output": "release"
   }

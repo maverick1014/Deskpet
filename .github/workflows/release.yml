@@ -1,0 +1,82 @@
+name: Build & Release
+
+# Builds the Mac + Windows installers on every push to main (and on version
+# tags), then publishes them to a GitHub Release anyone can download.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch: {}
+
+permissions:
+  contents: write   # required to create/update Releases
+
+jobs:
+  build:
+    name: Build (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            name: mac
+          - os: windows-latest
+            name: win
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Bundle renderer
+        run: npm run build:renderer
+
+      - name: Build installer
+        run: npx electron-builder --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # No code-signing certs in CI — build unsigned, don't try to discover one.
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Upload installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-${{ matrix.name }}
+          if-no-files-found: ignore
+          path: |
+            release/*.dmg
+            release/*.zip
+            release/*.exe
+
+  release:
+    name: Publish Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read version
+        id: ver
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Download built installers
+        uses: actions/download-artifact@v4
+        with:
+          path: dist-artifacts
+
+      - name: Publish to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.version }}
+          name: Deskpet v${{ steps.ver.outputs.version }}
+          generate_release_notes: true
+          fail_on_unmatched_files: false
+          files: dist-artifacts/**/*
