@@ -4,6 +4,67 @@ All notable changes to **Pengu — Desktop Pet** (桌面宠物企鹅) are docume
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/); the project
 is pre-release, so versions are milestone markers rather than published releases.
 
+## [Unreleased] — Animation discovery (ongoing)
+
+New lifelike animations being added one at a time:
+- 🐧 **Belly slide** · 🪽 **wing flap** · 🤧 **sneeze** (drawn puff) · 💗 **heart-eyes** when
+  petted · 👀 **watches the cursor**
+- 🐦 **Peck** — curiously dips its head to peck a little crumb off the ground
+- 🥱 **Yawn** — a big sleepy yawn (eyes scrunch shut, beak gapes, leans back) [1/10]
+- 🪶 **Preen** — grooms its feathers (leans to its side, nibbling); a downy feather drifts off [2/10]
+- 😴 **Doze** — drowsily nods off: the head sinks down, then jerks back up as it catches itself [3/10]
+- 👋 **Wave hello** — a cheery side-to-side greeting; also fires when your cursor first comes near [4/10]
+
+## [0.11.0] — 2026-06-25 — Hand-drawn props & a patient, loving pet
+
+### Added
+- **"Misses you, waits patiently" behaviour** — after a long stretch with no
+  interaction, the pet (a good child who knows you're busy) sits and looks up
+  hopefully with a little ❤️ drifting up, sometimes saying a sweet, *non-nagging*
+  line ("主人在忙吧，我乖乖等~"). Replaces the old needy lonely chatter.
+
+### Changed
+- **All activity props are now hand-drawn animations instead of emoji:**
+  - 📖 → a drawn **open book** with a page gently turning (used by reading & study)
+  - 🎵 → drawn **music notes** drifting upward
+  - 💼 → a drawn **briefcase** carried while working
+  - ❤️ → a drawn **heart** (tinted to the pet's gender colour)
+  - 🥱 → the stretch is now **pose-only** (no emoji)
+  - (the 📺 TV was already drawn)
+
+## [0.10.0] — 2026-06-25 — A more lifelike, self-entertaining companion
+
+### Added
+- **Idle "doing its own thing" behaviours** (autonomous when grown & content):
+  - 📺 **watch TV** (a little set beside it flickering through channels)
+  - 📖 **read** · 🎵 **listen to music** (sways to the beat)
+  - 🥱 **stretch & yawn** · 👀 **glance around**
+  - Each raises happiness a touch and is interruptible by feeding / clicking / dragging.
+
+### Changed
+- **Much less chatty.** It now keeps to itself and only speaks up for a real **need**
+  (hungry / dirty / tired / sick) — no more needy "where'd you go?".
+- **Smiley face when happy** — high 快乐 now shows a big grin (was a neutral/flat look).
+- **Hatch time reduced to 2 hours** of online time (was 2 days).
+
+## [0.9.0] — 2026-06-25 — Onboarding & the egg → penguin growth stage
+
+### Added
+- **Onboarding** for a brand-new pet, two steps:
+  1. **Choose an egg** — 男孩 (red ribbon) or 女孩 (pink ribbon).
+  2. **Name the pet** (Enter or "就叫这个名字！🐣").
+- **Growth life-stage** — the pet hatches as a **baby in a cracked egg** (head poking
+  out, shell cap on top, egg-shell body, gender-coloured ribbon) and becomes a **full
+  penguin after 2 days of total online time** (`playTime`), with a "我长大啦！🎉" hatch.
+- **Boy/girl difference** — the ribbon (egg) and scarf (penguin) are **red for boys,
+  pink for girls**.
+- **Baby-stage limits** — childish babble (`DIA.baby`); 玩耍 can only **play ball**;
+  上学 / 上班 are locked until grown ("我还在蛋里呢，长大再说嘛~").
+
+### Fixed
+- Onboarding/growth state (`gender`, `playTime`) now persists correctly; fixed a
+  boot-time race where `boot()` read pet state before the async load had applied.
+
 ## [0.8.0] — 2026-06-25 — Death & revival (health loop complete)
 
 ### Added

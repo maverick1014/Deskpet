@@ -21,9 +21,11 @@ const WORK_JOB = ['打零工', '清洁工', '店员', '程序员'];
 const SICK_TIER = { mild: 1, medium: 2, severe: 3 };
 
 // Growth: a freshly hatched pet starts as an egg/baby and becomes a full penguin
-// after this much total online time. (Tunable — lower it to test the hatch.)
-const GROW_SECONDS = 2 * 24 * 3600; // 2 days
+// after this much total online time.
+const GROW_SECONDS = 2 * 3600; // 2 hours
 const GENDER_COLOR = { boy: '#ff4d57', girl: '#ff8fce' }; // ribbon / scarf colour
+// Low-stakes idle behaviours that a deliberate action (feed/click/drag) interrupts.
+const IDLE_ACTIONS = { sit: 1, tv: 1, read: 1, music: 1, stretch: 1, look: 1, wait: 1, flap: 1, sneeze: 1, peck: 1, yawn: 1, preen: 1, doze: 1, wave: 1 };
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
@@ -101,8 +103,10 @@ export default class App extends React.Component {
     clearTimeout(this._greetT);
     clearTimeout(this._enterT);
     clearTimeout(this._restT);
+    clearTimeout(this._heartT);
     clearTimeout(this._hideHoverT);
     clearInterval(this._bathBub);
+    clearInterval(this._musicInt);
     window.removeEventListener('pointermove', this._onMove);
     window.removeEventListener('pointerup', this._onUp);
     window.removeEventListener('mousemove', this._onHover);
@@ -115,10 +119,10 @@ export default class App extends React.Component {
   async boot() {
     const st = await getStage();
     this.applyStage(st);
-    await this.load();
+    const loaded = await this.load();
     this.setState({ traits: traitLabel(this.personality) });
-    if (!this.state.gender) { this.setState({ onboard: 'gender', entering: false }); return; } // new pet → choose egg + name
-    if (this.state.dead) { this.setState({ entering: false }); return; } // dead pets show the revive overlay, no entrance
+    if (!loaded.gender) { this.setState({ onboard: 'gender', entering: false }); return; } // new pet → choose egg + name
+    if (loaded.dead) { this.setState({ entering: false }); return; } // dead pets show the revive overlay, no entrance
 
     // Entrance: the pet hops out of Doraemon's "Anywhere Door" on launch.
     this.p.action = 'enter'; this.p.busy = true;
@@ -136,18 +140,19 @@ export default class App extends React.Component {
 
   touch() { this._lastInteract = Date.now(); }
 
-  // Stand up from a sit (and cancel its timer). Cheap no-op otherwise.
+  // Interrupt a low-stakes idle behaviour (sit / leisure) back to idle. The
+  // leisure setTimeouts self-guard on `p.action`, so they no-op after this.
   stand() {
-    if (this.p.action === 'sit') {
+    if (IDLE_ACTIONS[this.p.action]) {
       clearTimeout(this._sitT);
       this.p.action = 'idle';
       this.p.busy = false;
     }
   }
-  // A deliberate action may interrupt a sit, but not a real busy animation
+  // A deliberate action may interrupt sit/leisure, but not a real busy animation
   // (eat / play / sleep mid-run). Returns true if the caller should bail.
   busyBlocked() {
-    if (this.p.action === 'sit') { this.stand(); return false; }
+    if (IDLE_ACTIONS[this.p.action]) { this.stand(); return false; }
     return this.p.busy;
   }
 
@@ -290,7 +295,7 @@ export default class App extends React.Component {
     if (this.state.energy < 12) { this.speak('太困了，想睡觉…😴', 2200, true); return; }
     this.touch();
     this.p.busy = true; this.p.action = 'study';
-    this.floatEmoji('📖', 3000); this.speak(pick(DIA.study), 2600, true);
+    this.bookProp(3000); this.speak(pick(DIA.study), 2600, true);
     setTimeout(() => {
       const need = STUDY_NEED[this.state.education] || 99;
       let study = this.state.study + 1;
@@ -314,7 +319,7 @@ export default class App extends React.Component {
     const weak = this._weakUntil && performance.now() < this._weakUntil; // post-revival weakness
     const pay = Math.round(WORK_PAY[edu] * (weak ? 0.7 : 1));
     this.p.busy = true; this.p.action = 'work';
-    this.floatEmoji('💼', 3200); this.speak(`${WORK_JOB[edu]}·${pick(DIA.work)}`, 2600, true);
+    this.briefcaseProp(3200); this.speak(`${WORK_JOB[edu]}·${pick(DIA.work)}`, 2600, true);
     setTimeout(() => {
       this.setState((s) => ({
         money: s.money + pay,
@@ -339,6 +344,227 @@ export default class App extends React.Component {
     setTimeout(() => el.remove(), dur + 80);
   }
 
+  // ---- leisure & idle micro-behaviours (the pet entertains itself) ---------
+  // An idle, content pet keeps itself busy: watches TV, reads, listens to music,
+  // stretches, or glances around — instead of nagging the owner.
+  startLeisure = () => {
+    if (this.busyBlocked()) return;
+    const kind = ['tv', 'read', 'music'][Math.floor(Math.random() * 3)];
+    this.p.busy = true; this.p.action = kind;
+    this.p.aStart = performance.now();
+    const dur = 6000 + Math.floor(Math.random() * 4000);
+    this.p.aDur = dur;
+    if (kind === 'tv') { this.p.facing = -1; this.tvProp(dur); }
+    else if (kind === 'read') this.bookProp(dur);
+    else { this.spawnNote(); clearInterval(this._musicInt); this._musicInt = setInterval(() => this.spawnNote(), 620); }
+    setTimeout(() => {
+      clearInterval(this._musicInt);
+      this.setState((s) => ({ happiness: Math.min(100, s.happiness + 5) })); // entertainment cheers it up
+      if (this.p.action === kind) { this.p.action = 'idle'; this.p.busy = false; }
+      this.recompute();
+    }, dur);
+  };
+  stretchAct = () => {
+    if (this.busyBlocked()) return;
+    this.p.busy = true; this.p.action = 'stretch';
+    this.p.aStart = performance.now(); this.p.aDur = 1800;
+    setTimeout(() => { if (this.p.action === 'stretch') { this.p.action = 'idle'; this.p.busy = false; } }, 1800);
+  };
+  lookAct = () => {
+    if (this.busyBlocked()) return;
+    this.p.busy = true; this.p.action = 'look';
+    this.p.aStart = performance.now(); this.p.aDur = 2000;
+    setTimeout(() => { if (this.p.action === 'look') { this.p.action = 'idle'; this.p.busy = false; } }, 2000);
+  };
+  // Misses the owner but knows they're busy — sits and waits patiently, like a
+  // good child, with a little heart drifting up (no nagging).
+  waitAct = () => {
+    if (this.busyBlocked()) return;
+    this.p.busy = true; this.p.action = 'wait';
+    this.p.aStart = performance.now(); this.p.aDur = 6000;
+    this.heartProp();
+    if (Math.random() < 0.6) this.speak(pick(DIA.miss), 3200, true);
+    clearTimeout(this._heartT);
+    this._heartT = setTimeout(() => { if (this.p.action === 'wait') this.heartProp(); }, 3200);
+    setTimeout(() => { if (this.p.action === 'wait') { this.p.action = 'idle'; this.p.busy = false; } }, 6000);
+  };
+
+  // ---- drawn props (canvas/CSS, no emoji) ----------------------------------
+  // A small TV beside the pet, flickering through channels.
+  tvProp(dur) {
+    const layer = this.partRef.current;
+    if (!layer) return;
+    const el = document.createElement('div');
+    el.style.cssText = 'position:absolute;left:-30px;top:72px;width:34px;height:33px;z-index:4;pointer-events:none;';
+    el.innerHTML =
+      '<div style="position:absolute;left:6px;top:-7px;width:2px;height:9px;background:#161b3d;transform:rotate(-28deg);transform-origin:bottom"></div>' +
+      '<div style="position:absolute;right:6px;top:-7px;width:2px;height:9px;background:#161b3d;transform:rotate(28deg);transform-origin:bottom"></div>' +
+      '<div style="position:absolute;left:0;bottom:0;width:34px;height:26px;border-radius:5px;background:#2a3160;border:2px solid #161b3d;box-shadow:0 3px 0 rgba(34,42,85,.22)">' +
+      '<div style="position:absolute;left:3px;top:3px;right:3px;bottom:3px;border-radius:2px;animation:tvFlicker .5s steps(1,end) infinite"></div></div>';
+    layer.appendChild(el);
+    setTimeout(() => el.remove(), dur + 120);
+  }
+  // An open book held in front of the pet, one page gently turning.
+  bookProp(dur) {
+    const layer = this.partRef.current;
+    if (!layer) return;
+    const el = document.createElement('div');
+    el.style.cssText = 'position:absolute;left:34px;top:84px;width:44px;height:26px;z-index:6;pointer-events:none;animation:hintBob 1.4s ease-in-out infinite;';
+    el.innerHTML =
+      '<div style="position:absolute;left:0;bottom:0;width:22px;height:24px;background:#fff;border:2px solid #222a55;border-radius:4px 1px 1px 4px;transform:perspective(80px) rotateY(20deg);transform-origin:right center"></div>' +
+      '<div style="position:absolute;right:0;bottom:0;width:22px;height:24px;background:#fff;border:2px solid #222a55;border-radius:1px 4px 4px 1px;transform-origin:left center;animation:pageTurn 2.4s ease-in-out infinite"></div>' +
+      '<div style="position:absolute;left:7px;bottom:14px;width:8px;height:2px;background:#c2c8e0"></div>' +
+      '<div style="position:absolute;left:7px;bottom:9px;width:6px;height:2px;background:#c2c8e0"></div>' +
+      '<div style="position:absolute;right:7px;bottom:14px;width:8px;height:2px;background:#c2c8e0"></div>' +
+      '<div style="position:absolute;right:7px;bottom:9px;width:6px;height:2px;background:#c2c8e0"></div>';
+    layer.appendChild(el);
+    setTimeout(() => el.remove(), dur + 100);
+  }
+  // A briefcase the pet carries while working.
+  briefcaseProp(dur) {
+    const layer = this.partRef.current;
+    if (!layer) return;
+    const el = document.createElement('div');
+    el.style.cssText = 'position:absolute;left:16px;top:88px;width:28px;height:22px;z-index:6;pointer-events:none;animation:hintBob 1.1s ease-in-out infinite;';
+    el.innerHTML =
+      '<div style="position:absolute;left:9px;top:0;width:10px;height:6px;border:2px solid #6b4a2a;border-bottom:none;border-radius:4px 4px 0 0"></div>' +
+      '<div style="position:absolute;left:0;bottom:0;width:28px;height:17px;border-radius:3px;background:#b9763f;border:2px solid #6b4a2a;box-shadow:0 2px 0 rgba(34,42,85,.2)">' +
+      '<div style="position:absolute;left:50%;top:2px;bottom:2px;width:2px;margin-left:-1px;background:#6b4a2a"></div></div>';
+    layer.appendChild(el);
+    setTimeout(() => el.remove(), dur + 100);
+  }
+  // A single music note drifting up (called repeatedly while listening).
+  spawnNote() {
+    const layer = this.partRef.current;
+    if (!layer) return;
+    const el = document.createElement('div');
+    const x = 58 + Math.floor(Math.random() * 22 - 8);
+    const nx = Math.floor(Math.random() * 16 - 2);
+    el.style.cssText = 'position:absolute;left:' + x + 'px;top:28px;width:9px;height:12px;z-index:6;pointer-events:none;--nx:' + nx + 'px;animation:noteRise 1.3s ease-out forwards;';
+    el.innerHTML = '<div style="position:absolute;left:0;bottom:0;width:7px;height:7px;border-radius:50%;background:#5a6acf"></div>' +
+      '<div style="position:absolute;left:5px;top:0;width:2px;height:9px;background:#5a6acf"></div>';
+    layer.appendChild(el);
+    setTimeout(() => el.remove(), 1400);
+  }
+  // A heart floating up (miss / love), tinted to the pet's gender colour.
+  heartProp() {
+    const layer = this.partRef.current;
+    if (!layer) return;
+    const col = GENDER_COLOR[this.state.gender] || '#ff5a7a';
+    const el = document.createElement('div');
+    const x = 54 + Math.floor(Math.random() * 16 - 6);
+    const hx = Math.floor(Math.random() * 12 - 4);
+    el.style.cssText = 'position:absolute;left:' + x + 'px;top:16px;width:16px;height:15px;z-index:7;pointer-events:none;--hx:' + hx + 'px;animation:heartFloat 1.6s ease-out forwards;';
+    el.innerHTML = '<div style="position:absolute;left:0;top:0;width:9px;height:9px;border-radius:50%;background:' + col + '"></div>' +
+      '<div style="position:absolute;right:0;top:0;width:9px;height:9px;border-radius:50%;background:' + col + '"></div>' +
+      '<div style="position:absolute;left:2px;top:3px;width:12px;height:12px;background:' + col + ';transform:rotate(45deg);border-radius:0 0 3px 0"></div>';
+    layer.appendChild(el);
+    setTimeout(() => el.remove(), 1700);
+  }
+  // A little puff of air bursting from the beak when it sneezes.
+  sneezeProp() {
+    const layer = this.partRef.current;
+    if (!layer) return;
+    const dir = this.p.facing;
+    for (let i = 0; i < 5; i++) {
+      const el = document.createElement('div');
+      const dx = dir * (22 + Math.random() * 26);
+      const dy = (Math.random() - 0.5) * 24;
+      const sz = 4 + Math.random() * 5;
+      el.style.cssText = 'position:absolute;left:' + (dir > 0 ? 76 : 32) + 'px;top:46px;width:' + sz.toFixed(0) + 'px;height:' + sz.toFixed(0) + 'px;border-radius:50%;background:rgba(208,224,255,.9);z-index:6;pointer-events:none;--dx:' + dx.toFixed(0) + 'px;--dy:' + dy.toFixed(0) + 'px;animation:partPop .5s ease-out forwards;';
+      layer.appendChild(el);
+      setTimeout(() => el.remove(), 520);
+    }
+  }
+
+  // ---- expressive one-shots (autonomous or on interaction) -----------------
+  flapAct = () => {
+    if (this.busyBlocked()) return;
+    this.p.busy = true; this.p.action = 'flap';
+    this.p.aStart = performance.now(); this.p.aDur = 1500;
+    setTimeout(() => { if (this.p.action === 'flap') { this.p.action = 'idle'; this.p.busy = false; } }, 1500);
+  };
+  sneezeAct = () => {
+    if (this.busyBlocked()) return;
+    this.p.busy = true; this.p.action = 'sneeze';
+    this.p.aStart = performance.now(); this.p.aDur = 950;
+    setTimeout(() => { if (this.p.action === 'sneeze') { this.sneezeProp(); this.sfx('chirp'); } }, 520); // achoo!
+    if (Math.random() < 0.4) this.speak('啊…啊嚏！🤧', 1700, true);
+    setTimeout(() => { if (this.p.action === 'sneeze') { this.p.action = 'idle'; this.p.busy = false; } }, 950);
+  };
+  loveReact = () => {
+    this.p.busy = true; this.p.action = 'love';
+    this.p.aStart = performance.now(); this.p.aDur = 1400;
+    this.heartProp();
+    clearTimeout(this._heartT);
+    this._heartT = setTimeout(() => { if (this.p.action === 'love') this.heartProp(); }, 420);
+    setTimeout(() => { if (this.p.action === 'love') this.heartProp(); }, 820);
+    this.setState((s) => ({ happiness: Math.min(100, s.happiness + 6) }));
+    this.sfx('chirp');
+    setTimeout(() => { if (this.p.action === 'love') { this.p.action = 'idle'; this.p.busy = false; } }, 1400);
+  };
+  startSlide = () => {
+    if (this.p.busy || this.p.action !== 'idle' || this.minX == null) return;
+    const span = this.maxX - this.minX;
+    const target = this.p.x + (Math.random() < 0.5 ? -1 : 1) * span * (0.35 + Math.random() * 0.4);
+    this.p.tx = clamp(target, this.minX, this.maxX);
+    this.p.y = this.ground;
+    this.p.action = 'slide';
+    this.p.speed = 132; // whee — faster than a waddle
+  };
+  peckAct = () => {
+    if (this.busyBlocked()) return;
+    this.p.busy = true; this.p.action = 'peck';
+    this.p.aStart = performance.now(); this.p.aDur = 2200;
+    this.crumbProp(2200);
+    setTimeout(() => { if (this.p.action === 'peck') { this.p.action = 'idle'; this.p.busy = false; } }, 2200);
+  };
+  yawnAct = () => {
+    if (this.busyBlocked()) return;
+    this.p.busy = true; this.p.action = 'yawn';
+    this.p.aStart = performance.now(); this.p.aDur = 1700;
+    setTimeout(() => { if (this.p.action === 'yawn') { this.p.action = 'idle'; this.p.busy = false; } }, 1700);
+  };
+  preenAct = () => {
+    if (this.busyBlocked()) return;
+    this.p.busy = true; this.p.action = 'preen';
+    this.p.aStart = performance.now(); this.p.aDur = 2400;
+    setTimeout(() => this.featherProp(), 700);
+    setTimeout(() => { if (this.p.action === 'preen') { this.p.action = 'idle'; this.p.busy = false; } }, 2400);
+  };
+  dozeAct = () => {
+    if (this.busyBlocked()) return;
+    this.p.busy = true; this.p.action = 'doze';
+    this.p.aStart = performance.now(); this.p.aDur = 1700;
+    setTimeout(() => { if (this.p.action === 'doze') { this.p.action = 'idle'; this.p.busy = false; } }, 1700);
+  };
+  waveAct = () => {
+    if (this.busyBlocked()) return;
+    this.p.busy = true; this.p.action = 'wave';
+    this.p.aStart = performance.now(); this.p.aDur = 1400;
+    setTimeout(() => { if (this.p.action === 'wave') { this.p.action = 'idle'; this.p.busy = false; } }, 1400);
+  };
+  // A small downy feather drifting down as the pet preens.
+  featherProp() {
+    const layer = this.partRef.current;
+    if (!layer) return;
+    const el = document.createElement('div');
+    const x = 48 + Math.floor(Math.random() * 18 - 9);
+    const fx = Math.floor(Math.random() * 16 - 8);
+    el.style.cssText = 'position:absolute;left:' + x + 'px;top:58px;width:5px;height:9px;border-radius:50% 50% 50% 50% / 62% 62% 40% 40%;background:rgba(255,255,255,.92);border:1px solid #cfd5e6;z-index:6;pointer-events:none;--dx:' + fx + 'px;--dy:30px;animation:partPop 1.5s ease-in forwards;';
+    layer.appendChild(el);
+    setTimeout(() => el.remove(), 1600);
+  }
+  // A tiny crumb on the ground in front of the beak, pecked away by the end.
+  crumbProp(dur) {
+    const layer = this.partRef.current;
+    if (!layer) return;
+    const el = document.createElement('div');
+    el.style.cssText = 'position:absolute;left:' + (this.p.facing > 0 ? 84 : 23) + 'px;top:97px;width:5px;height:4px;border-radius:2px;background:#a3793f;z-index:6;pointer-events:none;';
+    layer.appendChild(el);
+    setTimeout(() => el.remove(), Math.max(300, dur - 250));
+  }
+
   // ---- screen geometry / walk bounds --------------------------------------
   // p.x / p.y is the WINDOW's top-left. The penguin is centered in the window,
   // offset by (offX, offY). We clamp so the PENGUIN stays inside the work area
@@ -358,7 +584,10 @@ export default class App extends React.Component {
     if (this.ground == null) this.ground = this.maxY;
     else this.ground = clamp(this.ground, this.minY, this.maxY);
     if (!this._placed) {
+      // First-ever spawn: appear in the CENTRE of the screen (not tucked at the
+      // bottom). The pet roams along this height until you drag it elsewhere.
       this.p.x = clamp(this.work.x + this.work.width / 2 - this.WIN_W / 2, this.minX, this.maxX);
+      this.ground = clamp(this.work.y + this.work.height / 2 - this.PEN_H / 2 - this.offY, this.minY, this.maxY);
       this.p.y = this.ground;
       this.p.tx = this.p.x;
       this._placed = true;
@@ -389,6 +618,11 @@ export default class App extends React.Component {
   onHover(e) {
     const pen = this.penRef.current;
     if (!pen) return;
+    // An idle pet turns to watch the cursor as it moves around the window.
+    if (this.p.action === 'idle' && !this.p.dragging && this.isGrown()) {
+      const r0 = pen.getBoundingClientRect();
+      this.p.facing = e.clientX < (r0.left + r0.right) / 2 ? -1 : 1;
+    }
     const pad = 8;
     const inRect = (r) => !!r && e.clientX >= r.left - pad && e.clientX <= r.right + pad &&
       e.clientY >= r.top - pad && e.clientY <= r.bottom + pad;
@@ -396,7 +630,13 @@ export default class App extends React.Component {
     if (!over && (this.state.hover || this.state.shopCat) && this.hoverRef.current) over = inRect(this.hoverRef.current.getBoundingClientRect());
     if (over) {
       if (this._hideHoverT) { clearTimeout(this._hideHoverT); this._hideHoverT = null; }
-      if (!this._overPen) { this._overPen = true; this.refreshInteractive(); }
+      if (!this._overPen) {
+        this._overPen = true; this.refreshInteractive();
+        // greet the owner with a wave when the cursor first comes near (debounced)
+        if (this.p.action === 'idle' && this.isGrown() && performance.now() > (this._waveCD || 0)) {
+          this._waveCD = performance.now() + 16000; this.waveAct();
+        }
+      }
       if (!this.state.hover) { if (this.p.action === 'walk') this.endWalk(); this.setState({ hover: true }); }
     } else {
       if (this._overPen) { this._overPen = false; this.refreshInteractive(); }
@@ -416,8 +656,8 @@ export default class App extends React.Component {
     const idle = [
       '......DDDD......', '....DDDDDDDD....', '...DDDDDDDDDD...', '..DDDDDDDDDDDD..',
       '..DDLLLLLLLLDD..', '..DLLLLLLLLLLD..', '..DLLELLLLELLD..', '..DLCLLOOLLCLD..',
-      '..DLLLLLLLLLLD..', '..DDLLLLLLLLDD..', '...SSSSSSSSSS...', '..DDLLLLLLLLDD..',
-      '..DLLLLLLLLLLD..', '..DDLLLLLLLLDD..', '...DDLLLLLLDD...', '....OO....OO....',
+      '..DLLLLLLLLLLD..', '..DDLLLLLLLLDD..', '...SSSSSSSSSS...', '..DDDLLLLLLDDD..',
+      '..DDDLLLLLLDDD..', '..DDDLLLLLLDDD..', '...DDLLLLLLDD...', '....OO....OO....',
     ];
     const sw = (g, reps) => { const c = g.slice(); for (const r of reps) c[r[0]] = r[1]; return c; };
     this.CLOSED = '..DLEELLLLEELD..';
@@ -429,6 +669,8 @@ export default class App extends React.Component {
       sad: sw(idle, [[7, '..DLCTLOOLLCLD..'], [8, '..DLLTLLLLLLLD..']]),
       sleepy: sw(idle, [[6, this.CLOSED]]),
       eat: sw(idle, [[5, '..DLLELLLLELLD..'], [6, '..DLELELLELELD..'], [8, '..DLLLLOOLLLLD..']]),
+      love: sw(idle, [[5, '..DLLCCLLCCLLD..'], [6, '..DLLCCLLCCLLD..'], [8, '..DLLLLOOLLLLD..']]), // heart eyes + smile
+      yawn: sw(idle, [[6, this.CLOSED], [7, '..DLLLEEEELLLD..'], [8, '..DLLLEEEELLLD..']]), // shut eyes + wide open mouth
     };
     // Egg / baby stage: a head poking out of a cracked egg — shell cap on top,
     // egg shell as the lower body, with a gender-coloured ribbon band (R).
@@ -507,20 +749,20 @@ export default class App extends React.Component {
     }
 
     // Horizontal walk = move the window across the screen (every frame).
-    if (p.action === 'walk') {
+    if (p.action === 'walk' || p.action === 'slide') {
       const dir = Math.sign(p.tx - p.x) || 1;
       p.facing = dir < 0 ? -1 : 1;
       p.x += dir * p.speed * sp * dt / 1000;
       if (Math.abs(p.tx - p.x) < 2 || p.x <= this.minX || p.x >= this.maxX) {
         p.x = clamp(p.x, this.minX, this.maxX);
-        this.endWalk();
+        if (p.action === 'walk') this.endWalk(); else { p.action = 'idle'; }
       }
       this.pushWindow();
     }
 
     // Idle FPS throttle: only redraw at ~18fps when nothing is animating, full
     // rate while walking/playing/blinking/dragging. Saves CPU on an always-on app.
-    const lowKey = p.action === 'idle' || p.action === 'weak' || p.action === 'sit' || p.action === 'dead';
+    const lowKey = p.action === 'idle' || p.action === 'weak' || p.action === 'sit' || p.action === 'dead' || p.action === 'wait';
     const animating = !lowKey || p.blinkOn || p.dragging;
     if (animating || t - (this._lastDraw || 0) >= 55) {
       this._lastDraw = t;
@@ -564,14 +806,18 @@ export default class App extends React.Component {
     else if (p.action === 'sit') face = this.G.happy;
     else if (p.action === 'weak') face = this.G.sad;
     else if (p.action === 'work') face = this.G.happy;
-    else if (p.action === 'study') face = this.G.idle;
+    else if (p.action === 'love') face = this.G.love;        // heart eyes
+    else if (p.action === 'yawn') face = this.G.yawn;        // shut eyes + open mouth
+    else if (p.action === 'doze') face = this.G.sleepy;      // drowsy half-closed eyes
+    else if (p.action === 'tv' || p.action === 'music' || p.action === 'stretch' || p.action === 'flap' || p.action === 'slide' || p.action === 'wave') face = this.G.happy;
+    else if (p.action === 'study' || p.action === 'read' || p.action === 'look' || p.action === 'wait' || p.action === 'sneeze' || p.action === 'peck' || p.action === 'preen') face = this.G.idle;
     else if (p.action === 'enter') face = this.G.happy;
     else if (p.action === 'eat') face = (Math.floor(t / 170) % 2 ? this.G.eat : this.G.idle);
     else {
       const m = this.state.mood;
       if (m === 'sad') face = this.G.sad;
       else if (m === 'tired') face = this.G.sleepy;
-      else if (m === 'playful') face = this.G.happy;
+      else if (m === 'playful' || m === 'cheerful') face = this.G.happy; // high happiness → smiley
       else face = this.G.idle;
     }
 
@@ -607,11 +853,31 @@ export default class App extends React.Component {
     if (p.action === 'weak') { sy = 0.6; jy = -16 + Math.sin(t / 650) * 1.5; tilt = 5 * p.facing; } // slumped, too hungry
     if (p.action === 'sleep') { tilt = -12; jy = -10; }
     if (p.action === 'dead') { tilt = 90 * p.facing; jy = -28; }  // toppled over on the ground
+    if (p.action === 'tv') { jy = Math.sin(t / 520) * 2; sy = 0.92; }                              // relaxed, watching
+    if (p.action === 'read') { jy = Math.sin(t / 340) * 3; tilt = 4; }                             // reading nod
+    if (p.action === 'music') { rot = Math.sin(t / 210) * 5; jy = Math.abs(Math.sin(t / 300)) * 3; } // swaying to the beat
+    if (p.action === 'stretch') { let pr = (t - p.aStart) / p.aDur; if (pr > 1) pr = 1; sy = 1 + Math.sin(pr * Math.PI) * 0.24; jy = Math.sin(pr * Math.PI) * 5; } // a big yawny stretch
+    if (p.action === 'wait') { sy = 0.88; jy = -7; tilt = -5 + Math.sin(t / 700) * 2; } // sitting, looking up hopefully
+    if (p.action === 'flap') { sy = 1 + Math.sin(t / 55) * 0.12; jy = Math.abs(Math.sin(t / 110)) * 7; } // excited wing-flapping
+    if (p.action === 'love') { let pr = (t - p.aStart) / p.aDur; if (pr > 1) pr = 1; jy = Math.abs(Math.sin(pr * Math.PI * 2)) * 15; sy = 1 + Math.sin(pr * Math.PI * 4) * 0.06; } // happy adored bounce
+    if (p.action === 'slide') { tilt = 70 * p.facing; jy = -22; }  // prone, sliding on its belly
+    if (p.action === 'peck') { const ph = Math.abs(Math.sin((t - p.aStart) / 150)); tilt = 20 * ph * p.facing; jy = -ph * 6; } // dipping to peck the ground
+    if (p.action === 'yawn') { let pr = (t - p.aStart) / p.aDur; if (pr > 1) pr = 1; tilt = -9 * Math.sin(pr * Math.PI) * p.facing; jy = Math.sin(pr * Math.PI) * 4; } // leans back for a big yawn
+    if (p.action === 'preen') { tilt = (10 + Math.sin(t / 90) * 7) * p.facing; jy = -2; } // leans to its side, nibbling its feathers
+    if (p.action === 'doze') { const cyc = ((t - p.aStart) / 800) % 1; const droop = cyc < 0.85 ? cyc / 0.85 : 0; tilt = droop * 16 * p.facing; jy = -droop * 8; } // head sinks… then jerks awake
+    if (p.action === 'wave') { rot = Math.sin(t / 110) * 16; jy = Math.abs(Math.sin(t / 220)) * 5; } // cheery side-to-side hello
+    if (p.action === 'sneeze') {
+      let pr = (t - p.aStart) / p.aDur; if (pr > 1) pr = 1;
+      tilt = (pr < 0.55 ? -(pr / 0.55) : (1 - (pr - 0.55) / 0.45)) * 15 * p.facing; // lean back… then ACHOO forward
+      jy = pr < 0.55 ? -3 : 4;
+    }
+    let faceX = p.facing;
+    if (p.action === 'look') { faceX = Math.sin((t - p.aStart) / 170) >= 0 ? 1 : -1; rot = Math.sin((t - p.aStart) / 170) * 4; } // glancing around
     const bob = p.action === 'walk' ? -Math.abs(Math.sin(t / 110)) * 4 : (p.action === 'idle' ? Math.sin(t / 720) * 2 : 0);
 
     if (this.spriteRef.current) {
       this.spriteRef.current.style.transform =
-        `translateY(${(bob - jy).toFixed(1)}px) rotate(${(tilt + rot).toFixed(1)}deg) scaleX(${p.facing}) scaleY(${sy.toFixed(3)})`;
+        `translateY(${(bob - jy).toFixed(1)}px) rotate(${(tilt + rot).toFixed(1)}deg) scaleX(${faceX}) scaleY(${sy.toFixed(3)})`;
       this.spriteRef.current.style.filter = p.action === 'dead' ? 'grayscale(1) brightness(1.25)' : 'none';
       this.spriteRef.current.style.opacity = p.action === 'dead' ? '0.65' : '1';
     }
@@ -629,8 +895,10 @@ export default class App extends React.Component {
     if (s.fullness < 25) return 'sad';   // very hungry
     if (s.energy < 30) return 'tired';
     if (this.p.playfulUntil && Date.now() < this.p.playfulUntil) return 'playful';
-    if (s.happiness < 30) return 'sad';  // unhappy
-    if (this.p.action === 'idle' && this._lastInteract && Date.now() - this._lastInteract > 25000) return 'bored';
+    if (s.happiness < 25) return 'sad';      // genuinely unhappy
+    if (s.happiness >= 60) return 'cheerful'; // high happiness → big smile
+    // only looks "bored" after being ignored for a good while (it entertains itself)
+    if (this.p.action === 'idle' && this._lastInteract && Date.now() - this._lastInteract > 90000) return 'bored';
     return 'happy';
   }
   recompute() { this.setState((s) => ({ mood: this.calcMood(s) })); }
@@ -724,9 +992,29 @@ export default class App extends React.Component {
           if (this.state.sick) {
             // unwell: mostly rest, only the occasional slow shuffle
             if (roll < 0.18) this.startWalk(); else if (roll > 0.5) this.sitAct();
-          } else if (roll < 0.42 + L / 280) this.startWalk();
-          else if (L > 55 && this.state.energy > 55 && roll > 0.93) this.ballAct();
-          else if (roll > 0.62 && this.state.energy < 92) this.sitAct();
+          } else if (!this.isGrown()) {
+            // baby: toddle / sit / play ball
+            if (roll < 0.42) this.startWalk(); else if (roll > 0.78) this.ballAct(); else this.sitAct();
+          } else {
+            // grown: a varied mix so it always looks busy doing its own thing —
+            // wander, watch TV / read / listen to music, stretch, glance around, sit.
+            // After a long stretch with no owner interaction, it quietly misses you.
+            const awayLong = Date.now() - (this._lastInteract || 0) > 90000;
+            if (awayLong && roll < 0.20) this.waitAct();          // miss the owner, wait patiently
+            else if (roll < 0.16) this.startSlide();              // belly slide — whee!
+            else if (roll < 0.40) this.startLeisure();            // TV / read / music
+            else if (roll < 0.52) this.startWalk();
+            else if (roll < 0.61) this.stretchAct();              // yawny stretch
+            else if (roll < 0.67) this.lookAct();                 // glance around
+            else if (roll < 0.73) this.flapAct();                 // happy wing-flap
+            else if (roll < 0.78) this.peckAct();                 // peck at the ground
+            else if (roll < 0.80) this.sneezeAct();               // achoo!
+            else if (this.state.energy < 45 && roll < 0.84) this.dozeAct(); // nodding off
+            else if (this.state.energy < 60 && roll < 0.86) this.yawnAct(); // sleepy yawn
+            else if (roll < 0.90) this.preenAct();                // groom feathers
+            else if (this.state.energy > 60 && roll < 0.95) this.ballAct();
+            else this.sitAct();
+          }
         }
       }
     }
@@ -757,18 +1045,18 @@ export default class App extends React.Component {
     const s = this.state;
     if (this.p.busy || this.p.action !== 'idle' || this.p.dragging || s.hover || s.menu || s.settingsOpen) return;
     const since = Date.now() - (this._lastInteract || 0);
-    if (since < 18000) return;
-    const P = this.personality;
-    const chance = 0.1 + P.liveliness / 700 + P.attachment / 1000;
-    if (Math.random() > chance) return;
-    let pool = DIA.bored;
+    if (since < 30000) return;
+    // It's an idle companion that mostly keeps to itself, so it only speaks up for
+    // a real need (hungry / dirty / tired / sick) — no needy "where'd you go?".
+    let pool = null;
     if (s.sick) pool = DIA.sick;
     else if (s.fullness < 30) pool = DIA.hungry;
     else if (s.cleanliness <= 25) pool = DIA.dirty;
     else if (s.energy < 30) pool = DIA.sleepy;
-    else if (s.happiness < 30) pool = DIA.unhappy;
-    else if (P.attachment > 60 && since > 40000) pool = DIA.lonely;
-    if (!this.isGrown() && pool === DIA.bored) pool = DIA.baby; // childish babble when content
+    else if (!this.isGrown()) pool = DIA.baby; // a baby still babbles
+    if (!pool) return;                          // content & grown → stay quiet, do its own thing
+    const chance = 0.08 + this.personality.liveliness / 1400;
+    if (Math.random() > chance) return;
     this.speak(pick(pool));
   }
 
@@ -939,9 +1227,11 @@ export default class App extends React.Component {
     this.touch();
     this.sfx('chirp');
     this.stand();
-    if (this.p.action === 'walk') this.p.action = 'idle';
+    if (this.p.action === 'walk' || this.p.action === 'slide') this.p.action = 'idle';
     // Too hungry to perk up — just plead for food (the care panel shows on hover).
     if (this.p.action === 'weak' || this.state.fullness < 20) { this.speak(pick(DIA.weak), 2200, true); return; }
+    // A happy, grown pet adores being petted → heart-eyes instead of a line.
+    if (this.isGrown() && this.state.happiness >= 60 && Math.random() < 0.5) { this.loveReact(); return; }
     const P = this.personality;
     const pool = P.liveliness > 65 ? DIA.clickLively : (P.courage < 35 ? DIA.clickShy : DIA.click);
     this.speak(pick(pool), 2000, true);
@@ -955,7 +1245,7 @@ export default class App extends React.Component {
     p.dragging = true;
     this.touch();
     this.stand();
-    if (p.action === 'walk') p.action = 'idle';
+    if (p.action === 'walk' || p.action === 'slide') p.action = 'idle';
     if (this.state.hover || this.state.shopCat) this.setState({ hover: false, hoverStat: null, shopCat: null }); // don't drag the panel around
     this.refreshInteractive();
     if (this.penRef.current) this.penRef.current.style.cursor = 'grabbing';
@@ -1057,14 +1347,13 @@ export default class App extends React.Component {
     let d = null;
     try { d = await loadState(); } catch (e) { /* ignore */ }
     this.personality = normPersonality(d && d.personality);
-    if (!d) { this.setState({ loaded: true }); return; } // brand-new pet → onboarding (boot)
+    if (!d) { this.setState({ loaded: true }); return { gender: null, dead: false }; } // brand-new pet → onboarding (boot)
     const st = {};
     ['fullness', 'energy', 'cleanliness', 'happiness', 'health', 'sick', 'dead', 'education', 'study', 'gender', 'playTime', 'money', 'mood', 'name', 'volume', 'speed', 'opacity'].forEach((k) => {
       if (d[k] != null) st[k] = d[k];
     });
-    // Pre-onboarding saves (existing pets) had no gender → treat as an already-
-    // grown boy so they keep their pet instead of being sent back to an egg.
-    if (st.gender == null) { st.gender = 'boy'; if (st.playTime == null) st.playTime = GROW_SECONDS; }
+    // No gender saved → this pet hasn't been onboarded (fresh install or a
+    // pre-onboarding save), so boot() will show the egg-choice + name screen.
     this._wasGrown = (st.playTime != null ? st.playTime : 0) >= GROW_SECONDS;
     // A pet that died stays dead across restarts (revive / restart from the overlay).
     if (st.dead) { this.p.action = 'dead'; this.p.busy = true; }
@@ -1086,6 +1375,7 @@ export default class App extends React.Component {
     this.pushWindow(true);
     st.loaded = true;
     this.setState(st, () => { this.recompute(); this.save(); });
+    return { gender: st.gender, dead: !!st.dead };
   }
   save() {
     const s = this.state;

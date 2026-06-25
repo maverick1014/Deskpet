@@ -12,24 +12,20 @@ const ipc = require('./src/main/ipcHandlers');
 
 let win = null;
 
-// Place the pet standing on the "floor" — bottom-centre of the usable work
-// area, which excludes the macOS Dock / Windows taskbar (taskbar avoidance).
-// The penguin (≈130px) is CENTERED in the window, so its feet sit
-// (WINDOW.height - 130) / 2 above the window's bottom. Offset the initial
-// placement by that margin so the pet starts on the floor, not mid-air. The
-// window's transparent lower margin extends below the work area (off-screen),
-// which is fine — the renderer keeps the penguin itself inside the work area.
-function groundPosition() {
+// Initial window placement: centre of the usable work area, so a fresh pet (and
+// the onboarding screen) appears in the middle of the display. The renderer takes
+// over positioning immediately — a returning pet jumps to its saved spot, and the
+// penguin is always re-clamped inside the work area.
+function spawnPosition() {
   const wa = screen.getPrimaryDisplay().workArea;
-  const footMargin = (WINDOW.height - 130) / 2;
   return {
     x: Math.round(wa.x + wa.width / 2 - WINDOW.width / 2),
-    y: Math.round(wa.y + wa.height - footMargin - 130),
+    y: Math.round(wa.y + wa.height / 2 - WINDOW.height / 2),
   };
 }
 
 function createWindow() {
-  const pos = groundPosition();
+  const pos = spawnPosition();
 
   win = new BrowserWindow({
     x: pos.x,

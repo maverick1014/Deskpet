@@ -9,6 +9,13 @@ For the dated history of changes, see [`CHANGELOG.md`](./CHANGELOG.md).
 
 ## ✅ Done
 
+### Onboarding & growth
+- [x] **Onboarding** — pick an egg (男孩 red / 女孩 pink ribbon) → name the pet
+- [x] **Egg → penguin growth** — starts as a baby in a cracked egg, hatches into a
+      full penguin after **2 days of online time** (tunable `GROW_SECONDS`)
+- [x] **Boy/girl appearance** — red vs pink ribbon (egg) / scarf (penguin)
+- [x] **Baby limits** — only plays ball; no 上学/上班 until grown; childish babble
+
 ### Core — the "alive" pet
 - [x] QQ宠物-style pet: small, frameless, transparent, always-on-top window that
       walks around the desktop
@@ -34,6 +41,14 @@ For the dated history of changes, see [`CHANGELOG.md`](./CHANGELOG.md).
 - [x] **Weak state** — starving pet half-collapses on the ground (走不了), pleads for food
 - [x] **Dirty state** — low cleanliness shows grimy body + buzzing 🪰 flies
 - [x] Actions with animations: 玩球, 打羽毛球, 坐下, 洗澡, 上学, 上班
+- [x] **Self-entertaining idle behaviours** (does its own thing instead of nagging):
+      watch TV, read, listen to music, stretch/yawn, glance around — all with
+      **hand-drawn props** (TV / open book / music notes / briefcase / heart), no emoji
+- [x] **Patiently misses the owner** — waits like a good child with a little heart,
+      never nagging ("主人在忙吧，我乖乖等~")
+- [x] **Smiley face when happy**; only speaks up for real needs (not "where'd you go?")
+- [x] **Growing animation set** (added 1-by-1): belly-slide, wing-flap, sneeze,
+      heart-eyes-on-pet, watches-cursor, peck-at-ground … (more on the way)
 - [x] **24/7 idle-pet pacing** (~2.5–3h to hungry) + offline decay capped at 20% (never returns sick)
 
 ### Economy

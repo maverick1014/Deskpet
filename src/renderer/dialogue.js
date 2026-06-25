@@ -33,6 +33,8 @@ export const DIA = {
   // egg / baby stage — childish chatter
   baby: ['咿呀咿呀~', '蛋壳暖暖的…🥚', '我还小小的~', '咕~ 咕~', '想快快长大！', '*在蛋里翻身*'],
   tooYoung: ['我还在蛋里呢，长大再说嘛~ 🥚', '等我长大才可以哦~', '人家还小啦…'],
+  // patiently missing the owner (knows you're busy — a good child who waits)
+  miss: ['主人在忙吧，我乖乖等~', '想你了，不过没关系，我等你~', '我会做个乖孩子等你的', '等你忙完一起玩呀~', '我在这儿等你哦~'],
 };
 
 export function pick(arr) {
