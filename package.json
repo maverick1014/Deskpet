@@ -1,0 +1,29 @@
+{
+  "name": "qq-penguin",
+  "version": "1.0.0",
+  "description": "Pengu — an interactive penguin desktop pet (Electron + React + Canvas 2D + SQLite)",
+  "author": "Maverick",
+  "license": "MIT",
+  "main": "main.js",
+  "scripts": {
+    "build:renderer": "esbuild src/renderer/main.jsx --bundle --outfile=src/dist/renderer.js --format=iife --sourcemap --loader:.jsx=jsx",
+    "watch:renderer": "esbuild src/renderer/main.jsx --bundle --outfile=src/dist/renderer.js --format=iife --sourcemap --loader:.jsx=jsx --watch",
+    "start": "npm run build:renderer && electron .",
+    "smoke": "npm run build:renderer && cross-env-shell PENGU_SMOKE=1 electron .",
+    "dist": "npm run build:renderer && electron-builder",
+    "postinstall": "node scripts/rebuild.js"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "optionalDependencies": {
+    "better-sqlite3": "^11.3.0"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^3.6.0",
+    "electron": "^31.3.1",
+    "electron-builder": "^24.13.3",
+    "esbuild": "^0.23.0"
+  }
+}
