@@ -23,6 +23,14 @@ row-swaps stored in `this.G`, and animation is grid-swapping + sprite transforms
    elements drawn in the same style. The owner explicitly does not want a popup
    board that plays separately from the pet.
 
+4. **Use the `pixel-art` skill for EVERY animation / pixel-art change.** Before
+   wiring any new or edited sprite, pose, expression, scene, or game piece into
+   the code, you MUST follow `.claude/skills/pixel-art/SKILL.md`: author it as an
+   ASCII grid, **render it to a PNG with `.claude/skills/pixel-art/render_grid.py`,
+   open the PNG, and visually self-check** that the silhouette reads correctly and
+   is in-style. Never ship a sprite you haven't looked at. Sub-agents doing pixel
+   work must do the same.
+
 ## Practical notes
 - Pixel art = add grids/sprites and draw them with `ctx.fillRect` at the 7px cell
   size, or compose extra small pixel sprites near the penguin on the canvas.
