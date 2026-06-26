@@ -8,6 +8,17 @@ is pre-release, so versions are milestone markers rather than published releases
 
 New lifelike animations being added one at a time.
 
+## [1.4.0] — 2026-06-26 — Kindergarten, free schooling & online rewards
+
+### Added
+- **幼儿园 (kindergarten)** education tier — the school path is now
+  未入学 → 幼儿园 → 小学 → 中学 → 大学 (with a matching new entry-level job).
+- **Online reward** — the pet automatically earns **+10💰 every hour online**.
+
+### Changed
+- **No age limit on schooling** — a little one can now go to 幼儿园 without
+  waiting to grow up. (Working still requires growing up.)
+
 ## [1.3.0] — 2026-06-26 — Cloud save (optional account)
 
 ### Added
