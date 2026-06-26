@@ -9,6 +9,19 @@ is pre-release, so versions are milestone markers rather than published releases
 New lifelike animations being added one at a time.
 See `TODO.md` for the remaining activity-authentic focus animations.
 
+## [1.7.0] — 2026-06-26 — Penguin-driven pixel-art games; emoji-free animations
+
+### Changed
+- **玩耍 mini-games rebuilt as in-window, penguin-driven pixel art** — no more
+  separate modal board. The real penguin acts each game out in its own window:
+  - 🫧→ **吹泡泡**: the penguin pulls out a pixel bubble wand and blows random-size
+    pixel bubbles; click to pop (+1), every 10 marks → happiness.
+  - **接小鱼** (peck the tossed pixel fish), **猜拳** (throws a pixel hand with its
+    wing), **接球** (bat the bouncing pixel ball), **跟我拍** (repeat its gesture cues).
+- **All animation emoji removed** per the project's pixel-art rule: floating
+  emotes, the hunger/tired indicators, the fly/sick overlays, and the badminton
+  shuttlecock are now the penguin's own **pixel face / drawn pixel art** — no emoji.
+
 ## [1.6.1] — 2026-06-26 — Focus scenes are now real pixel art (no emoji)
 
 ### Changed

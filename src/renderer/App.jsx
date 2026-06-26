@@ -326,7 +326,6 @@ export default class App extends React.Component {
       shopCat: null, hover: false, hoverStat: null,
     }), () => this.save());
     this._sickDur = 0;
-    this.setEmote('💊', 1600);
     this.speak(cured ? '好多了，去休息一下~ 😴' : '感觉好一点了…还得再吃药 💊', 2600, true);
     if (cured) {
       // 静养: a short rest after treatment that recovers a little more health.
@@ -413,7 +412,6 @@ export default class App extends React.Component {
   breakFocus = () => {
     if (!this.state.session) return false;
     this.clearFocus();
-    this.setEmote('💢', 1800);
     this.speak('分心了…这次要从头来过 😣', 3000, true);
     this.save();
     return true;
@@ -451,7 +449,6 @@ export default class App extends React.Component {
   // A cheerful finishing hop with a burst of particles.
   doneAnim(kind) {
     this.spawn('play');
-    this.setEmote(kind === 'study' ? '🎓' : '💰', 2400);
     this.p.action = 'enter'; this.p.busy = true;
     this.p.aStart = performance.now(); this.p.aDur = 900;
     clearTimeout(this._enterT);
@@ -1506,7 +1503,7 @@ export default class App extends React.Component {
       const mood = this.calcMood({ fullness, energy, cleanliness, happiness });
       return { fullness, cleanliness, happiness, energy, health, mood, playTime: (s.playTime || 0) + 1, money: s.money + hourly };
     });
-    if (hourly) { this.setEmote('💰', 1500); this.save(); } // celebrate the hourly reward
+    if (hourly) { this.save(); } // celebrate the hourly reward
 
     // Focus session countdown: update the displayed remaining time each second,
     // and grant the reward + done animation when it reaches zero.
@@ -1555,15 +1552,9 @@ export default class App extends React.Component {
       }
     }
 
-    const now = Date.now();
-    if (now > this.p.emoteUntil) {
-      const s = this.state;
-      let e = null;
-      if (s.fullness <= 0) e = '😭';
-      else if (s.fullness < 30) e = '🍖';
-      else if (s.energy < 30 && this.p.action !== 'sleep') e = '😴';
-      if (this.state.emote !== e) this.setState({ emote: e });
-    }
+    // Hunger / tiredness read through the pet's PIXEL FACE (mood), not an emoji
+    // emote — keep the emote slot clear.
+    if (this.state.emote) this.setState({ emote: null });
 
     if (!this.p.busy && this.p.action === 'idle' && !this.p.dragging && !this.state.hover) {
       if (this.state.energy < 12) {
@@ -1616,7 +1607,9 @@ export default class App extends React.Component {
     if (this._saveCtr >= 5) { this._saveCtr = 0; this.save(); }
   };
 
-  setEmote(ch, ms) { this.p.emoteUntil = Date.now() + ms; this.setState({ emote: ch }); }
+  // Emoji emotes removed (no-emoji rule): feedback now comes from the pet's
+  // pixel face + particle bursts. Kept as a no-op so call sites need no edits.
+  setEmote() { /* intentionally empty */ }
 
   // ---- dialogue ------------------------------------------------------------
   speak(text, ms = 2600, force = false) {
@@ -1671,11 +1664,11 @@ export default class App extends React.Component {
   feed = (fx) => {
     // Feeding is allowed during a focus session — it just tops up the stat
     // without breaking concentration (no pose change).
-    if (this.state.session) { this.touch(); this.applyDeltas(fx || { full: 42, happy: 4 }); this.spawn('feed'); this.setEmote('🐟', 1400); this.save(); return; }
+    if (this.state.session) { this.touch(); this.applyDeltas(fx || { full: 42, happy: 4 }); this.spawn('feed'); this.save(); return; }
     if (this.busyBlocked()) return;
     this.touch(); this.closeMenu();
     this.p.busy = true; this.p.action = 'eat';
-    this.sfx('eat'); this.spawn('feed'); this.setEmote('🐟', 1500);
+    this.sfx('eat'); this.spawn('feed');
     setTimeout(() => {
       this.applyDeltas(fx || { full: 42, happy: 4 });
       this.p.action = 'idle'; this.p.busy = false; this.recompute(); this.save();
@@ -1688,7 +1681,7 @@ export default class App extends React.Component {
     this.p.busy = true; this.p.action = 'play';
     this.p.aStart = performance.now(); this.p.aDur = 1500 / (this.state.speed || 1);
     this.p.playfulUntil = Date.now() + 10000;
-    this.sfx('play'); this.spawn('play'); this.setEmote('🎉', 1700);
+    this.sfx('play'); this.spawn('play');
     setTimeout(() => {
       this.applyDeltas(fx || { energy: -20, clean: -8, happy: 26 });
       this.p.action = 'idle'; this.p.busy = false; this.recompute(); this.save();
@@ -1701,7 +1694,7 @@ export default class App extends React.Component {
     this.p.busy = true; this.p.action = 'dance';
     this.p.aStart = performance.now(); this.p.aDur = 1300 / (this.state.speed || 1);
     this.p.playfulUntil = Date.now() + 3000;
-    this.sfx('play'); this.spawn('play'); this.setEmote('✨', 1500);
+    this.sfx('play'); this.spawn('play');
     setTimeout(() => {
       this.applyDeltas(fx || { energy: -5, happy: 12 });
       this.p.action = 'idle'; this.p.busy = false; this.recompute(); this.save();
@@ -1711,7 +1704,7 @@ export default class App extends React.Component {
     if (this.busyBlocked()) return;
     this.touch(); this.closeMenu();
     this.p.busy = true; this.p.action = 'sleep';
-    this.sfx('sleep'); this.setEmote('💤', 6200);
+    this.sfx('sleep');
     setTimeout(() => {
       this.setState({ energy: 80 });
       this.p.action = 'idle'; this.p.busy = false; this.recompute(); this.save();
@@ -1737,7 +1730,7 @@ export default class App extends React.Component {
     this.p.busy = true; this.p.action = 'ball';
     this.p.aStart = performance.now(); this.p.aDur = 2400 / (this.state.speed || 1);
     this.p.playfulUntil = Date.now() + 8000;
-    this.sfx('play'); this.prop('ball', this.p.aDur); this.setEmote('⚽', 1800);
+    this.sfx('play'); this.prop('ball', this.p.aDur);
     this.speak(pick(DIA.ball), 2000, true);
     setTimeout(() => {
       this.applyDeltas(fx || { energy: -14, clean: -10, happy: 24 });
@@ -1750,7 +1743,7 @@ export default class App extends React.Component {
     this.p.busy = true; this.p.action = 'badminton';
     this.p.aStart = performance.now(); this.p.aDur = 2600 / (this.state.speed || 1);
     this.p.playfulUntil = Date.now() + 8000;
-    this.sfx('play'); this.prop('shuttle', this.p.aDur); this.setEmote('🏸', 1800);
+    this.sfx('play'); this.prop('shuttle', this.p.aDur);
     this.speak(pick(DIA.badminton), 2000, true);
     setTimeout(() => {
       this.applyDeltas(fx || { energy: -16, clean: -12, happy: 28 });
@@ -1761,12 +1754,12 @@ export default class App extends React.Component {
   // (e.g. +45 for a quick shower, +100 for a bubble bath).
   bathAct = (fx) => {
     // Bathing is allowed during a focus session (a few bubbles, no pose change).
-    if (this.state.session) { this.touch(); this.applyDeltas(fx || { clean: 100, happy: 5 }); this.bubbles(); this.setEmote('🫧', 1600); this.save(); return; }
+    if (this.state.session) { this.touch(); this.applyDeltas(fx || { clean: 100, happy: 5 }); this.bubbles(); this.save(); return; }
     if (this.busyBlocked()) return;
     this.touch(); this.closeMenu();
     this.p.busy = true; this.p.action = 'bath';
     this.p.aStart = performance.now(); this.p.aDur = 1900 / (this.state.speed || 1);
-    this.sfx('bath'); this.bubbles(); this.setEmote('🫧', 1900);
+    this.sfx('bath'); this.bubbles();
     this.speak(pick(DIA.bath), 2000, true);
     clearInterval(this._bathBub);
     this._bathBub = setInterval(() => this.bubbles(), 480);
@@ -1788,9 +1781,13 @@ export default class App extends React.Component {
         'background:radial-gradient(circle at 35% 30%,#fff,#ff4d6d 62%,#c01b3c);' +
         'box-shadow:0 2px 0 rgba(34,42,85,.2);animation:ballPlay .5s ease-in-out infinite;';
     } else {
-      el.textContent = '🏸';
-      el.style.cssText = 'position:absolute;left:50px;top:60px;font-size:21px;line-height:1;' +
-        'animation:shuttle 1.2s ease-in-out infinite;';
+      // a drawn shuttlecock — a white flared skirt with an orange cork (no emoji)
+      el.style.cssText = 'position:absolute;left:52px;top:60px;width:0;height:0;' +
+        'border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:15px solid rgba(255,255,255,.96);' +
+        'filter:drop-shadow(0 1px 0 rgba(90,150,220,.55));animation:shuttle 1.2s ease-in-out infinite;';
+      const cork = document.createElement('div');
+      cork.style.cssText = 'position:absolute;left:-4px;top:12px;width:8px;height:7px;border-radius:50%;background:#ff9d3d;border:1px solid #d97a1e;';
+      el.appendChild(cork);
     }
     layer.appendChild(el);
     setTimeout(() => el.remove(), totalDur + 80);
@@ -2230,27 +2227,26 @@ export default class App extends React.Component {
             <canvas ref={this.canvasRef} width="112" height="112" style={{ width: 112, height: 112, imageRendering: 'pixelated', display: 'block' }} />
           </div>
 
-          {/* flies buzzing around a dirty pet (low cleanliness) */}
-          {dirty && (
-            <>
-              <div className="fly" style={{ left: 74, top: 26, animation: 'buzz1 1.1s linear infinite' }}>🪰</div>
-              <div className="fly" style={{ left: 20, top: 40, animation: 'buzz2 1.35s linear infinite' }}>🪰</div>
-              <div className="fly" style={{ left: 48, top: 14, animation: 'buzz3 1.6s linear infinite' }}>🪰</div>
-            </>
-          )}
+          {/* flies buzzing around a dirty pet — small pixel flies (navy body + wings) */}
+          {dirty && (() => {
+            const fly = { width: 3, height: 3, background: '#222a55', borderRadius: 1, boxShadow: '-3px -1px 0 rgba(255,255,255,.85), 4px -1px 0 rgba(255,255,255,.85)' };
+            return (
+              <>
+                <div className="fly" style={{ left: 74, top: 26, animation: 'buzz1 1.1s linear infinite', ...fly }} />
+                <div className="fly" style={{ left: 20, top: 40, animation: 'buzz2 1.35s linear infinite', ...fly }} />
+                <div className="fly" style={{ left: 48, top: 14, animation: 'buzz3 1.6s linear infinite', ...fly }} />
+              </>
+            );
+          })()}
 
-          {/* sick indicator — a feverish face bobbing by the head while ill */}
+          {/* sick indicator — a small pixel sweat drop bobbing by the head */}
           {s.sick && !s.dead && (
-            <div className="fly" style={{ left: 76, top: 6, fontSize: 17, animation: 'buzz3 2.4s ease-in-out infinite' }}>🤒</div>
-          )}
-          {/* a little spirit drifting up from a departed pet */}
-          {s.dead && (
-            <div className="fly" style={{ left: 58, top: -2, fontSize: 18, animation: 'buzz2 3s ease-in-out infinite' }}>👻</div>
+            <div className="fly" style={{ left: 80, top: 6, width: 5, height: 6, background: '#4cc3ff', borderRadius: '50% 50% 50% 50% / 62% 62% 40% 40%', boxShadow: '0 -2px 0 -1px #4cc3ff', animation: 'buzz3 2.4s ease-in-out infinite' }} />
           )}
 
           {/* tip pill — above the head, briefly at startup */}
           {s.hint && (
-            <div style={{ position: 'absolute', left: '50%', bottom: 134, transform: 'translateX(-50%)', background: '#222a55', color: '#fff', padding: '6px 12px', borderRadius: 999, fontSize: 11, fontWeight: 800, boxShadow: '0 4px 0 rgba(34,42,85,.3)', zIndex: 25, whiteSpace: 'nowrap', animation: 'hintBob 1.8s ease-in-out infinite', pointerEvents: 'none' }}>单击 · 拖动 · 右键 🐧</div>
+            <div style={{ position: 'absolute', left: '50%', bottom: 134, transform: 'translateX(-50%)', background: '#222a55', color: '#fff', padding: '6px 12px', borderRadius: 999, fontSize: 11, fontWeight: 800, boxShadow: '0 4px 0 rgba(34,42,85,.3)', zIndex: 25, whiteSpace: 'nowrap', animation: 'hintBob 1.8s ease-in-out infinite', pointerEvents: 'none' }}>单击 · 拖动 · 右键</div>
           )}
 
           {bubble && (
