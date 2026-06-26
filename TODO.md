@@ -1,45 +1,80 @@
 # Deskpet — TODO
 
-## Per-subject & per-job focus animations
+## 1. Activity-authentic focus animations (big feature)
 
-Right now every **class** shares one `study` pose (book prop) and every **shift**
-shares one `work` pose (briefcase prop). Each subject and each job should have its
-**own** distinctive looping animation while the focus session runs, so the pet
-visibly "does" that activity.
+Each **class** and **job** should play its **own multi-beat "scene"** that actually
+looks like the activity — not a single static pose with a prop. Each activity needs
+**2–3 variants** that the engine cycles through so a long session never looks like
+one looping clip.
 
-**How it's built today (context for whoever implements this):**
-- The pet is drawn on a `<canvas>` by action (`p.action`), with extra DOM "props"
-  layered in `partRef` (see `bookProp()` / `briefcaseProp()` in `App.jsx`).
-- A focus session sets `p.action = 'study' | 'work'` and calls `bookProp(0)` /
-  `briefcaseProp(0)` (0 = persist until `clearProp()`).
-- **Plan:** give each subject/job a `propKey` (or its own prop builder) and start
-  that prop in `beginFocus()` based on `session.subjectKey` / `session.jobIdx`.
-  Optionally add a matching canvas pose per activity. Keep each prop a small,
-  self-contained DOM builder like the existing `bookProp`, looping via CSS
-  keyframes in `index.css`.
+**Current state:** a focus session just sets `p.action='study'|'work'` and shows a
+single persistent book/briefcase prop (`bookProp(0)`/`briefcaseProp(0)`).
 
-### Subjects (study)
+**Target architecture (for whoever implements):**
+- Give each subject/job a **scene** = an ordered list of **beats** (pose + props +
+  expression + optional particle), each with a duration; the scene loops for the
+  whole session, and a variant index is rotated each loop (or each beat) so it
+  stays fresh.
+- Reuse the expression atlas (`this.G.idle/happy/...`), the prop layer (`partRef`),
+  and CSS keyframes in `index.css`. Add new face/pose variants as needed
+  (confused, thinking, aha!, sweating, smiling-while-holding).
+- Drive scenes from a small data table keyed by `subjectKey` / `jobIdx`, so adding
+  an activity is data + a few prop builders, not engine surgery.
+- **This is large — build it incrementally, one activity at a time.** Suggested
+  first prototypes to validate the scene engine: **拔草** (clear progression arc)
+  and **上课·数学** (expression arc). Ship each as its own release.
 
-| Subject | Animation description | Implementation prompt |
-|---|---|---|
-| 语文 (Chinese) | Pet holds a brush and writes calligraphy on a small scroll; an ink character fades in/out, a drop of ink drips. | "Add a `chineseProp` DOM prop: a hanging scroll beside the pet with a brush that bobs; a faint 字 character cross-fades on a CSS loop. Wire it for `subjectKey==='cn'`." |
-| 英语 (English) | Floating A·B·C letters drift upward and gently rotate; pet 'reads aloud' (beak opens on a loop). | "Add an `englishProp`: 2–3 letter glyphs rising and fading on staggered CSS loops, like the music notes. Wire it for `subjectKey==='en'`." |
-| 数学 (Math) | A small abacus / counting beads slide; numbers (1,2,3) pop above the head one at a time. | "Add a `mathProp`: an abacus rail with beads that slide on a loop, plus a number that pops and fades. Wire it for `subjectKey==='ma'`." |
-| 科学 (Science) | A beaker bubbles (rising bubbles), occasional spark/💡 lightbulb above the head. | "Add a `scienceProp`: a flask with CSS-animated rising bubbles and an intermittent ✨/💡. Wire it for `subjectKey==='sc'`." |
+### Worked examples the owner described
 
-### Jobs (work)
+**上课 (class) — e.g. 数学:**
+- Scene: a **desk + chair**; the penguin **sits** facing a **blackboard** with chalk
+  text (math: `1 + 1 = 2`).
+- Expression arc per loop: **疑惑/confused** → **思考/thinking** (taps head / looks
+  up) → **恍然大悟/aha!** (eyes light up, little 💡). Then the board text changes.
+- Per-subject variants: 语文 = a 字 / brush stroke on the board; 英语 = `A B C` /
+  a word; 数学 = a sum; 科学 = a simple diagram / 🧪. Same arc, different board
+  content + a couple of subject-specific beats.
 
-| Job | Animation description | Implementation prompt |
-|---|---|---|
-| 发传单 (flyering) | Pet holds out flyers; a paper sheet flutters away to the side every few seconds. | "Add a `flyerProp`: a stack of papers in hand; on a loop one sheet detaches and drifts off-screen. Wire it for the `发传单` job." |
-| 拔草 (weeding) | Pet bends down and tugs; a tuft of grass pops out with a little dirt particle burst. | "Add a `weedProp` + slight bend pose; on a loop a grass tuft pops and a few dirt specks scatter. Wire it for `拔草`." |
-| 洗碗 (dishwashing) | A plate + sponge scrub back-and-forth; soap bubbles rise (reuse `bubbles()`). | "Add a `dishProp`: a plate with a sponge translating left-right on a loop; periodically spawn bubbles. Wire it for `洗碗`." |
-| 清洁工 (cleaning) | Pet sweeps a broom side to side; a small dust cloud puffs at the broom head. | "Add a `broomProp`: a broom rotating side-to-side on a loop with a dust puff. Wire it for `清洁工`." |
-| 便利店店员 (clerk) | Items slide across a scanner that blinks; a 🧾 receipt prints out. | "Add a `scanProp`: an item sliding past a blinking scanner light, then a receipt slip grows downward. Wire it for `便利店店员`." |
-| 快递员 (courier) | Pet carries a box and jogs in place (legs pump); a tiny 📦 bobs. | "Add a `parcelProp` + jog pose; box bobs while legs pump on a loop. Wire it for `快递员`." |
-| 程序员 (programmer) | A laptop in front; tiny code lines (▌ ▍ ▎) blink/scroll on the screen. | "Add a `laptopProp`: a laptop with CSS-animated code lines and a blinking cursor. Wire it for `程序员`." |
-| 老师 (teacher) | A small chalkboard; pet taps a pointer; chalk text appears line by line. | "Add a `boardProp`: a chalkboard with a pointer that taps on a loop and chalk strokes fading in. Wire it for `老师`." |
+**发传单 (flyering):**
+- Scene: the penguin stands holding flyers with a **big smile**; **passers-by walk
+  across** the scene; as each one passes, the penguin **hands them a flyer**.
+- Variants needed (≥3): different passers-by (tall/short/in a hurry), some take the
+  flyer happily, some wave it off (penguin shrugs and keeps smiling), an occasional
+  gust scatters a flyer it chases.
 
-**Acceptance:** starting a class/shift shows the matching prop; it loops for the
-whole session and is removed by `clearProp()` on finish/break. Keep each prop
-lightweight (CSS keyframes only, no JS per-frame).
+**拔草 (weeding):**
+- Opening beat: the penguin **arrives** at a patch **overgrown with weeds taller
+  than it is**.
+- Progress arc: through repeated **tugging effort** the weeds **gradually thin out
+  and the ground gets clean** over the course of the shift (tie progress to elapsed
+  time / remaining countdown).
+- Flavour beats (rotate): wears a **farmer's straw hat 👒**; occasionally **sweats**
+  and **wipes its brow with a cute little wing**; occasionally **takes a short rest**
+  (sits, then back to work). Variants = different weed clumps / dirt puffs.
+
+### Per-activity quick specs (scene seed for each)
+
+| Activity | Scene seed (beats → variants) |
+|---|---|
+| 语文 | desk+board, brush writes a 字 → confused→think→aha; variants: different characters, ink drip |
+| 英语 | desk+board with `ABC`/a word → read aloud (beak), confused→aha; variants: different words |
+| 数学 | desk+board `1+1=2` → confused→think→aha; variants: different sums, counting on flippers |
+| 科学 | desk+board diagram + 🧪 bubbling → curious→aha 💡; variants: beaker colour, spark |
+| 发传单 | smile + flyers, passers-by cross & take one; variants: passer types, refusal, chase a flyer |
+| 拔草 | arrive at tall weeds → tug→clear progressively, straw hat, sweat-wipe, rest; variants: clumps |
+| 洗碗 | sink + plate, scrub L/R, bubbles rise, occasional squeaky-clean shine; variants: stack height |
+| 清洁工 | broom sweep side-to-side, dust puffs, push a dustpan; variants: trash bits, mop swap |
+| 便利店店员 | counter, item slides past blinking scanner, receipt prints, nod to customer; variants: items |
+| 快递员 | carry box & jog, set it down/scan, pick next; variants: box sizes, a dog chase beat |
+| 程序员 | laptop, code lines scroll + blinking cursor, think→aha (bug fixed) 💡; variants: error→fix |
+| 老师 | chalkboard + pointer taps, chalk lines appear, turn to "class"; variants: subjects on board |
+
+**Acceptance:** each activity shows a recognisable, multi-beat scene that loops with
+≥2 variants for the whole session; all props are tagged and removed on finish/break
+(see `clearProp()`); CSS-only animation (no per-frame JS beyond the existing loop).
+
+## 2. 玩耍 mini-games (to scope with owner)
+
+The owner wants real mini-games for **玩耍** (currently it's a quick random
+play animation). Recommendations to pick from are in chat; once chosen, spec the
+chosen 1–2 here and implement.

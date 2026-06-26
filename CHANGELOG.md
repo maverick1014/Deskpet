@@ -7,7 +7,19 @@ is pre-release, so versions are milestone markers rather than published releases
 ## [Unreleased] — Animation discovery (ongoing)
 
 New lifelike animations being added one at a time.
-See `TODO.md` for planned per-subject and per-job focus animations.
+See `TODO.md` for the planned activity-authentic focus animations + 玩耍 mini-games.
+
+## [1.5.2] — 2026-06-26 — Focus polish
+
+### Fixed
+- **The book / briefcase prop lingered after a class or shift ended.** Focus
+  props are now tagged and fully swept on finish/break, so nothing is left behind
+  (even if you fed or bathed mid-session).
+
+### Changed
+- **Studying / working no longer drains happiness.** Happiness decay is paused
+  during a focus session (the pet is engaged), and finishing a shift now gives a
+  small happiness boost instead of a penalty.
 
 ## [1.5.1] — 2026-06-26 — Slimmer care panel & gentler needs
 
