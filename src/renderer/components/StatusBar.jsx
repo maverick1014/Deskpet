@@ -30,12 +30,14 @@ function Bar({ which, value }) {
 }
 
 export default function StatusBar(props) {
-  const { stat, shopCat, money = 0, placement, arrowShift = 0, fullness, cleanliness, happiness, health = 100,
+  const { stat, shopCat, money = 0, placement, arrowShift = 0, centered = false, fullness, cleanliness, happiness, health = 100,
     onStat, onLeave, onOpenCat, onBuy, onBack, onPlay } = props;
   const vals = { fullness, clean: cleanliness, happy: happiness, health };
   const below = placement === 'below';
 
-  // ---- shop view: a small card with a VERTICAL list of items ----------------
+  // ---- shop view: a card with a VERTICAL, scrollable list of items -----------
+  // When `centered`, it renders as a window-centred sheet (no arrow) so the list
+  // can scroll instead of being clipped by the small window's bottom edge.
   if (shopCat && SHOP[shopCat]) {
     const cat = SHOP[shopCat];
     const tag = META[cat.stat].color(vals[cat.stat]);
@@ -53,7 +55,7 @@ export default function StatusBar(props) {
           <span style={{ fontSize: 12, fontWeight: 900, color: '#e8a01a' }}>💰 {money}</span>
         </div>
         <div style={{ marginBottom: 8 }}><Bar which={cat.stat} value={vals[cat.stat]} /></div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 230, overflowY: 'auto', overflowX: 'hidden' }}>
           {cat.items.map((it) => {
             const afford = money >= it.cost;
             return (
@@ -67,7 +69,7 @@ export default function StatusBar(props) {
             );
           })}
         </div>
-        <div style={arrow} />
+        {!centered && <div style={arrow} />}
       </div>
     );
   }

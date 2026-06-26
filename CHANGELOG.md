@@ -8,6 +8,15 @@ is pre-release, so versions are milestone markers rather than published releases
 
 New lifelike animations being added one at a time.
 
+## [1.4.1] — 2026-06-26 — Scroll fixes for shop & settings
+
+### Fixed
+- **Shop list was clipped by the window and couldn't scroll** — the shop now
+  opens as a window-centred sheet with a scrollable item list, so every item is
+  reachable.
+- **Settings dialog overflowed the window** (title and 完成 button cut off) — it
+  now caps to the window height and scrolls internally.
+
 ## [1.4.0] — 2026-06-26 — Kindergarten, free schooling & online rewards
 
 ### Added
