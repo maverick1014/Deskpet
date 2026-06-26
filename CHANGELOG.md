@@ -7,6 +7,16 @@ is pre-release, so versions are milestone markers rather than published releases
 ## [Unreleased] — Animation discovery (ongoing)
 
 New lifelike animations being added one at a time.
+See `TODO.md` for planned per-subject and per-job focus animations.
+
+## [1.5.1] — 2026-06-26 — Slimmer care panel & gentler needs
+
+### Changed
+- **Care panel is smaller and cleaner** — smaller action buttons, the money
+  readout is gone, and the stat preview is now a slim "language-bar" sized pill
+  that only shows while hovering a button.
+- **Needs decay more slowly** — hunger ~2× slower (≈5h to hungry) and
+  cleanliness ~2× slower (≈8–9h to dirty), so the pet is less needy.
 
 ## [1.5.0] — 2026-06-26 — Timed school & work (focus sessions)
 
