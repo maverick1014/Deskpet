@@ -1042,8 +1042,8 @@ export default class App extends React.Component {
     // This is a 24/7 idle pet, but tuned to be playable: a full pet gets hungry
     // in ~2.5–3h (tick = 1s; rates per-second). Appetite trait nudges the speed.
     // Health/sickness stay slow (below) so faster needs don't make it sick easily.
-    const aRate = 0.0075 * (0.75 + this.personality.appetite / 200); // ~2.6h to hungry
-    const cleanDrop = 0.0050 + (this.p.action === 'walk' ? 0.003 : 0); // ~4–5h to dirty
+    const aRate = 0.0040 * (0.75 + this.personality.appetite / 200); // ~5h to hungry (slowed)
+    const cleanDrop = 0.0026 + (this.p.action === 'walk' ? 0.0015 : 0); // ~8–9h to dirty (slowed)
     const happyDrop = 0.0045; // ~3h to bored without play
     this.setState((s) => {
       const fullness = Math.max(0, s.fullness - aRate);
@@ -1492,9 +1492,9 @@ export default class App extends React.Component {
     if (d.ts) {
       const sec = (Date.now() - d.ts) / 1000;
       const off = 0.2;
-      const aR = 0.0075 * (0.75 + (this.personality.appetite || 50) / 200);
+      const aR = 0.0040 * (0.75 + (this.personality.appetite || 50) / 200);
       if (st.fullness != null) st.fullness = Math.max(0, st.fullness - Math.min(65, off * aR * sec));
-      if (st.cleanliness != null) st.cleanliness = Math.max(0, st.cleanliness - Math.min(65, off * 0.0050 * sec));
+      if (st.cleanliness != null) st.cleanliness = Math.max(0, st.cleanliness - Math.min(65, off * 0.0026 * sec));
       if (st.happiness != null) st.happiness = Math.max(0, st.happiness - Math.min(50, off * 0.0045 * sec));
     }
     if (d.x != null && this.minX != null) { this.p.x = clamp(d.x, this.minX, this.maxX); this.p.tx = this.p.x; }

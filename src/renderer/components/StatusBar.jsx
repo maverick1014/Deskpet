@@ -75,29 +75,35 @@ export default function StatusBar(props) {
   }
 
   // ---- category view: minimal, background-less action buttons ----------------
-  // Each button is its own frosted pill (legible over any wallpaper) — there is
-  // no enclosing card, keeping the bar light and unobtrusive.
+  // Small frosted pills (no enclosing card, no money). A slim "language-bar"
+  // sized stat readout appears only while a button is hovered.
   const pill = {
-    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-    width: 50, padding: '7px 0 6px', borderRadius: 14,
+    flex: '0 0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
+    width: 40, padding: '5px 0 4px', borderRadius: 11,
     background: 'rgba(255,255,255,.86)', border: '2px solid rgba(34,42,85,.14)',
-    boxShadow: '0 3px 0 rgba(34,42,85,.12)', backdropFilter: 'blur(2px)',
+    boxShadow: '0 2px 0 rgba(34,42,85,.12)', backdropFilter: 'blur(2px)',
   };
   const btn = (emoji, label, name, onClick) => (
     <div className="act" onClick={onClick} onMouseEnter={() => onStat(name)} onMouseLeave={onLeave} style={pill}>
-      <span style={{ fontSize: 23, lineHeight: 1 }}>{emoji}</span>{label}
+      <span style={{ fontSize: 18, lineHeight: 1 }}>{emoji}</span>
+      <span style={{ fontSize: 8.5 }}>{label}</span>
     </div>
   );
+  const m = stat ? META[stat] : null;
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7 }}>
-      {/* small frosted readout: money normally, or the stat being previewed */}
-      <div style={{ minHeight: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '3px 10px', borderRadius: 999, background: 'rgba(255,255,255,.86)', border: '2px solid rgba(34,42,85,.12)', boxShadow: '0 2px 0 rgba(34,42,85,.1)', width: stat ? 160 : 'auto' }}>
-        {stat
-          ? <Bar which={stat} value={vals[stat]} />
-          : <span style={{ fontSize: 12, fontWeight: 900, color: '#e8a01a' }}>💰 {money}</span>}
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+      {/* compact stat readout (only while hovering a button) — language-bar sized */}
+      {m && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '2px 8px', borderRadius: 999, background: 'rgba(255,255,255,.9)', border: '2px solid rgba(34,42,85,.12)', boxShadow: '0 2px 0 rgba(34,42,85,.1)' }}>
+          <span style={{ fontSize: 11, lineHeight: 1 }}>{m.icon}</span>
+          <div style={{ width: 52, height: 6, background: '#e7edf7', border: '1.5px solid #222a55', borderRadius: 5, overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: Math.round(vals[stat]) + '%', background: m.color(vals[stat]), borderRadius: 4, transition: 'width .3s' }} />
+          </div>
+          <span style={{ fontSize: 9, fontWeight: 900, color: '#9aa3cc' }}>{Math.round(vals[stat])}%</span>
+        </div>
+      )}
       {/* 喂食 / 洗澡 cost money (open shop); 玩耍 is a free mini-game with the owner */}
-      <div style={{ display: 'flex', gap: 9 }}>
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
         {btn('🐟', '喂食', 'fullness', () => onOpenCat('food'))}
         {btn('🛁', '洗澡', 'clean', () => onOpenCat('bath'))}
         {btn('🎈', '玩耍', 'happy', onPlay)}
