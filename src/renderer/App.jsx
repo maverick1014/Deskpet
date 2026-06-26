@@ -2,7 +2,8 @@ import React from 'react';
 import StatusBar from './components/StatusBar.jsx';
 import ContextMenu from './components/ContextMenu.jsx';
 import SettingsPanel from './components/SettingsPanel.jsx';
-import MiniGames from './components/MiniGames.jsx';
+import GamePicker from './components/MiniGames.jsx';
+import { GameEngine, GAME_LIST } from './games.js';
 import {
   loadState, saveState, getStage, moveWindow, onStageUpdate, setInteractive, quitApp, onRecenter,
 } from './store.js';
@@ -67,7 +68,7 @@ export default class App extends React.Component {
     // focus block (null when idle); schoolMenu/workMenu open the pickers.
     schoolLevel: 0, classDone: { cn: 0, en: 0, ma: 0, sc: 0 },
     session: null, sessionLeft: 0, schoolMenu: false, workMenu: false,
-    playOpen: false,
+    playOpen: false, playGame: null, gameScore: 0,
     shopCat: null,
     menu: null, settingsOpen: false, emote: null, say: null, hint: true, hover: false, hoverStat: null, loaded: false,
     entering: true, traits: '',
@@ -88,6 +89,7 @@ export default class App extends React.Component {
   shadowRef = React.createRef();
   canvasRef = React.createRef();
   sceneRef = React.createRef();
+  gameRef = React.createRef();
   partRef = React.createRef();
 
   // Stable character (Phase 1). Set synchronously so behavior works before the
@@ -145,7 +147,9 @@ export default class App extends React.Component {
     clearInterval(this._bathBub);
     clearInterval(this._musicInt);
     clearTimeout(this._faceArcT);
+    clearTimeout(this._gameFaceT); clearTimeout(this._gameActT);
     this.stopScene();
+    if (this._engine) this._engine.stop();
     window.removeEventListener('pointermove', this._onMove);
     window.removeEventListener('pointerup', this._onUp);
     window.removeEventListener('mousemove', this._onHover);
@@ -229,20 +233,23 @@ export default class App extends React.Component {
   playFree = () => {
     if (this.state.session) { this.breakFocus(); return; }
     this.closeMenu();
+    if (this.state.playGame) this.stopGame(); // reopening the picker ends the current game
     this.setState({ playOpen: true, hover: false, hoverStat: null, shopCat: null, schoolMenu: false, workMenu: false });
   };
-  closePlay = () => this.setState({ playOpen: false });
+  closePlay = () => { if (this.state.playGame) this.stopGame(); this.setState({ playOpen: false }); };
   // A finished mini-game round rewards happiness (and sometimes a few coins).
   gameReward = (happy, coins) => {
     this.touch();
     this.setState((s) => ({ happiness: clamp(s.happiness + (happy || 0), 0, 100), money: s.money + (coins || 0) }), () => this.save());
-    if (happy >= 6) this.setEmote('🎉', 1400);
+    // Milestone reaction is acted out by the pet itself (no emoji): a happy hop.
+    if (happy >= 6 && !this.p.dragging) { this.p.action = 'play'; this.p.aStart = performance.now(); this.p.aDur = 700; }
   };
 
   // ---- death / revive ------------------------------------------------------
   die = () => {
     if (this.state.dead) return;
     clearTimeout(this._sitT);
+    if (this.state.playGame) this.stopGame();
     this.clearProp();
     this.p.action = 'dead'; this.p.busy = true;
     this.setState({ dead: true, sick: this.state.sick || 'severe', hover: false, hoverStat: null, shopCat: null, menu: null, session: null, sessionLeft: 0, schoolMenu: false, workMenu: false });
@@ -380,6 +387,7 @@ export default class App extends React.Component {
 
   beginFocus(session) {
     this.touch();
+    if (this.state.playGame) this.stopGame();
     this.stand();
     this.clearProp();
     this.p.busy = true;
@@ -700,6 +708,9 @@ export default class App extends React.Component {
   // scenes: 上课 (study), 发传单 / 拔草 (the two lvl-0 jobs). Everything is fillRect
   // pixels — no glyphs, no emoji. Cleared on stopScene / clearFocus / unmount.
   SCENE_W = 240; SCENE_H = 180; SCENE_OX = 64; SCENE_GND = 116; // ground baseline y
+  // Game overlay canvas shares the scene canvas geometry so pieces sit around the
+  // pet. Game canvas is interactive (click hit-testing); scene canvas is not.
+  GAME_W = 240; GAME_H = 300; GAME_OX = 64;
 
   // Paint a small letter-grid sprite at (ox,oy) with px-sized cells. `flip` mirrors.
   drawSprite(ctx, grid, palette, ox, oy, px, flip) {
@@ -988,6 +999,68 @@ export default class App extends React.Component {
     }
   }
 
+  // ---- 玩耍 mini-games (in-window, penguin-driven, pure pixel art) ----------
+  // The GameEngine paints pixel pieces onto the interactive game canvas overlay
+  // and acts the penguin out via this host API. Geometry mirrors the scene
+  // canvas: the pet's centre column is GAME_OX+56 and its feet sit at the same
+  // baseline, so wand/fish/hands land naturally around the real pet.
+  ensureGameCtx() {
+    if (this._gctx) return true;
+    const cv = this.gameRef && this.gameRef.current;
+    if (!cv) return false;
+    this._gctx = cv.getContext('2d');
+    this._gctx.imageSmoothingEnabled = false;
+    return true;
+  }
+  gameHost() {
+    return {
+      reward: (h, c) => this.gameReward(h, c),
+      setAction: (name, dur) => {
+        if (this.p.dragging) return;
+        this.p.action = name; this.p.aStart = performance.now(); this.p.aDur = dur || 500;
+        clearTimeout(this._gameActT);
+        this._gameActT = setTimeout(() => { if (this.state.playGame && !this.p.dragging && (this.p.action === name)) this.p.action = 'idle'; }, dur || 500);
+      },
+      setFace: (face, ms) => { this._gameFace = face; clearTimeout(this._gameFaceT); this._gameFaceT = setTimeout(() => { this._gameFace = null; }, ms || 600); },
+      speak: (txt, ms) => this.speak(txt, ms || 1400, true),
+      facing: () => this.p.facing,
+      facingTo: (dir) => { this.p.facing = dir < 0 ? -1 : 1; },
+      onScore: (g, s) => { if (this.state.gameScore !== s) this.setState({ gameScore: s }); },
+    };
+  }
+  // Start a chosen game in-window: hide the picker, spin up the engine.
+  startGame = (key) => {
+    if (this.state.session) { this.breakFocus(); return; }
+    this.p.busy = false;
+    this.setState({ playOpen: false, playGame: key, gameScore: 0 }, () => {
+      if (!this.ensureGameCtx()) { setTimeout(() => this.startGame(key), 60); return; }
+      const geom = { W: this.GAME_W, H: this.GAME_H, OX: this.GAME_OX, cx: this.GAME_OX + 56, gnd: this.SCENE_GND };
+      if (!this._engine) this._engine = new GameEngine(this._gctx, geom, this.gameHost());
+      else { this._engine.ctx = this._gctx; this._engine.geom = geom; this._engine.host = this.gameHost(); }
+      this._engine.start(key);
+      this.refreshInteractive();
+    });
+  };
+  // End the active game: tear down pieces/timers, clear the canvas, idle the pet.
+  stopGame = () => {
+    if (this._engine) this._engine.stop();
+    clearTimeout(this._gameFaceT); clearTimeout(this._gameActT);
+    this._gameFace = null;
+    if (this.ensureGameCtx()) this._gctx.clearRect(0, 0, this.GAME_W, this.GAME_H);
+    if (!this.p.dragging && (this.p.action === 'play' || this.p.action === 'eat')) this.p.action = 'idle';
+    this.setState({ playGame: null }, () => this.refreshInteractive());
+  };
+  // A click on the game canvas -> hand local pixel coords to the engine.
+  onGameClick = (e) => {
+    if (!this._engine || !this.state.playGame) return;
+    const cv = this.gameRef.current;
+    if (!cv) return;
+    const r = cv.getBoundingClientRect();
+    const gx = (e.clientX - r.left) * (this.GAME_W / r.width);
+    const gy = (e.clientY - r.top) * (this.GAME_H / r.height);
+    this._engine.click(gx, gy);
+  };
+
   // ---- screen geometry / walk bounds --------------------------------------
   // p.x / p.y is the WINDOW's top-left. The penguin is centered in the window,
   // offset by (offX, offY). We clamp so the PENGUIN stays inside the work area
@@ -1053,7 +1126,7 @@ export default class App extends React.Component {
   // ---- window click-through toggle (hit-test bypass) ----------------------
   refreshInteractive() {
     const s = this.state;
-    const v = !!(this._overPen || this.p.dragging || s.hover || s.shopCat || s.menu || s.settingsOpen || s.dead || s.onboard || s.schoolMenu || s.workMenu || s.playOpen);
+    const v = !!(this._overPen || this.p.dragging || s.hover || s.shopCat || s.menu || s.settingsOpen || s.dead || s.onboard || s.schoolMenu || s.workMenu || s.playOpen || s.playGame);
     if (v !== this._iv) { this._iv = v; setInteractive(v); }
   }
   // Show the care panel while the cursor is over the penguin OR the open panel
@@ -1223,13 +1296,15 @@ export default class App extends React.Component {
     // Idle FPS throttle: only redraw at ~18fps when nothing is animating, full
     // rate while walking/playing/blinking/dragging. Saves CPU on an always-on app.
     const lowKey = p.action === 'idle' || p.action === 'weak' || p.action === 'sit' || p.action === 'dead' || p.action === 'wait';
-    const animating = !lowKey || p.blinkOn || p.dragging;
+    const animating = !lowKey || p.blinkOn || p.dragging || !!this.state.playGame;
     if (animating || t - (this._lastDraw || 0) >= 55) {
       this._lastDraw = t;
       this.render2d(t, sp);
     }
     // Pixel focus scene (上课/发传单/拔草) animates every frame while active.
     if (this._scene) this.drawScene(t);
+    // 玩耍 mini-game pieces animate every frame while a game is active.
+    if (this._engine && this.state.playGame && this.ensureGameCtx()) this._engine.update(t, dt);
 
     this._raf = requestAnimationFrame(this.loop);
   };
@@ -1256,6 +1331,23 @@ export default class App extends React.Component {
         this.spriteRef.current.style.transform = `translateY(${(-jy).toFixed(1)}px) rotate(${rot.toFixed(1)}deg) scaleX(${p.facing}) scaleY(${sy.toFixed(3)})`;
         this.spriteRef.current.style.filter = dead ? 'grayscale(1) brightness(1.25)' : 'none';
         this.spriteRef.current.style.opacity = dead ? '0.65' : '1';
+      }
+      if (this.shadowRef.current) { this.shadowRef.current.style.transform = 'scaleX(1)'; this.shadowRef.current.style.opacity = '0.34'; }
+      return;
+    }
+
+    // A mini-game can briefly drive the pet's face (happy on a milestone, sad on
+    // a miss) — overrides the action face but not the animated transforms below.
+    if (this._gameFace && this.G[this._gameFace] && !this._faceOverride) {
+      let grid = this.G[this._gameFace];
+      if (p.blinkOn) grid = this.withClosed(grid);
+      if (this.state.cleanliness <= 25) grid = this.withDirt(grid);
+      if (this.ensureCtx()) this.draw(grid);
+      const jy = Math.sin(t / 220) * 3;
+      if (this.spriteRef.current) {
+        this.spriteRef.current.style.transform = `translateY(${(-jy).toFixed(1)}px) rotate(0deg) scaleX(${p.facing}) scaleY(1)`;
+        this.spriteRef.current.style.filter = 'none';
+        this.spriteRef.current.style.opacity = '1';
       }
       if (this.shadowRef.current) { this.shadowRef.current.style.transform = 'scaleX(1)'; this.shadowRef.current.style.opacity = '0.34'; }
       return;
@@ -2130,6 +2222,8 @@ export default class App extends React.Component {
           )}
           {/* pixel focus scene (desk/blackboard/passers-by/weeds) — drawn around the pet */}
           <canvas ref={this.sceneRef} width={this.SCENE_W} height={this.SCENE_H} style={{ position: 'absolute', left: -this.SCENE_OX, top: 0, width: this.SCENE_W, height: this.SCENE_H, imageRendering: 'pixelated', pointerEvents: 'none', zIndex: 2 }} />
+          {/* 玩耍 mini-game overlay — interactive pixel pieces drawn around the pet */}
+          <canvas ref={this.gameRef} width={this.GAME_W} height={this.GAME_H} onPointerDown={(e) => { e.stopPropagation(); this.onGameClick(e); }} style={{ position: 'absolute', left: -this.GAME_OX, top: 0, width: this.GAME_W, height: this.GAME_H, imageRendering: 'pixelated', pointerEvents: s.playGame ? 'auto' : 'none', zIndex: 28 }} />
           <div ref={this.shadowRef} style={{ position: 'absolute', left: '50%', top: 104, width: 80, height: 18, marginLeft: -40, background: 'radial-gradient(ellipse at center,rgba(20,24,60,.34),rgba(20,24,60,0) 70%)', borderRadius: '50%' }} />
           <div ref={this.partRef} style={{ position: 'absolute', left: 0, top: 0, width: 112, height: 112, pointerEvents: 'none', zIndex: 5 }} />
           <div ref={this.spriteRef} style={{ position: 'absolute', left: 0, top: 0, width: 112, height: 112, willChange: 'transform', transformOrigin: '50% 92%', zIndex: 3 }}>
@@ -2270,8 +2364,17 @@ export default class App extends React.Component {
         {s.workMenu && this.renderWorkMenu()}
         {this.renderFocusBar()}
 
-        {/* 玩耍 mini-games */}
-        {s.playOpen && <MiniGames onClose={this.closePlay} onReward={this.gameReward} />}
+        {/* 玩耍 — compact picker; the chosen game then plays IN-WINDOW on the pet */}
+        {s.playOpen && !s.playGame && <GamePicker games={GAME_LIST} onPick={this.startGame} onClose={this.closePlay} />}
+        {/* in-window game HUD: live score + a small exit chip (no modal board) */}
+        {s.playGame && (
+          <div style={{ position: 'absolute', top: 6, left: 0, right: 0, display: 'flex', justifyContent: 'space-between', padding: '0 8px', zIndex: 40, pointerEvents: 'none' }}>
+            <span style={{ background: '#222a55', color: '#fff', fontWeight: 900, fontSize: 11, padding: '3px 9px', borderRadius: 999, boxShadow: '0 2px 0 rgba(34,42,85,.3)' }}>
+              {(GAME_LIST.find((g) => g.key === s.playGame) || {}).name} · {s.gameScore}
+            </span>
+            <span onClick={this.stopGame} style={{ background: '#fff', color: '#222a55', border: '2px solid #222a55', fontWeight: 900, fontSize: 11, padding: '2px 9px', borderRadius: 999, cursor: 'pointer', pointerEvents: 'auto' }}>结束</span>
+          </div>
+        )}
       </div>
     );
   }
