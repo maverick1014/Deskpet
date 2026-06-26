@@ -13,12 +13,12 @@ const BODY = '#222a55';
 const BEAK = '#ff9d3d';
 const SCARF = '#ff4d6d';
 
-// School → work loop. Education 0..3; STUDY_NEED[edu] = study sessions to reach
+// School → work loop. Education 0..4; STUDY_NEED[edu] = study sessions to reach
 // the next level; WORK_PAY/WORK_JOB are indexed by current education tier.
-const EDU = ['未入学', '小学', '中学', '大学'];
-const STUDY_NEED = [4, 8, 16];           // 未→小学, 小学→中学, 中学→大学
-const WORK_PAY = [8, 16, 28, 50];        // pay per shift by education tier
-const WORK_JOB = ['打零工', '清洁工', '店员', '程序员'];
+const EDU = ['未入学', '幼儿园', '小学', '中学', '大学'];
+const STUDY_NEED = [2, 4, 8, 16];        // 未→幼儿园, 幼儿园→小学, 小学→中学, 中学→大学
+const WORK_PAY = [8, 12, 18, 28, 50];    // pay per shift by education tier
+const WORK_JOB = ['打零工', '小帮手', '清洁工', '店员', '程序员'];
 const SICK_TIER = { mild: 1, medium: 2, severe: 3 };
 
 // Growth: a freshly hatched pet starts as an egg/baby and becomes a full penguin
@@ -297,8 +297,8 @@ export default class App extends React.Component {
   studyAct = () => {
     if (this.busyBlocked()) return;
     this.closeMenu();
-    if (!this.isGrown()) { this.speak(pick(DIA.tooYoung), 2400, true); return; }
-    if (this.state.education >= 3) { this.speak('已经大学毕业啦！🎓', 2200, true); return; }
+    // No age gate on schooling — even a little one can attend 幼儿园.
+    if (this.state.education >= 4) { this.speak('已经大学毕业啦！🎓', 2200, true); return; }
     if (this.state.sick) { this.speak('生病了，先看医生吧…🤒', 2200, true); return; }
     if (this.state.energy < 12) { this.speak('太困了，想睡觉…😴', 2200, true); return; }
     this.touch();
@@ -933,6 +933,8 @@ export default class App extends React.Component {
 
   tick = () => {
     if (this.state.dead || this.state.onboard) return; // no needs while dead or onboarding
+    // Online reward: +10 money for every full hour spent online (every 3600 ticks).
+    const hourly = (((this.state.playTime || 0) + 1) % 3600 === 0) ? 10 : 0;
     // This is a 24/7 idle pet, but tuned to be playable: a full pet gets hungry
     // in ~2.5–3h (tick = 1s; rates per-second). Appetite trait nudges the speed.
     // Health/sickness stay slow (below) so faster needs don't make it sick easily.
@@ -956,8 +958,11 @@ export default class App extends React.Component {
       else if (fullness > 55 && cleanliness > 55 && happiness > 45 && energy > 30) hd += 0.003;
       const health = clamp(s.health + hd, 0, 100);
       const mood = this.calcMood({ fullness, energy, cleanliness, happiness });
-      return { fullness, cleanliness, happiness, energy, health, mood, playTime: (s.playTime || 0) + 1 };
+      return { fullness, cleanliness, happiness, energy, health, mood, playTime: (s.playTime || 0) + 1, money: s.money + hourly };
     });
+    if (hourly) { this.setEmote('💰', 1500); this.save(); } // celebrate the hourly reward
+
+
 
     // Growth: enough total online time → the egg hatches into a penguin (once).
     if (!this._wasGrown && this.state.gender && (this.state.playTime || 0) >= GROW_SECONDS) {
