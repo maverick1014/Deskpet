@@ -3,7 +3,7 @@ import React from 'react';
 // Right-click context menu. Feed/Bath open the shop (cost money); Play is a free
 // mini-game. Study/Work are the school→earn loop; 看病 (see a doctor) appears
 // only while the pet is sick. Sit is a free rest; sleep is automatic when tired.
-export default function ContextMenu({ x, y, sick, onClose, onFeed, onBath, onPlay, onSit, onStudy, onWork, onMedicine, onCenter, onSettings, onQuit }) {
+export default function ContextMenu({ x, y, sick, focusing, onClose, onFeed, onBath, onPlay, onSit, onStudy, onWork, onMedicine, onStopFocus, onCenter, onSettings, onQuit }) {
   const sep = <div style={{ height: 2, background: '#eef0f7', margin: '4px 6px', borderRadius: 2 }} />;
   return (
     <>
@@ -14,8 +14,12 @@ export default function ContextMenu({ x, y, sick, onClose, onFeed, onBath, onPla
         <div className="menu-item" onClick={onPlay}><span>🎈</span>玩耍</div>
         <div className="menu-item" onClick={onSit}><span>🪑</span>坐下</div>
         {sep}
-        <div className="menu-item" onClick={onStudy}><span>📖</span>上学</div>
-        <div className="menu-item" onClick={onWork}><span>💼</span>上班</div>
+        {focusing
+          ? <div className="menu-item danger" onClick={onStopFocus}><span>⏹</span>停止专注（清零）</div>
+          : (<>
+              <div className="menu-item" onClick={onStudy}><span>📖</span>上学</div>
+              <div className="menu-item" onClick={onWork}><span>💼</span>上班</div>
+            </>)}
         {sick && <div className="menu-item" onClick={onMedicine}><span>💊</span>看病</div>}
         {sep}
         <div className="menu-item" onClick={onCenter}><span>🎯</span>回到中央</div>

@@ -8,6 +8,21 @@ is pre-release, so versions are milestone markers rather than published releases
 
 New lifelike animations being added one at a time.
 
+## [1.5.0] — 2026-06-26 — Timed school & work (focus sessions)
+
+### Added
+- **Timed school system.** 上课 now opens a **subject picker**. Each level has 4
+  subjects (语文/英语/数学/科学); finishing a subject's classes graduates it, and
+  graduating all 4 promotes to the next level.
+  - Classes per subject **double each level**: 幼儿园 2 · 小学 4 · 中学 8 · 大学 16.
+  - Class length (real time): 幼儿园 **15min** · 小学 **30min** · 中学 **1hr** · 大学 **2hr**.
+- **Timed work system.** 上班 opens a **job picker** of jobs unlocked by your
+  school level (higher level → better pay). Pick a **30min or 1hr** shift to earn
+  `rate × minutes`.
+- **Focus mechanic.** During a class/shift a **countdown timer** shows the time
+  left. You can **only 喂食 / 洗澡** — **playing, quitting, or stopping breaks
+  focus** and the session resets. A cheerful **done animation** plays on finish.
+
 ## [1.4.1] — 2026-06-26 — Scroll fixes for shop & settings
 
 ### Fixed

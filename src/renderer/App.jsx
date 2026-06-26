@@ -13,12 +13,36 @@ const BODY = '#222a55';
 const BEAK = '#ff9d3d';
 const SCARF = '#ff4d6d';
 
-// School → work loop. Education 0..4; STUDY_NEED[edu] = study sessions to reach
-// the next level; WORK_PAY/WORK_JOB are indexed by current education tier.
-const EDU = ['未入学', '幼儿园', '小学', '中学', '大学'];
-const STUDY_NEED = [2, 4, 8, 16];        // 未→幼儿园, 幼儿园→小学, 小学→中学, 中学→大学
-const WORK_PAY = [8, 12, 18, 28, 50];    // pay per shift by education tier
-const WORK_JOB = ['打零工', '小帮手', '清洁工', '店员', '程序员'];
+// Timed school → work system. School has 4 levels; each level has the same 4
+// subjects, and each subject needs `per` focus classes to graduate. Graduating
+// all 4 subjects promotes the pet to the next level. A class runs for `min`
+// REAL minutes of focused study (the pet keeps studying the whole time).
+const SUBJECTS = [
+  { key: 'cn', name: '语文', icon: '📖' },
+  { key: 'en', name: '英语', icon: '🔤' },
+  { key: 'ma', name: '数学', icon: '➗' },
+  { key: 'sc', name: '科学', icon: '🔬' },
+];
+const SCHOOL = [
+  { name: '幼儿园', per: 2,  min: 15 },
+  { name: '小学',   per: 4,  min: 30 },
+  { name: '中学',   per: 8,  min: 60 },
+  { name: '大学',   per: 16, min: 120 },
+];
+// Jobs unlock by school level reached (lvl ≤ schoolLevel). Higher tiers pay
+// more. A shift is 30 or 60 real minutes; pay = rate × minutes.
+const JOBS = [
+  { name: '发传单',     lvl: 0, rate: 1.2, icon: '📰' },
+  { name: '拔草',       lvl: 0, rate: 1.6, icon: '🌿' },
+  { name: '洗碗',       lvl: 1, rate: 2.4, icon: '🍽️' },
+  { name: '清洁工',     lvl: 1, rate: 3.0, icon: '🧹' },
+  { name: '便利店店员', lvl: 2, rate: 3.8, icon: '🏪' },
+  { name: '快递员',     lvl: 2, rate: 4.4, icon: '📦' },
+  { name: '程序员',     lvl: 3, rate: 6.5, icon: '💻' },
+  { name: '老师',       lvl: 3, rate: 5.8, icon: '🧑‍🏫' },
+];
+const WORK_MINS = [30, 60];
+const FRESH_CLASSES = { cn: 0, en: 0, ma: 0, sc: 0 };
 const SICK_TIER = { mild: 1, medium: 2, severe: 3 };
 
 // Growth: a freshly hatched pet starts as an egg/baby and becomes a full penguin
@@ -29,6 +53,7 @@ const GENDER_COLOR = { boy: '#ff4d57', girl: '#ff8fce' }; // ribbon / scarf colo
 const IDLE_ACTIONS = { sit: 1, tv: 1, read: 1, music: 1, stretch: 1, look: 1, wait: 1, flap: 1, sneeze: 1, peck: 1, yawn: 1, preen: 1, doze: 1, wave: 1 };
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const fmtClock = (sec) => { const m = Math.floor(sec / 60); return `${m}:${String(sec % 60).padStart(2, '0')}`; };
 
 export default class App extends React.Component {
   state = {
@@ -36,6 +61,11 @@ export default class App extends React.Component {
     health: 100, sick: null, dead: false, education: 0, study: 0,
     name: 'Pengu', volume: 60, speed: 1, opacity: 100,
     money: 200, gender: null, playTime: 0, onboard: null,
+    // Timed school/work: schoolLevel 0..4 (4 = graduated 大学); classDone tracks
+    // classes finished per subject at the CURRENT level. session is the active
+    // focus block (null when idle); schoolMenu/workMenu open the pickers.
+    schoolLevel: 0, classDone: { cn: 0, en: 0, ma: 0, sc: 0 },
+    session: null, sessionLeft: 0, schoolMenu: false, workMenu: false,
     shopCat: null,
     menu: null, settingsOpen: false, emote: null, say: null, hint: true, hover: false, hoverStat: null, loaded: false,
     entering: true, traits: '',
@@ -193,6 +223,7 @@ export default class App extends React.Component {
   // Free mini-game: the owner plays with the pet. No cost; raises happiness
   // (and, like any play, uses a little energy and gets the pet a bit dirty).
   playFree = () => {
+    if (this.state.session) { this.breakFocus(); return; } // playing breaks focus
     if (this.busyBlocked()) return;
     if (this.state.hover || this.state.shopCat) this.setState({ hover: false, hoverStat: null, shopCat: null });
     if (!this.isGrown()) { this.ballAct(); return; } // a baby in the egg can only play ball
@@ -207,8 +238,9 @@ export default class App extends React.Component {
   die = () => {
     if (this.state.dead) return;
     clearTimeout(this._sitT);
+    this.clearProp();
     this.p.action = 'dead'; this.p.busy = true;
-    this.setState({ dead: true, sick: this.state.sick || 'severe', hover: false, hoverStat: null, shopCat: null, menu: null });
+    this.setState({ dead: true, sick: this.state.sick || 'severe', hover: false, hoverStat: null, shopCat: null, menu: null, session: null, sessionLeft: 0, schoolMenu: false, workMenu: false });
     this.sfx('sleep');
     this.speak('呜…我撑不住了…💀', 4000, true);
     this.save();
@@ -226,10 +258,12 @@ export default class App extends React.Component {
   restart = () => {
     this.personality = genPersonality();
     this._weakUntil = 0;
+    this.clearProp();
     this.setState({
       dead: false, sick: null, health: 100,
       fullness: 70, energy: 80, cleanliness: 100, happiness: 80,
       education: 0, study: 0, money: 200, mood: 'happy',
+      schoolLevel: 0, classDone: { cn: 0, en: 0, ma: 0, sc: 0 }, session: null, sessionLeft: 0,
       traits: traitLabel(this.personality),
     }, () => this.save());
     this.rebirth('你好呀，我是新来的~ 🐧');
@@ -294,52 +328,118 @@ export default class App extends React.Component {
     }
   };
 
+  // 上课 / 上班 now open a picker instead of doing an instant action.
   studyAct = () => {
-    if (this.busyBlocked()) return;
     this.closeMenu();
-    // No age gate on schooling — even a little one can attend 幼儿园.
-    if (this.state.education >= 4) { this.speak('已经大学毕业啦！🎓', 2200, true); return; }
+    if (this.state.session) { this.speak('正在专注中哦~', 1800, true); return; }
+    if (this.state.dead || this.state.onboard) return;
+    this.setState({ schoolMenu: true, workMenu: false, hover: false, shopCat: null });
+  };
+  workAct = () => {
+    this.closeMenu();
+    if (this.state.session) { this.speak('正在专注中哦~', 1800, true); return; }
+    if (this.state.dead || this.state.onboard) return;
+    this.setState({ workMenu: true, schoolMenu: false, hover: false, shopCat: null });
+  };
+  closeSchool = () => this.setState({ schoolMenu: false });
+  closeWork = () => this.setState({ workMenu: false });
+
+  // Jobs the pet has unlocked at its current school level.
+  unlockedJobs() { return JOBS.filter((j) => j.lvl <= this.state.schoolLevel); }
+
+  // ---- focus sessions (timed study / work) --------------------------------
+  // Start a class for one subject. Runs SCHOOL[level].min real minutes.
+  startClass = (subjKey) => {
+    if (this.state.session) return;
+    const lvl = this.state.schoolLevel;
+    if (lvl >= SCHOOL.length) { this.speak('已经大学毕业啦！🎓', 2200, true); return; }
     if (this.state.sick) { this.speak('生病了，先看医生吧…🤒', 2200, true); return; }
-    if (this.state.energy < 12) { this.speak('太困了，想睡觉…😴', 2200, true); return; }
-    this.touch();
-    this.p.busy = true; this.p.action = 'study';
-    this.bookProp(3000); this.speak(pick(DIA.study), 2600, true);
-    setTimeout(() => {
-      const need = STUDY_NEED[this.state.education] || 99;
-      let study = this.state.study + 1;
-      let education = this.state.education;
-      let leveled = false;
-      if (study >= need) { study = 0; education += 1; leveled = true; }
-      this.setState((s) => ({ study, education, energy: Math.max(0, s.energy - 8), happiness: Math.min(100, s.happiness + 3) }));
-      this.p.action = 'idle'; this.p.busy = false; this.recompute(); this.save();
-      this.speak(leveled ? `升学啦！🎓 现在是${EDU[education]}生` : '又学到一点知识~ 📚', 2800, true);
-    }, 3000);
+    const sc = SCHOOL[lvl];
+    const subj = SUBJECTS.find((s) => s.key === subjKey);
+    if ((this.state.classDone[subjKey] || 0) >= sc.per) { this.speak(`${subj.name}已经学完啦~`, 2000, true); return; }
+    const endTs = Date.now() + sc.min * 60000;
+    this.beginFocus({ kind: 'study', subjectKey: subjKey, label: `${subj.name}·上课`, level: lvl, minutes: sc.min, endTs });
+    this.setState({ schoolMenu: false });
   };
 
-  workAct = () => {
-    if (this.busyBlocked()) return;
-    this.closeMenu();
-    if (!this.isGrown()) { this.speak(pick(DIA.tooYoung), 2400, true); return; }
+  // Start a work shift of `minutes` (30 or 60) for JOBS[jobIdx].
+  startWork = (jobIdx, minutes) => {
+    if (this.state.session) return;
+    const job = JOBS[jobIdx];
+    if (!job || job.lvl > this.state.schoolLevel) return;
     if (this.state.sick) { this.speak('生病了不能上班…🤒', 2200, true); return; }
-    if (this.state.energy < 18) { this.speak('太累了，先休息…😴', 2200, true); return; }
-    this.touch();
-    const edu = this.state.education;
-    const weak = this._weakUntil && performance.now() < this._weakUntil; // post-revival weakness
-    const pay = Math.round(WORK_PAY[edu] * (weak ? 0.7 : 1));
-    this.p.busy = true; this.p.action = 'work';
-    this.briefcaseProp(3200); this.speak(`${WORK_JOB[edu]}·${pick(DIA.work)}`, 2600, true);
-    setTimeout(() => {
-      this.setState((s) => ({
-        money: s.money + pay,
-        energy: Math.max(0, s.energy - 22),
-        cleanliness: Math.max(0, s.cleanliness - 6),
-        happiness: Math.max(0, s.happiness - 4),
-      }));
-      this.p.action = 'idle'; this.p.busy = false; this.recompute(); this.save();
-      this.setEmote('💰', 1500);
-      this.speak(`赚到 +${pay} 💰！`, 2600, true);
-    }, 3200);
+    const endTs = Date.now() + minutes * 60000;
+    this.beginFocus({ kind: 'work', jobIdx, label: `${job.name}·上班`, minutes, endTs });
+    this.setState({ workMenu: false });
   };
+
+  beginFocus(session) {
+    this.touch();
+    this.stand();
+    this.clearProp();
+    this.p.busy = true;
+    this.p.action = session.kind === 'study' ? 'study' : 'work';
+    if (session.kind === 'study') this.bookProp(0); else this.briefcaseProp(0); // 0 = persist until cleared
+    this.setState({ session, sessionLeft: Math.max(0, Math.ceil((session.endTs - Date.now()) / 1000)) });
+    this.speak(session.kind === 'study' ? '开始专注上课啦~ 要加油📚' : '开始认真工作~ 💼', 2600, true);
+  }
+
+  clearFocus() {
+    this.clearProp();
+    this.p.busy = false;
+    if (this.p.action === 'study' || this.p.action === 'work') this.p.action = 'idle';
+    this.setState({ session: null, sessionLeft: 0 });
+    this.recompute();
+  }
+
+  // The owner broke focus (played, quit, or stopped manually): progress is lost.
+  breakFocus = () => {
+    if (!this.state.session) return false;
+    this.clearFocus();
+    this.setEmote('💢', 1800);
+    this.speak('分心了…这次要从头来过 😣', 3000, true);
+    this.save();
+    return true;
+  };
+
+  // Timer reached zero — grant the reward and play a happy "done" animation.
+  finishFocus() {
+    const ses = this.state.session;
+    if (!ses) return;
+    this.clearFocus();
+    if (ses.kind === 'study') {
+      const sc = SCHOOL[ses.level];
+      const done = { ...this.state.classDone, [ses.subjectKey]: Math.min(sc.per, (this.state.classDone[ses.subjectKey] || 0) + 1) };
+      const graduated = SUBJECTS.every((s) => (done[s.key] || 0) >= sc.per);
+      const subj = SUBJECTS.find((s) => s.key === ses.subjectKey);
+      let schoolLevel = this.state.schoolLevel;
+      let classDone = done;
+      if (graduated) { schoolLevel = Math.min(SCHOOL.length, ses.level + 1); classDone = { ...FRESH_CLASSES }; }
+      this.setState((s) => ({ classDone, schoolLevel, happiness: Math.min(100, s.happiness + 5), energy: Math.max(0, s.energy - 10) }), () => this.save());
+      this.doneAnim('study');
+      const next = SCHOOL[schoolLevel];
+      this.speak(graduated
+        ? (next ? `${sc.name}毕业啦！🎓 升入${next.name}！` : '大学毕业！🎓🎉 厉害啦！')
+        : `${subj.name} 上完一节课！(${done[ses.subjectKey]}/${sc.per}) 📚`, 3400, true);
+    } else {
+      const job = JOBS[ses.jobIdx];
+      const weak = this._weakUntil && performance.now() < this._weakUntil;
+      const pay = Math.round(job.rate * ses.minutes * (weak ? 0.7 : 1));
+      this.setState((s) => ({ money: s.money + pay, energy: Math.max(0, s.energy - 18), cleanliness: Math.max(0, s.cleanliness - 8), happiness: Math.max(0, s.happiness - 3) }), () => this.save());
+      this.doneAnim('work');
+      this.speak(`${job.name}下班！赚到 +${pay}💰`, 3400, true);
+    }
+  }
+
+  // A cheerful finishing hop with a burst of particles.
+  doneAnim(kind) {
+    this.spawn('play');
+    this.setEmote(kind === 'study' ? '🎓' : '💰', 2400);
+    this.p.action = 'enter'; this.p.busy = true;
+    this.p.aStart = performance.now(); this.p.aDur = 900;
+    clearTimeout(this._enterT);
+    this._enterT = setTimeout(() => { if (this.p.action === 'enter') { this.p.action = 'idle'; this.p.busy = false; } }, 950);
+  }
 
   // A small emoji that floats and bobs above the pet's head (study/work props).
   floatEmoji(emoji, dur) {
@@ -426,8 +526,11 @@ export default class App extends React.Component {
       '<div style="position:absolute;right:7px;bottom:14px;width:8px;height:2px;background:#c2c8e0"></div>' +
       '<div style="position:absolute;right:7px;bottom:9px;width:6px;height:2px;background:#c2c8e0"></div>';
     layer.appendChild(el);
-    setTimeout(() => el.remove(), dur + 100);
+    this._lastProp = el;
+    if (dur) setTimeout(() => { if (el.parentNode) el.remove(); if (this._lastProp === el) this._lastProp = null; }, dur + 100);
   }
+  // Remove a persistent study/work prop (dur=0 props live until cleared).
+  clearProp() { if (this._lastProp) { this._lastProp.remove(); this._lastProp = null; } }
   // A briefcase the pet carries while working.
   briefcaseProp(dur) {
     const layer = this.partRef.current;
@@ -439,7 +542,8 @@ export default class App extends React.Component {
       '<div style="position:absolute;left:0;bottom:0;width:28px;height:17px;border-radius:3px;background:#b9763f;border:2px solid #6b4a2a;box-shadow:0 2px 0 rgba(34,42,85,.2)">' +
       '<div style="position:absolute;left:50%;top:2px;bottom:2px;width:2px;margin-left:-1px;background:#6b4a2a"></div></div>';
     layer.appendChild(el);
-    setTimeout(() => el.remove(), dur + 100);
+    this._lastProp = el;
+    if (dur) setTimeout(() => { if (el.parentNode) el.remove(); if (this._lastProp === el) this._lastProp = null; }, dur + 100);
   }
   // A single music note drifting up (called repeatedly while listening).
   spawnNote() {
@@ -638,7 +742,7 @@ export default class App extends React.Component {
   // ---- window click-through toggle (hit-test bypass) ----------------------
   refreshInteractive() {
     const s = this.state;
-    const v = !!(this._overPen || this.p.dragging || s.hover || s.shopCat || s.menu || s.settingsOpen || s.dead || s.onboard);
+    const v = !!(this._overPen || this.p.dragging || s.hover || s.shopCat || s.menu || s.settingsOpen || s.dead || s.onboard || s.schoolMenu || s.workMenu);
     if (v !== this._iv) { this._iv = v; setInteractive(v); }
   }
   // Show the care panel while the cursor is over the penguin OR the open panel
@@ -962,6 +1066,14 @@ export default class App extends React.Component {
     });
     if (hourly) { this.setEmote('💰', 1500); this.save(); } // celebrate the hourly reward
 
+    // Focus session countdown: update the displayed remaining time each second,
+    // and grant the reward + done animation when it reaches zero.
+    if (this.state.session) {
+      const left = Math.max(0, Math.ceil((this.state.session.endTs - Date.now()) / 1000));
+      if (left <= 0) this.finishFocus();
+      else if (left !== this.state.sessionLeft) this.setState({ sessionLeft: left });
+    }
+
 
 
     // Growth: enough total online time → the egg hatches into a penguin (once).
@@ -1115,6 +1227,9 @@ export default class App extends React.Component {
   endWalk() { if (this.p.action === 'walk') this.p.action = 'idle'; }
 
   feed = (fx) => {
+    // Feeding is allowed during a focus session — it just tops up the stat
+    // without breaking concentration (no pose change).
+    if (this.state.session) { this.touch(); this.applyDeltas(fx || { full: 42, happy: 4 }); this.spawn('feed'); this.setEmote('🐟', 1400); this.save(); return; }
     if (this.busyBlocked()) return;
     this.touch(); this.closeMenu();
     this.p.busy = true; this.p.action = 'eat';
@@ -1203,6 +1318,8 @@ export default class App extends React.Component {
   // Bath: scrubs the pet clean with rising bubbles. fx.clean is a delta
   // (e.g. +45 for a quick shower, +100 for a bubble bath).
   bathAct = (fx) => {
+    // Bathing is allowed during a focus session (a few bubbles, no pose change).
+    if (this.state.session) { this.touch(); this.applyDeltas(fx || { clean: 100, happy: 5 }); this.bubbles(); this.setEmote('🫧', 1600); this.save(); return; }
     if (this.busyBlocked()) return;
     this.touch(); this.closeMenu();
     this.p.busy = true; this.p.action = 'bath';
@@ -1308,7 +1425,7 @@ export default class App extends React.Component {
     }
     this.refreshInteractive();
   };
-  onDouble = (e) => { e.preventDefault(); clearTimeout(this._clickT); if (this.isGrown()) this.dance(); else this.ballAct(); };
+  onDouble = (e) => { e.preventDefault(); clearTimeout(this._clickT); if (this.state.session) { this.breakFocus(); return; } if (this.isGrown()) this.dance(); else this.ballAct(); };
   onContext = (e) => {
     e.preventDefault();
     const r = this.rootRef.current.getBoundingClientRect();
@@ -1357,9 +1474,11 @@ export default class App extends React.Component {
     this.personality = normPersonality(d && d.personality);
     if (!d) { this.setState({ loaded: true }); return { gender: null, dead: false }; } // brand-new pet → onboarding (boot)
     const st = {};
-    ['fullness', 'energy', 'cleanliness', 'happiness', 'health', 'sick', 'dead', 'education', 'study', 'gender', 'playTime', 'money', 'mood', 'name', 'volume', 'speed', 'opacity'].forEach((k) => {
+    ['fullness', 'energy', 'cleanliness', 'happiness', 'health', 'sick', 'dead', 'education', 'study', 'gender', 'playTime', 'money', 'mood', 'name', 'volume', 'speed', 'opacity', 'schoolLevel'].forEach((k) => {
       if (d[k] != null) st[k] = d[k];
     });
+    st.classDone = (d.classDone && typeof d.classDone === 'object') ? { ...FRESH_CLASSES, ...d.classDone } : { ...FRESH_CLASSES };
+    if (st.schoolLevel == null) st.schoolLevel = 0;
     // No gender saved → this pet hasn't been onboarded (fresh install or a
     // pre-onboarding save), so boot() will show the egg-choice + name screen.
     this._wasGrown = (st.playTime != null ? st.playTime : 0) >= GROW_SECONDS;
@@ -1391,6 +1510,7 @@ export default class App extends React.Component {
     return {
       fullness: s.fullness, energy: s.energy, cleanliness: s.cleanliness, happiness: s.happiness,
       health: s.health, sick: s.sick, dead: s.dead, education: s.education, study: s.study,
+      schoolLevel: s.schoolLevel, classDone: s.classDone,
       gender: s.gender, playTime: s.playTime, money: s.money, mood: s.mood,
       name: s.name, volume: s.volume, speed: s.speed, opacity: s.opacity,
       personality: this.personality,
@@ -1449,9 +1569,10 @@ export default class App extends React.Component {
     if (!d) return;
     this.personality = normPersonality(d.personality);
     const st = {};
-    ['fullness', 'energy', 'cleanliness', 'happiness', 'health', 'sick', 'dead', 'education', 'study', 'gender', 'playTime', 'money', 'mood', 'name', 'volume', 'speed', 'opacity'].forEach((k) => {
+    ['fullness', 'energy', 'cleanliness', 'happiness', 'health', 'sick', 'dead', 'education', 'study', 'gender', 'playTime', 'money', 'mood', 'name', 'volume', 'speed', 'opacity', 'schoolLevel'].forEach((k) => {
       if (d[k] != null) st[k] = d[k];
     });
+    if (d.classDone && typeof d.classDone === 'object') st.classDone = { ...FRESH_CLASSES, ...d.classDone };
     if (d.x != null && this.minX != null) { this.p.x = clamp(d.x, this.minX, this.maxX); this.p.tx = this.p.x; }
     if (d.y != null && this.minY != null) { this.p.y = clamp(d.y, this.minY, this.maxY); this.ground = this.p.y; }
     this.pushWindow(true);
@@ -1499,6 +1620,101 @@ export default class App extends React.Component {
     try { await pushCloud(this.snapshot()); this.setState({ syncedAt: Date.now() }); } catch (e) { /* ignore */ }
     this.setState({ authBusy: false });
   };
+
+  // ---- school / work / focus UI -------------------------------------------
+  renderFocusBar() {
+    const ses = this.state.session;
+    if (!ses) return null;
+    return (
+      <div style={{ position: 'absolute', top: 6, left: '50%', transform: 'translateX(-50%)', zIndex: 40, pointerEvents: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#222a55', color: '#fff', padding: '6px 13px', borderRadius: 999, fontSize: 12, fontWeight: 900, boxShadow: '0 4px 0 rgba(34,42,85,.3)', whiteSpace: 'nowrap' }}>
+          <span>{ses.kind === 'study' ? '📚' : '💼'}</span>
+          <span>{ses.label}</span>
+          <span style={{ fontFamily: 'monospace', fontSize: 13, color: '#ffe27a' }}>{fmtClock(this.state.sessionLeft)}</span>
+        </div>
+        <div style={{ background: 'rgba(34,42,85,.82)', color: '#cdd3ee', padding: '2px 9px', borderRadius: 999, fontSize: 9, fontWeight: 800, whiteSpace: 'nowrap' }}>专注中 · 只能喂食/洗澡，玩耍或退出会清零</div>
+      </div>
+    );
+  }
+
+  renderSchoolMenu() {
+    const s = this.state;
+    const lvl = s.schoolLevel;
+    const graduated = lvl >= SCHOOL.length;
+    const sc = graduated ? null : SCHOOL[lvl];
+    const rowBtn = { border: 'none', background: '#222a55', color: '#fff', fontFamily: "'Nunito'", fontWeight: 900, fontSize: 10.5, padding: '5px 8px', borderRadius: 8, cursor: 'pointer', whiteSpace: 'nowrap' };
+    return (
+      <div onClick={this.closeSchool} style={{ position: 'absolute', inset: 0, background: 'rgba(20,24,60,.35)', backdropFilter: 'blur(2px)', WebkitBackdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 72 }}>
+        <div onClick={(e) => e.stopPropagation()} style={{ width: 208, maxHeight: 'calc(100% - 16px)', overflowY: 'auto', boxSizing: 'border-box', background: '#fff', border: '3px solid #222a55', borderRadius: 18, padding: 13, boxShadow: '0 8px 0 rgba(34,42,85,.22)', animation: 'popIn .2s ease-out' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <span style={{ fontWeight: 900, fontSize: 14, color: '#222a55' }}>📚 上课{sc ? ` · ${sc.name}` : ''}</span>
+            <div onClick={this.closeSchool} style={{ width: 22, height: 22, border: '2px solid #222a55', borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontWeight: 900, color: '#222a55', fontSize: 11 }}>✕</div>
+          </div>
+          {graduated ? (
+            <div style={{ textAlign: 'center', fontSize: 13, fontWeight: 800, color: '#36c98f', padding: '14px 4px' }}>🎓 已从大学毕业！<br />全部课程完成啦~</div>
+          ) : (
+            <>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#9aa3cc', marginBottom: 9, lineHeight: 1.4 }}>每节课 <b style={{ color: '#222a55' }}>{sc.min}分钟</b>，每科要上 <b style={{ color: '#222a55' }}>{sc.per}节</b>。四科全毕业即可升学。</div>
+              {SUBJECTS.map((subj) => {
+                const done = s.classDone[subj.key] || 0;
+                const grad = done >= sc.per;
+                return (
+                  <div key={subj.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 4px', borderBottom: '1px solid #eef0f7' }}>
+                    <span style={{ fontSize: 17, width: 22, textAlign: 'center' }}>{subj.icon}</span>
+                    <span style={{ flex: 1, fontSize: 12, fontWeight: 800, color: '#222a55' }}>{subj.name}</span>
+                    <span style={{ fontSize: 10, fontWeight: 900, color: grad ? '#36c98f' : '#9aa3cc', width: 30, textAlign: 'right' }}>{done}/{sc.per}</span>
+                    {grad
+                      ? <span style={{ fontSize: 11, fontWeight: 900, color: '#36c98f', width: 50, textAlign: 'center' }}>✓毕业</span>
+                      : <button onClick={() => this.startClass(subj.key)} style={{ ...rowBtn, width: 50 }}>上课</button>}
+                  </div>
+                );
+              })}
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  renderWorkMenu() {
+    const s = this.state;
+    const jobs = this.unlockedJobs();
+    const wbtn = { border: 'none', background: '#36c98f', color: '#fff', fontFamily: "'Nunito'", fontWeight: 900, fontSize: 10, padding: '5px 6px', borderRadius: 8, cursor: 'pointer', whiteSpace: 'nowrap', flex: 1 };
+    return (
+      <div onClick={this.closeWork} style={{ position: 'absolute', inset: 0, background: 'rgba(20,24,60,.35)', backdropFilter: 'blur(2px)', WebkitBackdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 72 }}>
+        <div onClick={(e) => e.stopPropagation()} style={{ width: 212, maxHeight: 'calc(100% - 16px)', overflowY: 'auto', boxSizing: 'border-box', background: '#fff', border: '3px solid #222a55', borderRadius: 18, padding: 13, boxShadow: '0 8px 0 rgba(34,42,85,.22)', animation: 'popIn .2s ease-out' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <span style={{ fontWeight: 900, fontSize: 14, color: '#222a55' }}>💼 上班 · 💰{s.money}</span>
+            <div onClick={this.closeWork} style={{ width: 22, height: 22, border: '2px solid #222a55', borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontWeight: 900, color: '#222a55', fontSize: 11 }}>✕</div>
+          </div>
+          {jobs.length === 0 ? (
+            <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 800, color: '#9aa3cc', padding: '14px 4px' }}>先去上学解锁工作吧~ 📚</div>
+          ) : (
+            <>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#9aa3cc', marginBottom: 9, lineHeight: 1.4 }}>选择班次，专注到点即可领工资。玩耍或退出会清零。</div>
+              {jobs.map((job) => {
+                const idx = JOBS.indexOf(job);
+                return (
+                  <div key={job.name} style={{ padding: '7px 4px', borderBottom: '1px solid #eef0f7' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
+                      <span style={{ fontSize: 17, width: 22, textAlign: 'center' }}>{job.icon}</span>
+                      <span style={{ flex: 1, fontSize: 12, fontWeight: 800, color: '#222a55' }}>{job.name}</span>
+                      <span style={{ fontSize: 9.5, fontWeight: 800, color: '#9aa3cc' }}>💰{job.rate}/分</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {WORK_MINS.map((m) => (
+                        <button key={m} onClick={() => this.startWork(idx, m)} style={wbtn}>{m}分 · +{Math.round(job.rate * m)}💰</button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   // ---- render --------------------------------------------------------------
   render() {
@@ -1628,6 +1844,7 @@ export default class App extends React.Component {
             onPlay={() => { this.closeMenu(); this.playFree(); }}
             onSit={this.sitAct}
             onStudy={this.studyAct} onWork={this.workAct} onMedicine={this.openMedicine}
+            focusing={!!s.session} onStopFocus={() => { this.closeMenu(); this.breakFocus(); }}
             onCenter={() => { this.closeMenu(); this.recenter(); }}
             onSettings={this.openSettings} onQuit={this.quit}
           />
@@ -1695,6 +1912,11 @@ export default class App extends React.Component {
             onSignOut={this.doSignOut} onSyncNow={this.syncNow}
           />
         )}
+
+        {/* school / work pickers + focus countdown */}
+        {s.schoolMenu && this.renderSchoolMenu()}
+        {s.workMenu && this.renderWorkMenu()}
+        {this.renderFocusBar()}
       </div>
     );
   }
