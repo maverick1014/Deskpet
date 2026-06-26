@@ -2,7 +2,8 @@ import React from 'react';
 import StatusBar from './components/StatusBar.jsx';
 import ContextMenu from './components/ContextMenu.jsx';
 import SettingsPanel from './components/SettingsPanel.jsx';
-import MiniGames from './components/MiniGames.jsx';
+import GamePicker from './components/MiniGames.jsx';
+import { GameEngine, GAME_LIST } from './games.js';
 import {
   loadState, saveState, getStage, moveWindow, onStageUpdate, setInteractive, quitApp, onRecenter,
 } from './store.js';
@@ -67,7 +68,7 @@ export default class App extends React.Component {
     // focus block (null when idle); schoolMenu/workMenu open the pickers.
     schoolLevel: 0, classDone: { cn: 0, en: 0, ma: 0, sc: 0 },
     session: null, sessionLeft: 0, schoolMenu: false, workMenu: false,
-    playOpen: false,
+    playOpen: false, playGame: null, gameScore: 0,
     shopCat: null,
     menu: null, settingsOpen: false, emote: null, say: null, hint: true, hover: false, hoverStat: null, loaded: false,
     entering: true, traits: '',
@@ -88,6 +89,7 @@ export default class App extends React.Component {
   shadowRef = React.createRef();
   canvasRef = React.createRef();
   sceneRef = React.createRef();
+  gameRef = React.createRef();
   partRef = React.createRef();
 
   // Stable character (Phase 1). Set synchronously so behavior works before the
@@ -145,7 +147,9 @@ export default class App extends React.Component {
     clearInterval(this._bathBub);
     clearInterval(this._musicInt);
     clearTimeout(this._faceArcT);
+    clearTimeout(this._gameFaceT); clearTimeout(this._gameActT);
     this.stopScene();
+    if (this._engine) this._engine.stop();
     window.removeEventListener('pointermove', this._onMove);
     window.removeEventListener('pointerup', this._onUp);
     window.removeEventListener('mousemove', this._onHover);
@@ -229,20 +233,23 @@ export default class App extends React.Component {
   playFree = () => {
     if (this.state.session) { this.breakFocus(); return; }
     this.closeMenu();
+    if (this.state.playGame) this.stopGame(); // reopening the picker ends the current game
     this.setState({ playOpen: true, hover: false, hoverStat: null, shopCat: null, schoolMenu: false, workMenu: false });
   };
-  closePlay = () => this.setState({ playOpen: false });
+  closePlay = () => { if (this.state.playGame) this.stopGame(); this.setState({ playOpen: false }); };
   // A finished mini-game round rewards happiness (and sometimes a few coins).
   gameReward = (happy, coins) => {
     this.touch();
     this.setState((s) => ({ happiness: clamp(s.happiness + (happy || 0), 0, 100), money: s.money + (coins || 0) }), () => this.save());
-    if (happy >= 6) this.setEmote('🎉', 1400);
+    // Milestone reaction is acted out by the pet itself (no emoji): a happy hop.
+    if (happy >= 6 && !this.p.dragging) { this.p.action = 'play'; this.p.aStart = performance.now(); this.p.aDur = 700; }
   };
 
   // ---- death / revive ------------------------------------------------------
   die = () => {
     if (this.state.dead) return;
     clearTimeout(this._sitT);
+    if (this.state.playGame) this.stopGame();
     this.clearProp();
     this.p.action = 'dead'; this.p.busy = true;
     this.setState({ dead: true, sick: this.state.sick || 'severe', hover: false, hoverStat: null, shopCat: null, menu: null, session: null, sessionLeft: 0, schoolMenu: false, workMenu: false });
@@ -319,7 +326,6 @@ export default class App extends React.Component {
       shopCat: null, hover: false, hoverStat: null,
     }), () => this.save());
     this._sickDur = 0;
-    this.setEmote('💊', 1600);
     this.speak(cured ? '好多了，去休息一下~ 😴' : '感觉好一点了…还得再吃药 💊', 2600, true);
     if (cured) {
       // 静养: a short rest after treatment that recovers a little more health.
@@ -380,6 +386,7 @@ export default class App extends React.Component {
 
   beginFocus(session) {
     this.touch();
+    if (this.state.playGame) this.stopGame();
     this.stand();
     this.clearProp();
     this.p.busy = true;
@@ -405,7 +412,6 @@ export default class App extends React.Component {
   breakFocus = () => {
     if (!this.state.session) return false;
     this.clearFocus();
-    this.setEmote('💢', 1800);
     this.speak('分心了…这次要从头来过 😣', 3000, true);
     this.save();
     return true;
@@ -443,7 +449,6 @@ export default class App extends React.Component {
   // A cheerful finishing hop with a burst of particles.
   doneAnim(kind) {
     this.spawn('play');
-    this.setEmote(kind === 'study' ? '🎓' : '💰', 2400);
     this.p.action = 'enter'; this.p.busy = true;
     this.p.aStart = performance.now(); this.p.aDur = 900;
     clearTimeout(this._enterT);
@@ -700,6 +705,9 @@ export default class App extends React.Component {
   // scenes: 上课 (study), 发传单 / 拔草 (the two lvl-0 jobs). Everything is fillRect
   // pixels — no glyphs, no emoji. Cleared on stopScene / clearFocus / unmount.
   SCENE_W = 240; SCENE_H = 180; SCENE_OX = 64; SCENE_GND = 116; // ground baseline y
+  // Game overlay canvas shares the scene canvas geometry so pieces sit around the
+  // pet. Game canvas is interactive (click hit-testing); scene canvas is not.
+  GAME_W = 240; GAME_H = 300; GAME_OX = 64;
 
   // Paint a small letter-grid sprite at (ox,oy) with px-sized cells. `flip` mirrors.
   drawSprite(ctx, grid, palette, ox, oy, px, flip) {
@@ -988,6 +996,68 @@ export default class App extends React.Component {
     }
   }
 
+  // ---- 玩耍 mini-games (in-window, penguin-driven, pure pixel art) ----------
+  // The GameEngine paints pixel pieces onto the interactive game canvas overlay
+  // and acts the penguin out via this host API. Geometry mirrors the scene
+  // canvas: the pet's centre column is GAME_OX+56 and its feet sit at the same
+  // baseline, so wand/fish/hands land naturally around the real pet.
+  ensureGameCtx() {
+    if (this._gctx) return true;
+    const cv = this.gameRef && this.gameRef.current;
+    if (!cv) return false;
+    this._gctx = cv.getContext('2d');
+    this._gctx.imageSmoothingEnabled = false;
+    return true;
+  }
+  gameHost() {
+    return {
+      reward: (h, c) => this.gameReward(h, c),
+      setAction: (name, dur) => {
+        if (this.p.dragging) return;
+        this.p.action = name; this.p.aStart = performance.now(); this.p.aDur = dur || 500;
+        clearTimeout(this._gameActT);
+        this._gameActT = setTimeout(() => { if (this.state.playGame && !this.p.dragging && (this.p.action === name)) this.p.action = 'idle'; }, dur || 500);
+      },
+      setFace: (face, ms) => { this._gameFace = face; clearTimeout(this._gameFaceT); this._gameFaceT = setTimeout(() => { this._gameFace = null; }, ms || 600); },
+      speak: (txt, ms) => this.speak(txt, ms || 1400, true),
+      facing: () => this.p.facing,
+      facingTo: (dir) => { this.p.facing = dir < 0 ? -1 : 1; },
+      onScore: (g, s) => { if (this.state.gameScore !== s) this.setState({ gameScore: s }); },
+    };
+  }
+  // Start a chosen game in-window: hide the picker, spin up the engine.
+  startGame = (key) => {
+    if (this.state.session) { this.breakFocus(); return; }
+    this.p.busy = false;
+    this.setState({ playOpen: false, playGame: key, gameScore: 0 }, () => {
+      if (!this.ensureGameCtx()) { setTimeout(() => this.startGame(key), 60); return; }
+      const geom = { W: this.GAME_W, H: this.GAME_H, OX: this.GAME_OX, cx: this.GAME_OX + 56, gnd: this.SCENE_GND };
+      if (!this._engine) this._engine = new GameEngine(this._gctx, geom, this.gameHost());
+      else { this._engine.ctx = this._gctx; this._engine.geom = geom; this._engine.host = this.gameHost(); }
+      this._engine.start(key);
+      this.refreshInteractive();
+    });
+  };
+  // End the active game: tear down pieces/timers, clear the canvas, idle the pet.
+  stopGame = () => {
+    if (this._engine) this._engine.stop();
+    clearTimeout(this._gameFaceT); clearTimeout(this._gameActT);
+    this._gameFace = null;
+    if (this.ensureGameCtx()) this._gctx.clearRect(0, 0, this.GAME_W, this.GAME_H);
+    if (!this.p.dragging && (this.p.action === 'play' || this.p.action === 'eat')) this.p.action = 'idle';
+    this.setState({ playGame: null }, () => this.refreshInteractive());
+  };
+  // A click on the game canvas -> hand local pixel coords to the engine.
+  onGameClick = (e) => {
+    if (!this._engine || !this.state.playGame) return;
+    const cv = this.gameRef.current;
+    if (!cv) return;
+    const r = cv.getBoundingClientRect();
+    const gx = (e.clientX - r.left) * (this.GAME_W / r.width);
+    const gy = (e.clientY - r.top) * (this.GAME_H / r.height);
+    this._engine.click(gx, gy);
+  };
+
   // ---- screen geometry / walk bounds --------------------------------------
   // p.x / p.y is the WINDOW's top-left. The penguin is centered in the window,
   // offset by (offX, offY). We clamp so the PENGUIN stays inside the work area
@@ -1053,7 +1123,7 @@ export default class App extends React.Component {
   // ---- window click-through toggle (hit-test bypass) ----------------------
   refreshInteractive() {
     const s = this.state;
-    const v = !!(this._overPen || this.p.dragging || s.hover || s.shopCat || s.menu || s.settingsOpen || s.dead || s.onboard || s.schoolMenu || s.workMenu || s.playOpen);
+    const v = !!(this._overPen || this.p.dragging || s.hover || s.shopCat || s.menu || s.settingsOpen || s.dead || s.onboard || s.schoolMenu || s.workMenu || s.playOpen || s.playGame);
     if (v !== this._iv) { this._iv = v; setInteractive(v); }
   }
   // Show the care panel while the cursor is over the penguin OR the open panel
@@ -1223,13 +1293,15 @@ export default class App extends React.Component {
     // Idle FPS throttle: only redraw at ~18fps when nothing is animating, full
     // rate while walking/playing/blinking/dragging. Saves CPU on an always-on app.
     const lowKey = p.action === 'idle' || p.action === 'weak' || p.action === 'sit' || p.action === 'dead' || p.action === 'wait';
-    const animating = !lowKey || p.blinkOn || p.dragging;
+    const animating = !lowKey || p.blinkOn || p.dragging || !!this.state.playGame;
     if (animating || t - (this._lastDraw || 0) >= 55) {
       this._lastDraw = t;
       this.render2d(t, sp);
     }
     // Pixel focus scene (上课/发传单/拔草) animates every frame while active.
     if (this._scene) this.drawScene(t);
+    // 玩耍 mini-game pieces animate every frame while a game is active.
+    if (this._engine && this.state.playGame && this.ensureGameCtx()) this._engine.update(t, dt);
 
     this._raf = requestAnimationFrame(this.loop);
   };
@@ -1256,6 +1328,23 @@ export default class App extends React.Component {
         this.spriteRef.current.style.transform = `translateY(${(-jy).toFixed(1)}px) rotate(${rot.toFixed(1)}deg) scaleX(${p.facing}) scaleY(${sy.toFixed(3)})`;
         this.spriteRef.current.style.filter = dead ? 'grayscale(1) brightness(1.25)' : 'none';
         this.spriteRef.current.style.opacity = dead ? '0.65' : '1';
+      }
+      if (this.shadowRef.current) { this.shadowRef.current.style.transform = 'scaleX(1)'; this.shadowRef.current.style.opacity = '0.34'; }
+      return;
+    }
+
+    // A mini-game can briefly drive the pet's face (happy on a milestone, sad on
+    // a miss) — overrides the action face but not the animated transforms below.
+    if (this._gameFace && this.G[this._gameFace] && !this._faceOverride) {
+      let grid = this.G[this._gameFace];
+      if (p.blinkOn) grid = this.withClosed(grid);
+      if (this.state.cleanliness <= 25) grid = this.withDirt(grid);
+      if (this.ensureCtx()) this.draw(grid);
+      const jy = Math.sin(t / 220) * 3;
+      if (this.spriteRef.current) {
+        this.spriteRef.current.style.transform = `translateY(${(-jy).toFixed(1)}px) rotate(0deg) scaleX(${p.facing}) scaleY(1)`;
+        this.spriteRef.current.style.filter = 'none';
+        this.spriteRef.current.style.opacity = '1';
       }
       if (this.shadowRef.current) { this.shadowRef.current.style.transform = 'scaleX(1)'; this.shadowRef.current.style.opacity = '0.34'; }
       return;
@@ -1414,7 +1503,7 @@ export default class App extends React.Component {
       const mood = this.calcMood({ fullness, energy, cleanliness, happiness });
       return { fullness, cleanliness, happiness, energy, health, mood, playTime: (s.playTime || 0) + 1, money: s.money + hourly };
     });
-    if (hourly) { this.setEmote('💰', 1500); this.save(); } // celebrate the hourly reward
+    if (hourly) { this.save(); } // celebrate the hourly reward
 
     // Focus session countdown: update the displayed remaining time each second,
     // and grant the reward + done animation when it reaches zero.
@@ -1463,15 +1552,9 @@ export default class App extends React.Component {
       }
     }
 
-    const now = Date.now();
-    if (now > this.p.emoteUntil) {
-      const s = this.state;
-      let e = null;
-      if (s.fullness <= 0) e = '😭';
-      else if (s.fullness < 30) e = '🍖';
-      else if (s.energy < 30 && this.p.action !== 'sleep') e = '😴';
-      if (this.state.emote !== e) this.setState({ emote: e });
-    }
+    // Hunger / tiredness read through the pet's PIXEL FACE (mood), not an emoji
+    // emote — keep the emote slot clear.
+    if (this.state.emote) this.setState({ emote: null });
 
     if (!this.p.busy && this.p.action === 'idle' && !this.p.dragging && !this.state.hover) {
       if (this.state.energy < 12) {
@@ -1524,7 +1607,9 @@ export default class App extends React.Component {
     if (this._saveCtr >= 5) { this._saveCtr = 0; this.save(); }
   };
 
-  setEmote(ch, ms) { this.p.emoteUntil = Date.now() + ms; this.setState({ emote: ch }); }
+  // Emoji emotes removed (no-emoji rule): feedback now comes from the pet's
+  // pixel face + particle bursts. Kept as a no-op so call sites need no edits.
+  setEmote() { /* intentionally empty */ }
 
   // ---- dialogue ------------------------------------------------------------
   speak(text, ms = 2600, force = false) {
@@ -1579,11 +1664,11 @@ export default class App extends React.Component {
   feed = (fx) => {
     // Feeding is allowed during a focus session — it just tops up the stat
     // without breaking concentration (no pose change).
-    if (this.state.session) { this.touch(); this.applyDeltas(fx || { full: 42, happy: 4 }); this.spawn('feed'); this.setEmote('🐟', 1400); this.save(); return; }
+    if (this.state.session) { this.touch(); this.applyDeltas(fx || { full: 42, happy: 4 }); this.spawn('feed'); this.save(); return; }
     if (this.busyBlocked()) return;
     this.touch(); this.closeMenu();
     this.p.busy = true; this.p.action = 'eat';
-    this.sfx('eat'); this.spawn('feed'); this.setEmote('🐟', 1500);
+    this.sfx('eat'); this.spawn('feed');
     setTimeout(() => {
       this.applyDeltas(fx || { full: 42, happy: 4 });
       this.p.action = 'idle'; this.p.busy = false; this.recompute(); this.save();
@@ -1596,7 +1681,7 @@ export default class App extends React.Component {
     this.p.busy = true; this.p.action = 'play';
     this.p.aStart = performance.now(); this.p.aDur = 1500 / (this.state.speed || 1);
     this.p.playfulUntil = Date.now() + 10000;
-    this.sfx('play'); this.spawn('play'); this.setEmote('🎉', 1700);
+    this.sfx('play'); this.spawn('play');
     setTimeout(() => {
       this.applyDeltas(fx || { energy: -20, clean: -8, happy: 26 });
       this.p.action = 'idle'; this.p.busy = false; this.recompute(); this.save();
@@ -1609,7 +1694,7 @@ export default class App extends React.Component {
     this.p.busy = true; this.p.action = 'dance';
     this.p.aStart = performance.now(); this.p.aDur = 1300 / (this.state.speed || 1);
     this.p.playfulUntil = Date.now() + 3000;
-    this.sfx('play'); this.spawn('play'); this.setEmote('✨', 1500);
+    this.sfx('play'); this.spawn('play');
     setTimeout(() => {
       this.applyDeltas(fx || { energy: -5, happy: 12 });
       this.p.action = 'idle'; this.p.busy = false; this.recompute(); this.save();
@@ -1619,7 +1704,7 @@ export default class App extends React.Component {
     if (this.busyBlocked()) return;
     this.touch(); this.closeMenu();
     this.p.busy = true; this.p.action = 'sleep';
-    this.sfx('sleep'); this.setEmote('💤', 6200);
+    this.sfx('sleep');
     setTimeout(() => {
       this.setState({ energy: 80 });
       this.p.action = 'idle'; this.p.busy = false; this.recompute(); this.save();
@@ -1645,7 +1730,7 @@ export default class App extends React.Component {
     this.p.busy = true; this.p.action = 'ball';
     this.p.aStart = performance.now(); this.p.aDur = 2400 / (this.state.speed || 1);
     this.p.playfulUntil = Date.now() + 8000;
-    this.sfx('play'); this.prop('ball', this.p.aDur); this.setEmote('⚽', 1800);
+    this.sfx('play'); this.prop('ball', this.p.aDur);
     this.speak(pick(DIA.ball), 2000, true);
     setTimeout(() => {
       this.applyDeltas(fx || { energy: -14, clean: -10, happy: 24 });
@@ -1658,7 +1743,7 @@ export default class App extends React.Component {
     this.p.busy = true; this.p.action = 'badminton';
     this.p.aStart = performance.now(); this.p.aDur = 2600 / (this.state.speed || 1);
     this.p.playfulUntil = Date.now() + 8000;
-    this.sfx('play'); this.prop('shuttle', this.p.aDur); this.setEmote('🏸', 1800);
+    this.sfx('play'); this.prop('shuttle', this.p.aDur);
     this.speak(pick(DIA.badminton), 2000, true);
     setTimeout(() => {
       this.applyDeltas(fx || { energy: -16, clean: -12, happy: 28 });
@@ -1669,12 +1754,12 @@ export default class App extends React.Component {
   // (e.g. +45 for a quick shower, +100 for a bubble bath).
   bathAct = (fx) => {
     // Bathing is allowed during a focus session (a few bubbles, no pose change).
-    if (this.state.session) { this.touch(); this.applyDeltas(fx || { clean: 100, happy: 5 }); this.bubbles(); this.setEmote('🫧', 1600); this.save(); return; }
+    if (this.state.session) { this.touch(); this.applyDeltas(fx || { clean: 100, happy: 5 }); this.bubbles(); this.save(); return; }
     if (this.busyBlocked()) return;
     this.touch(); this.closeMenu();
     this.p.busy = true; this.p.action = 'bath';
     this.p.aStart = performance.now(); this.p.aDur = 1900 / (this.state.speed || 1);
-    this.sfx('bath'); this.bubbles(); this.setEmote('🫧', 1900);
+    this.sfx('bath'); this.bubbles();
     this.speak(pick(DIA.bath), 2000, true);
     clearInterval(this._bathBub);
     this._bathBub = setInterval(() => this.bubbles(), 480);
@@ -1696,9 +1781,13 @@ export default class App extends React.Component {
         'background:radial-gradient(circle at 35% 30%,#fff,#ff4d6d 62%,#c01b3c);' +
         'box-shadow:0 2px 0 rgba(34,42,85,.2);animation:ballPlay .5s ease-in-out infinite;';
     } else {
-      el.textContent = '🏸';
-      el.style.cssText = 'position:absolute;left:50px;top:60px;font-size:21px;line-height:1;' +
-        'animation:shuttle 1.2s ease-in-out infinite;';
+      // a drawn shuttlecock — a white flared skirt with an orange cork (no emoji)
+      el.style.cssText = 'position:absolute;left:52px;top:60px;width:0;height:0;' +
+        'border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:15px solid rgba(255,255,255,.96);' +
+        'filter:drop-shadow(0 1px 0 rgba(90,150,220,.55));animation:shuttle 1.2s ease-in-out infinite;';
+      const cork = document.createElement('div');
+      cork.style.cssText = 'position:absolute;left:-4px;top:12px;width:8px;height:7px;border-radius:50%;background:#ff9d3d;border:1px solid #d97a1e;';
+      el.appendChild(cork);
     }
     layer.appendChild(el);
     setTimeout(() => el.remove(), totalDur + 80);
@@ -2130,33 +2219,34 @@ export default class App extends React.Component {
           )}
           {/* pixel focus scene (desk/blackboard/passers-by/weeds) — drawn around the pet */}
           <canvas ref={this.sceneRef} width={this.SCENE_W} height={this.SCENE_H} style={{ position: 'absolute', left: -this.SCENE_OX, top: 0, width: this.SCENE_W, height: this.SCENE_H, imageRendering: 'pixelated', pointerEvents: 'none', zIndex: 2 }} />
+          {/* 玩耍 mini-game overlay — interactive pixel pieces drawn around the pet */}
+          <canvas ref={this.gameRef} width={this.GAME_W} height={this.GAME_H} onPointerDown={(e) => { e.stopPropagation(); this.onGameClick(e); }} style={{ position: 'absolute', left: -this.GAME_OX, top: 0, width: this.GAME_W, height: this.GAME_H, imageRendering: 'pixelated', pointerEvents: s.playGame ? 'auto' : 'none', zIndex: 28 }} />
           <div ref={this.shadowRef} style={{ position: 'absolute', left: '50%', top: 104, width: 80, height: 18, marginLeft: -40, background: 'radial-gradient(ellipse at center,rgba(20,24,60,.34),rgba(20,24,60,0) 70%)', borderRadius: '50%' }} />
           <div ref={this.partRef} style={{ position: 'absolute', left: 0, top: 0, width: 112, height: 112, pointerEvents: 'none', zIndex: 5 }} />
           <div ref={this.spriteRef} style={{ position: 'absolute', left: 0, top: 0, width: 112, height: 112, willChange: 'transform', transformOrigin: '50% 92%', zIndex: 3 }}>
             <canvas ref={this.canvasRef} width="112" height="112" style={{ width: 112, height: 112, imageRendering: 'pixelated', display: 'block' }} />
           </div>
 
-          {/* flies buzzing around a dirty pet (low cleanliness) */}
-          {dirty && (
-            <>
-              <div className="fly" style={{ left: 74, top: 26, animation: 'buzz1 1.1s linear infinite' }}>🪰</div>
-              <div className="fly" style={{ left: 20, top: 40, animation: 'buzz2 1.35s linear infinite' }}>🪰</div>
-              <div className="fly" style={{ left: 48, top: 14, animation: 'buzz3 1.6s linear infinite' }}>🪰</div>
-            </>
-          )}
+          {/* flies buzzing around a dirty pet — small pixel flies (navy body + wings) */}
+          {dirty && (() => {
+            const fly = { width: 3, height: 3, background: '#222a55', borderRadius: 1, boxShadow: '-3px -1px 0 rgba(255,255,255,.85), 4px -1px 0 rgba(255,255,255,.85)' };
+            return (
+              <>
+                <div className="fly" style={{ left: 74, top: 26, animation: 'buzz1 1.1s linear infinite', ...fly }} />
+                <div className="fly" style={{ left: 20, top: 40, animation: 'buzz2 1.35s linear infinite', ...fly }} />
+                <div className="fly" style={{ left: 48, top: 14, animation: 'buzz3 1.6s linear infinite', ...fly }} />
+              </>
+            );
+          })()}
 
-          {/* sick indicator — a feverish face bobbing by the head while ill */}
+          {/* sick indicator — a small pixel sweat drop bobbing by the head */}
           {s.sick && !s.dead && (
-            <div className="fly" style={{ left: 76, top: 6, fontSize: 17, animation: 'buzz3 2.4s ease-in-out infinite' }}>🤒</div>
-          )}
-          {/* a little spirit drifting up from a departed pet */}
-          {s.dead && (
-            <div className="fly" style={{ left: 58, top: -2, fontSize: 18, animation: 'buzz2 3s ease-in-out infinite' }}>👻</div>
+            <div className="fly" style={{ left: 80, top: 6, width: 5, height: 6, background: '#4cc3ff', borderRadius: '50% 50% 50% 50% / 62% 62% 40% 40%', boxShadow: '0 -2px 0 -1px #4cc3ff', animation: 'buzz3 2.4s ease-in-out infinite' }} />
           )}
 
           {/* tip pill — above the head, briefly at startup */}
           {s.hint && (
-            <div style={{ position: 'absolute', left: '50%', bottom: 134, transform: 'translateX(-50%)', background: '#222a55', color: '#fff', padding: '6px 12px', borderRadius: 999, fontSize: 11, fontWeight: 800, boxShadow: '0 4px 0 rgba(34,42,85,.3)', zIndex: 25, whiteSpace: 'nowrap', animation: 'hintBob 1.8s ease-in-out infinite', pointerEvents: 'none' }}>单击 · 拖动 · 右键 🐧</div>
+            <div style={{ position: 'absolute', left: '50%', bottom: 134, transform: 'translateX(-50%)', background: '#222a55', color: '#fff', padding: '6px 12px', borderRadius: 999, fontSize: 11, fontWeight: 800, boxShadow: '0 4px 0 rgba(34,42,85,.3)', zIndex: 25, whiteSpace: 'nowrap', animation: 'hintBob 1.8s ease-in-out infinite', pointerEvents: 'none' }}>单击 · 拖动 · 右键</div>
           )}
 
           {bubble && (
@@ -2270,8 +2360,17 @@ export default class App extends React.Component {
         {s.workMenu && this.renderWorkMenu()}
         {this.renderFocusBar()}
 
-        {/* 玩耍 mini-games */}
-        {s.playOpen && <MiniGames onClose={this.closePlay} onReward={this.gameReward} />}
+        {/* 玩耍 — compact picker; the chosen game then plays IN-WINDOW on the pet */}
+        {s.playOpen && !s.playGame && <GamePicker games={GAME_LIST} onPick={this.startGame} onClose={this.closePlay} />}
+        {/* in-window game HUD: live score + a small exit chip (no modal board) */}
+        {s.playGame && (
+          <div style={{ position: 'absolute', top: 6, left: 0, right: 0, display: 'flex', justifyContent: 'space-between', padding: '0 8px', zIndex: 40, pointerEvents: 'none' }}>
+            <span style={{ background: '#222a55', color: '#fff', fontWeight: 900, fontSize: 11, padding: '3px 9px', borderRadius: 999, boxShadow: '0 2px 0 rgba(34,42,85,.3)' }}>
+              {(GAME_LIST.find((g) => g.key === s.playGame) || {}).name} · {s.gameScore}
+            </span>
+            <span onClick={this.stopGame} style={{ background: '#fff', color: '#222a55', border: '2px solid #222a55', fontWeight: 900, fontSize: 11, padding: '2px 9px', borderRadius: 999, cursor: 'pointer', pointerEvents: 'auto' }}>结束</span>
+          </div>
+        )}
       </div>
     );
   }
