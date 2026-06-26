@@ -1191,6 +1191,9 @@ export default class App extends React.Component {
       think: sw(idle, [[5, '..DLLELLLLELLD..'], [6, '..DLLLLLLLLLLD..'], [8, '..DLLLLOOLLLLD..']]),
       // 恍然大悟: wide bright eyes + open beak (the "aha!" moment)
       aha: sw(idle, [[5, '..DLEELLEELLLD..'], [6, '..DLEELLEELLLD..'], [7, '..DLCLLOOLLCLD..'], [8, '..DLLLOOOOLLLD..']]),
+      // 坐下: a content smile, a settled wider bottom, and flat feet stuck out
+      // FORWARD — a real penguin-sitting silhouette (paired with a squash below).
+      sit: sw(idle, [[8, '..DLLLLOOLLLLD..'], [14, '..DDLLLLLLLLDD..'], [15, '..OOOO....OOOO..']]),
     };
     // Egg / baby stage: a head poking out of a cracked egg — shell cap on top,
     // egg shell as the lower body, with a gender-coloured ribbon band (R).
@@ -1373,7 +1376,7 @@ export default class App extends React.Component {
     if (p.action === 'dead') face = this.G.sad;
     else if (p.action === 'sleep') face = this.G.sleepy;
     else if (p.action === 'play' || p.action === 'dance' || p.action === 'ball' || p.action === 'badminton' || p.action === 'bath') face = this.G.happy;
-    else if (p.action === 'sit') face = this.G.happy;
+    else if (p.action === 'sit') face = this.G.sit;
     else if (p.action === 'weak') face = this.G.sad;
     else if (p.action === 'work') face = this.G.happy;
     else if (p.action === 'love') face = this.G.love;        // heart eyes
@@ -1420,7 +1423,7 @@ export default class App extends React.Component {
     }
     if (p.action === 'study') { jy = Math.sin(t / 300) * 3; tilt = 4; }                         // gentle reading nod
     if (p.action === 'work') { jy = Math.abs(Math.sin(t / 160)) * 8; rot = Math.sin(t / 120) * 6 * p.facing; } // busy bob
-    if (p.action === 'sit') { sy = 0.82; jy = -10; }   // squash + lower = sitting
+    if (p.action === 'sit') { sy = 0.86; jy = -8; }   // settle down low — sitting (grid splays feet forward)
     if (p.action === 'weak') { sy = 0.6; jy = -16 + Math.sin(t / 650) * 1.5; tilt = 5 * p.facing; } // slumped, too hungry
     if (p.action === 'sleep') { tilt = -12; jy = -10; }
     if (p.action === 'dead') { tilt = 90 * p.facing; jy = -28; }  // toppled over on the ground
@@ -1719,10 +1722,10 @@ export default class App extends React.Component {
     this.sfx('chirp'); this.speak(pick(DIA.sit), 2400, true);
     clearTimeout(this._sitT);
     this._sitT = setTimeout(() => {
-      this.setState((s) => ({ energy: Math.min(100, s.energy + 6) }));
+      this.setState((s) => ({ energy: Math.min(100, s.energy + 12) }));
       if (this.p.action === 'sit') { this.p.action = 'idle'; this.p.busy = false; }
       this.recompute();
-    }, 5200);
+    }, 16000); // hold the sit for a good while before wandering off again
   };
   ballAct = (fx) => {
     if (this.busyBlocked()) return;
