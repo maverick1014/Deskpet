@@ -2,6 +2,7 @@ import React from 'react';
 import StatusBar from './components/StatusBar.jsx';
 import ContextMenu from './components/ContextMenu.jsx';
 import SettingsPanel from './components/SettingsPanel.jsx';
+import MiniGames from './components/MiniGames.jsx';
 import {
   loadState, saveState, getStage, moveWindow, onStageUpdate, setInteractive, quitApp, onRecenter,
 } from './store.js';
@@ -66,6 +67,7 @@ export default class App extends React.Component {
     // focus block (null when idle); schoolMenu/workMenu open the pickers.
     schoolLevel: 0, classDone: { cn: 0, en: 0, ma: 0, sc: 0 },
     session: null, sessionLeft: 0, schoolMenu: false, workMenu: false,
+    playOpen: false,
     shopCat: null,
     menu: null, settingsOpen: false, emote: null, say: null, hint: true, hover: false, hoverStat: null, loaded: false,
     entering: true, traits: '',
@@ -220,18 +222,18 @@ export default class App extends React.Component {
     else if (cat === 'bath') this.bathAct({ clean: item.clean, happy: item.happy || 0 });
   };
 
-  // Free mini-game: the owner plays with the pet. No cost; raises happiness
-  // (and, like any play, uses a little energy and gets the pet a bit dirty).
+  // 玩耍 opens the mini-game picker (playing breaks focus if a session is on).
   playFree = () => {
-    if (this.state.session) { this.breakFocus(); return; } // playing breaks focus
-    if (this.busyBlocked()) return;
-    if (this.state.hover || this.state.shopCat) this.setState({ hover: false, hoverStat: null, shopCat: null });
-    if (!this.isGrown()) { this.ballAct(); return; } // a baby in the egg can only play ball
-    const r = Math.random();
-    if (r < 0.34) this.ballAct();
-    else if (r < 0.6) this.badmintonAct();
-    else if (r < 0.8) this.dance();
-    else this.playAct();
+    if (this.state.session) { this.breakFocus(); return; }
+    this.closeMenu();
+    this.setState({ playOpen: true, hover: false, hoverStat: null, shopCat: null, schoolMenu: false, workMenu: false });
+  };
+  closePlay = () => this.setState({ playOpen: false });
+  // A finished mini-game round rewards happiness (and sometimes a few coins).
+  gameReward = (happy, coins) => {
+    this.touch();
+    this.setState((s) => ({ happiness: clamp(s.happiness + (happy || 0), 0, 100), money: s.money + (coins || 0) }), () => this.save());
+    if (happy >= 6) this.setEmote('🎉', 1400);
   };
 
   // ---- death / revive ------------------------------------------------------
@@ -749,7 +751,7 @@ export default class App extends React.Component {
   // ---- window click-through toggle (hit-test bypass) ----------------------
   refreshInteractive() {
     const s = this.state;
-    const v = !!(this._overPen || this.p.dragging || s.hover || s.shopCat || s.menu || s.settingsOpen || s.dead || s.onboard || s.schoolMenu || s.workMenu);
+    const v = !!(this._overPen || this.p.dragging || s.hover || s.shopCat || s.menu || s.settingsOpen || s.dead || s.onboard || s.schoolMenu || s.workMenu || s.playOpen);
     if (v !== this._iv) { this._iv = v; setInteractive(v); }
   }
   // Show the care panel while the cursor is over the penguin OR the open panel
@@ -1924,6 +1926,9 @@ export default class App extends React.Component {
         {s.schoolMenu && this.renderSchoolMenu()}
         {s.workMenu && this.renderWorkMenu()}
         {this.renderFocusBar()}
+
+        {/* 玩耍 mini-games */}
+        {s.playOpen && <MiniGames onClose={this.closePlay} onReward={this.gameReward} />}
       </div>
     );
   }
