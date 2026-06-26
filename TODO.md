@@ -78,8 +78,37 @@ single persistent book/briefcase prop (`bookProp(0)`/`briefcaseProp(0)`).
 ≥2 variants for the whole session; all props are tagged and removed on finish/break
 (see `clearProp()`); CSS-only animation (no per-frame JS beyond the existing loop).
 
-## 2. 玩耍 mini-games (to scope with owner)
+## 2. 玩耍 mini-games — rebuild as in-place, penguin-driven, pixel art
 
-The owner wants real mini-games for **玩耍** (currently it's a quick random
-play animation). Recommendations to pick from are in chat; once chosen, spec the
-chosen 1–2 here and implement.
+> The current six games (in `MiniGames.jsx`) violate the hard rules: they use
+> EMOJI and play in a SEPARATE MODAL board. **Rebuild every game** so it follows
+> the canonical pattern below. No emoji, no separate screen — see `CLAUDE.md`.
+
+### Canonical pattern (owner's bubble-game example — follow this for ALL games)
+- Choosing a game makes **the penguin bring out a pixel-art prop and act the game
+  out in its own window** (no modal board).
+- **吹泡泡 (bubble) — the reference game:**
+  1. The penguin pulls out a **pixel bubble wand** and starts **blowing pixel
+     bubbles** that float up/around the window.
+  2. Bubbles spawn at **random sizes** (big / small / in-between — a few size
+     variants), drawn as pixel circles in the pet's style (NOT the 🫧 emoji).
+  3. The **player clicks a bubble to pop it** → **+1 mark**.
+  4. **Every 10 marks → +happiness** (and a happy penguin reaction).
+- Every other game uses the same shape: penguin produces a pixel prop → does the
+  activity → player interacts by clicking the penguin / the pixel pieces → score
+  accumulates → milestone grants happiness (some give a few coins).
+
+### Per-game rebuild notes (all pixel art, in-window, penguin-acted)
+- **接小鱼** — penguin stands; pixel fish toss up; click a fish to make the penguin
+  peck/catch it. Keep the window fixed; move the penguin within it, not the window.
+- **吹泡泡** — as the reference above.
+- **猜拳** — penguin throws a pixel rock/paper/scissors with its wing; you pick via
+  three small pixel hand-shapes shown at the pet's feet (part of the pet window).
+- **接球** — penguin bats a pixel ball that bounces in-window; click to time the bat.
+- **跟我拍** — penguin flashes a pixel gesture sequence (wing up/down, lean); repeat
+  by clicking the penguin in the same order.
+- (Drop the cup-shuffle unless it can be penguin-acted in-window.)
+
+**Acceptance:** picking a game shows the penguin acting it out in its own window
+with pixel-art pieces; clicking interacts directly; score → happiness; NO emoji,
+NO modal board; pieces cleaned up when the game ends.

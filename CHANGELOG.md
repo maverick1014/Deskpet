@@ -9,6 +9,16 @@ is pre-release, so versions are milestone markers rather than published releases
 New lifelike animations being added one at a time.
 See `TODO.md` for the remaining activity-authentic focus animations.
 
+## [1.6.1] — 2026-06-26 — Focus scenes are now real pixel art (no emoji)
+
+### Changed
+- **上课 / 发传单 / 拔草 scenes are redrawn as hand-drawn pixel art** on a dedicated
+  pixel scene canvas — no more emoji. Pixel desk + blackboard with per-subject
+  pixel chalk (语文/英语/数学/科学), pixel passers-by + flyers, pixel weeds that
+  clear over the shift, and a **pixel straw hat drawn on the penguin's head**.
+- The penguin's own **pixel face** now drives the 疑惑 → 思考 → 恍然大悟 arc during
+  class (new confused/think/aha expressions), with a drawn pixel lightbulb.
+
 ## [1.6.0] — 2026-06-26 — Activity-authentic focus scenes
 
 ### Added
