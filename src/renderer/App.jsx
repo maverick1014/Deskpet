@@ -1319,34 +1319,9 @@ export default class App extends React.Component {
   setOpacity = (e) => this.setState({ opacity: Number(e.target.value) });
 
   // ---- audio (Web Audio API, procedural) -----------------------------------
-  sfx(name) {
-    const vol = this.state.volume;
-    if (vol <= 0) return;
-    try {
-      if (!this.ac) this.ac = new (window.AudioContext || window.webkitAudioContext)();
-      const ac = this.ac;
-      if (ac.state === 'suspended') ac.resume();
-      const seqs = {
-        chirp: [[880, 0, .08], [1240, .07, .1]],
-        eat: [[300, 0, .07], [250, .09, .08]],
-        sleep: [[520, 0, .18], [330, .16, .24]],
-        play: [[660, 0, .09], [880, .08, .09], [1180, .16, .13]],
-        bath: [[523, 0, .12], [659, .1, .13], [784, .22, .15], [988, .34, .18]],
-      };
-      const g0 = vol / 100 * 0.16;
-      (seqs[name] || seqs.chirp).forEach(([f, at, du]) => {
-        const o = ac.createOscillator(), g = ac.createGain();
-        o.type = (name === 'sleep' || name === 'bath') ? 'sine' : 'square';
-        o.frequency.value = f;
-        const t0 = ac.currentTime + at;
-        g.gain.setValueAtTime(0.0001, t0);
-        g.gain.linearRampToValueAtTime(g0, t0 + 0.012);
-        g.gain.exponentialRampToValueAtTime(0.0001, t0 + du);
-        o.connect(g).connect(ac.destination);
-        o.start(t0); o.stop(t0 + du + 0.03);
-      });
-    } catch (err) { /* ignore */ }
-  }
+  // Action sounds were removed by request — the pet is silent. Kept as a no-op
+  // so the existing call sites (sfx('play'), sfx('eat')…) don't need touching.
+  sfx() { /* sound effects disabled */ }
 
   // ---- particle burst on feed/play ----------------------------------------
   spawn(kind) {
@@ -1429,12 +1404,16 @@ export default class App extends React.Component {
 
     const dirty = cleanliness <= 25;
     const panelOpen = !!(s.hover || s.shopCat);
-    // Flip the panel / bubble to whichever side has on-screen room, and nudge
-    // them horizontally near the left/right edges so nothing goes off-screen
-    // (the arrow keeps pointing at the pet via arrowShift).
-    let placeBelow = false, shiftPanel = 0, shiftBubble = 0;
+    // The action panel lives BELOW the pet and the speech bubble ABOVE it, so the
+    // two never overlap (the bubble used to cover the buttons). We only flip the
+    // panel above — and the bubble below — when the pet is near the screen's
+    // bottom edge and there's no room beneath it. Horizontal nudging keeps both
+    // on-screen near the left/right edges (the arrow tracks the pet via shift).
+    let panelBelow = true, shiftPanel = 0, shiftBubble = 0;
     if (this.work && this._placed) {
-      placeBelow = (this.p.y + this.offY - this.work.y) < 132;
+      const roomBelow = (this.work.y + this.work.height) - (this.p.y + this.offY + this.PEN_H);
+      const roomAbove = (this.p.y + this.offY) - this.work.y;
+      panelBelow = roomBelow >= 150 || roomBelow >= roomAbove;
       const cx = this.p.x + this.WIN_W / 2;
       const clampX = (half) => {
         const lo = this.work.x + half + 4;
@@ -1444,7 +1423,8 @@ export default class App extends React.Component {
       shiftPanel = clampX(88);
       shiftBubble = clampX(105);
     }
-    const placement = placeBelow ? 'below' : 'above';
+    const bubbleBelow = !panelBelow; // bubble sits opposite the panel
+    const placement = panelBelow ? 'below' : 'above';
 
     return (
       <div ref={this.rootRef} className="stage" style={{ opacity: appOpacity }}>
@@ -1495,14 +1475,14 @@ export default class App extends React.Component {
           )}
 
           {bubble && (
-            <div style={{ position: 'absolute', left: '50%', ...(placeBelow ? { top: 134 } : { bottom: 118 }), transform: `translateX(-50%) translateX(${shiftBubble}px)`, maxWidth: 206, background: '#fff', border: '2px solid #222a55', borderRadius: 12, padding: bubble.text ? '5px 10px' : '3px 8px', fontSize: bubble.text ? 12.5 : 17, fontWeight: 800, color: '#222a55', lineHeight: 1.3, textAlign: 'center', boxShadow: '0 3px 0 rgba(34,42,85,.18)', animation: 'bubbleIn .25s ease-out', pointerEvents: 'none', zIndex: 12, whiteSpace: bubble.nowrap ? 'nowrap' : 'normal' }}>{bubble.content}</div>
+            <div style={{ position: 'absolute', left: '50%', ...(bubbleBelow ? { top: 134 } : { bottom: 118 }), transform: `translateX(-50%) translateX(${shiftBubble}px)`, maxWidth: 206, background: '#fff', border: '2px solid #222a55', borderRadius: 12, padding: bubble.text ? '5px 10px' : '3px 8px', fontSize: bubble.text ? 12.5 : 17, fontWeight: 800, color: '#222a55', lineHeight: 1.3, textAlign: 'center', boxShadow: '0 3px 0 rgba(34,42,85,.18)', animation: 'bubbleIn .25s ease-out', pointerEvents: 'none', zIndex: 12, whiteSpace: bubble.nowrap ? 'nowrap' : 'normal' }}>{bubble.content}</div>
           )}
 
           {/* hover care panel + shop — flips above/below the pet, nudged on-screen */}
           <div
             ref={this.hoverRef}
             onPointerDown={this.stopDown}
-            style={{ position: 'absolute', left: '50%', width: 176, marginLeft: -88, ...(placeBelow ? { top: 138 } : { bottom: 138 }), transform: `translateX(${shiftPanel}px) scale(${panelOpen ? 1 : 0.92})`, transformOrigin: placeBelow ? '50% 0%' : '50% 100%', opacity: panelOpen ? 1 : 0, pointerEvents: panelOpen ? 'auto' : 'none', transition: 'opacity .14s ease, transform .14s ease', zIndex: 14, cursor: 'default' }}
+            style={{ position: 'absolute', left: '50%', width: 176, marginLeft: -88, ...(panelBelow ? { top: 138 } : { bottom: 138 }), transform: `translateX(${shiftPanel}px) scale(${panelOpen ? 1 : 0.92})`, transformOrigin: panelBelow ? '50% 0%' : '50% 100%', opacity: panelOpen ? 1 : 0, pointerEvents: panelOpen ? 'auto' : 'none', transition: 'opacity .14s ease, transform .14s ease', zIndex: 14, cursor: 'default' }}
           >
             <StatusBar
               stat={s.hoverStat}
@@ -1585,8 +1565,8 @@ export default class App extends React.Component {
         {/* settings */}
         {s.settingsOpen && (
           <SettingsPanel
-            name={s.name} volume={s.volume} speed={s.speed} opacity={s.opacity}
-            onName={this.setName} onVolume={this.setVol} onSpeed={this.setSpeed} onOpacity={this.setOpacity}
+            name={s.name} speed={s.speed} opacity={s.opacity}
+            onName={this.setName} onSpeed={this.setSpeed} onOpacity={this.setOpacity}
             onClose={this.closeSettings}
           />
         )}

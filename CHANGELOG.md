@@ -8,6 +8,19 @@ is pre-release, so versions are milestone markers rather than published releases
 
 New lifelike animations being added one at a time.
 
+## [1.2.0] — 2026-06-26 — Quieter, cleaner, more minimal UI
+
+### Changed
+- **No more action sounds** — feeding, playing, bathing, etc. are now silent.
+  The volume control was removed from settings accordingly.
+- **Care panel now sits below the pet** while the speech bubble stays above, so
+  the bubble no longer covers the action buttons on hover. (Flips above only when
+  the pet is right at the bottom edge of the screen.)
+- **Minimal, background-less action bar** — the three action buttons
+  (喂食/洗澡/玩耍) are now light frosted pills with no enclosing card.
+- **Shop items are a vertical list** (icon · name · +amount · 💰cost) instead of
+  a cramped horizontal row, so longer item names are readable.
+
 ## [1.1.1] — 2026-06-25 — System tray & off-screen rescue (Windows fixes)
 
 ### Added
