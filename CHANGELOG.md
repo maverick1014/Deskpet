@@ -7,7 +7,20 @@ is pre-release, so versions are milestone markers rather than published releases
 ## [Unreleased] — Animation discovery (ongoing)
 
 New lifelike animations being added one at a time.
-See `TODO.md` for the planned activity-authentic focus animations.
+See `TODO.md` for the remaining activity-authentic focus animations.
+
+## [1.6.0] — 2026-06-26 — Activity-authentic focus scenes
+
+### Added
+- **上课, 发传单 and 拔草 now play a real, looping multi-beat scene** instead of a
+  single static prop — each with 2–3 variants so a long session stays fresh:
+  - **上课** — desk + blackboard; subject-specific chalk content (语文/英语/数学/科学)
+    with an expression arc each loop: 疑惑 ❓ → 思考 🤔 → 恍然大悟 💡.
+  - **发传单** — passers-by walk across; the penguin hands out flyers (some take it,
+    some wave it off), with an occasional gust that blows a flyer away.
+  - **拔草** — arrives at tall weeds that thin out as the shift progresses; wears a
+    straw hat 👒, occasionally sweats and wipes its brow, and takes the odd rest.
+- Other subjects/jobs keep the simple book/briefcase prop for now (see `TODO.md`).
 
 ## [1.5.3] — 2026-06-26 — 玩耍 mini-games
 

@@ -3,3 +3,4 @@ src/dist/
 release/
 *.log
 .DS_Store
+.claude/
