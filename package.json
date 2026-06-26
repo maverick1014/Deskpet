@@ -1,6 +1,6 @@
 {
   "name": "deskpet",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "description": "Deskpet — an interactive penguin desktop pet (Electron + React + Canvas 2D + SQLite)",
   "author": "Maverick",
   "license": "MIT",

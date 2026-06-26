@@ -9,6 +9,15 @@ is pre-release, so versions are milestone markers rather than published releases
 New lifelike animations being added one at a time.
 See `TODO.md` for the remaining activity-authentic focus animations.
 
+## [1.7.1] — 2026-06-26 — A proper penguin sit-down
+
+### Changed
+- **坐下 now looks like a penguin actually sitting** — a dedicated pixel pose
+  with the body settled low and **flat feet splayed forward**, instead of just a
+  squash.
+- **The pet holds the sit much longer** (~16s, was ~5s) before getting up to
+  wander again, and rests a bit more energy while sitting.
+
 ## [1.7.0] — 2026-06-26 — Penguin-driven pixel-art games; emoji-free animations
 
 ### Changed
