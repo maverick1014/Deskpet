@@ -143,6 +143,7 @@ export default class App extends React.Component {
     clearTimeout(this._hideHoverT);
     clearInterval(this._bathBub);
     clearInterval(this._musicInt);
+    if (this._sceneTimers) this._sceneTimers.forEach((id) => { clearInterval(id); clearTimeout(id); });
     window.removeEventListener('pointermove', this._onMove);
     window.removeEventListener('pointerup', this._onUp);
     window.removeEventListener('mousemove', this._onHover);
@@ -381,12 +382,39 @@ export default class App extends React.Component {
     this.clearProp();
     this.p.busy = true;
     this.p.action = session.kind === 'study' ? 'study' : 'work';
-    if (session.kind === 'study') this.bookProp(0); else this.briefcaseProp(0); // 0 = persist until cleared
+    // Pick a recognisable multi-beat "scene" for the activity; subjects/jobs with
+    // a dedicated scene get it, everything else falls back to the simple prop.
+    if (!this.startScene(session)) {
+      if (session.kind === 'study') this.bookProp(0); else this.briefcaseProp(0); // 0 = persist until cleared
+    }
     this.setState({ session, sessionLeft: Math.max(0, Math.ceil((session.endTs - Date.now()) / 1000)) });
     this.speak(session.kind === 'study' ? '开始专注上课啦~ 要加油📚' : '开始认真工作~ 💼', 2600, true);
   }
 
+  // ---- focus "scenes": recognisable, looping, multi-beat activity animations -
+  // Each scene appends DOM props (all tagged data-focusprop so clearProp sweeps
+  // them) into partRef and drives beats/variants with a light setInterval whose
+  // ids are stored on this._sceneTimers and cleared in clearScene(). The penguin
+  // body keeps its study/work pose; scenes only add surrounding props. Returns
+  // true if a dedicated scene was built (so beginFocus skips the fallback prop).
+  startScene(session) {
+    const layer = this.partRef.current;
+    if (!layer) return false;
+    this.clearScene();
+    if (session.kind === 'study') return this.classScene(session.subjectKey);
+    const name = (JOBS[session.jobIdx] || {}).name;
+    if (name === '发传单') return this.flyerScene();
+    if (name === '拔草') return this.weedScene();
+    return false;
+  }
+  clearScene() {
+    // _sceneTimers holds both interval and timeout ids; clear both kinds.
+    if (this._sceneTimers) this._sceneTimers.forEach((id) => { clearInterval(id); clearTimeout(id); });
+    this._sceneTimers = [];
+  }
+
   clearFocus() {
+    this.clearScene();
     this.clearProp();
     this.p.busy = false;
     if (this.p.action === 'study' || this.p.action === 'work') this.p.action = 'idle';
@@ -554,6 +582,184 @@ export default class App extends React.Component {
     if (!dur) el.dataset.focusprop = '1';
     if (dur) setTimeout(() => { if (el.parentNode) el.remove(); if (this._lastProp === el) this._lastProp = null; }, dur + 100);
   }
+
+  // ---- scene builders (each returns true; props tagged data-focusprop) -------
+  // small helper: create a tagged, absolutely-positioned scene element.
+  _sceneEl(css, html) {
+    const el = document.createElement('div');
+    el.dataset.focusprop = '1';
+    el.style.cssText = 'position:absolute;pointer-events:none;' + css;
+    if (html) el.innerHTML = html;
+    return el;
+  }
+
+  // 上课: desk + chair + blackboard; the penguin sits facing the board, which
+  // shows chalk content for the subject. Expression arc each loop: 疑惑 → 思考 →
+  // 恍然大悟 (💡), then the board content rotates to the next variant.
+  classScene(subjKey) {
+    const layer = this.partRef.current;
+    if (!layer) return false;
+    // per-subject board content variants (2–3 each) + a subject flourish.
+    const BOARDS = {
+      cn: { items: ['永', '心', '人'], flourish: '🖌️', tint: '#fff' },
+      en: { items: ['A B C', 'CAT', 'SUN'], flourish: '🔤', tint: '#fff' },
+      ma: { items: ['1 + 1 = 2', '2 × 3 = 6', '9 − 4 = 5'], flourish: '✏️', tint: '#fff' },
+      sc: { items: ['H₂O', '🧪', '⚗︎ + 🔥'], flourish: '🔬', tint: '#bff' },
+    };
+    const cfg = BOARDS[subjKey] || BOARDS.cn;
+    // desk in front of the penguin + a small chair seat under it.
+    layer.appendChild(this._sceneEl('left:30px;top:96px;width:52px;height:16px;z-index:6;background:#b9763f;border:2px solid #6b4a2a;border-radius:3px;box-shadow:0 3px 0 rgba(34,42,85,.2);'));
+    layer.appendChild(this._sceneEl('left:34px;top:108px;width:4px;height:10px;z-index:4;background:#6b4a2a;'));
+    layer.appendChild(this._sceneEl('left:74px;top:108px;width:4px;height:10px;z-index:4;background:#6b4a2a;'));
+    // blackboard up and to the side the penguin faces (left of it).
+    const board = this._sceneEl('left:-6px;top:34px;width:44px;height:34px;z-index:6;background:#2c3a2e;border:3px solid #7a5230;border-radius:3px;box-shadow:0 3px 0 rgba(34,42,85,.2);');
+    const chalk = this._sceneEl('left:0;top:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;color:' + cfg.tint + ';font-size:11px;font-weight:800;text-shadow:0 0 1px rgba(255,255,255,.4);');
+    chalk.textContent = cfg.items[0];
+    board.appendChild(chalk);
+    layer.appendChild(board);
+    // small subject flourish chalk-tray icon under the board.
+    layer.appendChild(this._sceneEl('left:6px;top:69px;width:14px;height:14px;z-index:6;font-size:12px;line-height:14px;text-align:center;', cfg.flourish));
+    // thought bubble above the penguin's head; we swap its emoji through the arc.
+    const think = this._sceneEl('left:64px;top:18px;width:22px;height:22px;z-index:7;font-size:16px;line-height:22px;text-align:center;animation:hintBob 1.6s ease-in-out infinite;');
+    think.textContent = '❓';
+    layer.appendChild(think);
+    // arc: 疑惑(❓) → 思考(🤔) → 恍然大悟(💡 + spark), then rotate the board text.
+    const ARC = ['❓', '🤔', '💡'];
+    let beat = 0, vi = 0;
+    const id = setInterval(() => {
+      if (!this.partRef.current || !think.parentNode) return;
+      beat = (beat + 1) % ARC.length;
+      think.textContent = ARC[beat];
+      think.style.animation = beat === 1 ? 'thinkTap 1s ease-in-out infinite' : 'hintBob 1.6s ease-in-out infinite';
+      if (beat === 0) { // looped back to start — change the board content (variant)
+        vi = (vi + 1) % cfg.items.length;
+        chalk.textContent = cfg.items[vi];
+        chalk.style.animation = 'boardPop .5s ease-out';
+        setTimeout(() => { if (chalk.parentNode) chalk.style.animation = ''; }, 520);
+      }
+    }, 1700);
+    this._sceneTimers.push(id);
+    return true;
+  }
+
+  // 发传单: the penguin stands smiling with a stack of flyers; passers-by walk
+  // across and it hands them a flyer. Variants rotate per passer: take-happily,
+  // wave-off (penguin shrug), or a gust blows a flyer away (chase).
+  flyerScene() {
+    const layer = this.partRef.current;
+    if (!layer) return false;
+    // a stack of flyers held in front of the penguin.
+    layer.appendChild(this._sceneEl('left:34px;top:92px;width:20px;height:16px;z-index:6;background:#fff;border:2px solid #c4a23a;border-radius:2px;box-shadow:2px 2px 0 #ffe08a, 4px 4px 0 #ffd25a;animation:hintBob 1.3s ease-in-out infinite;',
+      '<div style="position:absolute;left:3px;top:3px;right:3px;height:2px;background:#c4a23a"></div><div style="position:absolute;left:3px;top:7px;right:6px;height:2px;background:#d9bf6a"></div>'));
+    // a reaction emoji slot above the penguin (smile / shrug).
+    const react = this._sceneEl('left:64px;top:20px;width:20px;height:20px;z-index:7;font-size:15px;line-height:20px;text-align:center;');
+    react.textContent = '😄';
+    layer.appendChild(react);
+    // passer-by variants: glyph + whether they take a flyer (else wave off).
+    const PASSERS = [
+      { who: '🧍', take: true },   // takes it happily
+      { who: '🧑', take: false },  // waves it off → penguin shrugs, keeps smiling
+      { who: '🚶', take: true },   // in-a-hurry, grabs one
+      { who: '🧓', take: true },
+      { who: '🧑‍🦰', take: false },
+    ];
+    let pi = 0;
+    const spawnPasser = () => {
+      const layer = this.partRef.current;
+      if (!layer) return;
+      const v = PASSERS[pi % PASSERS.length]; pi++;
+      const dir = pi % 2 ? 1 : -1; // alternate walk direction
+      const p = this._sceneEl('top:84px;width:18px;height:20px;z-index:8;font-size:16px;line-height:20px;text-align:center;'
+        + (dir > 0 ? 'left:-22px;--wx:130px;' : 'left:112px;--wx:-130px;transform:scaleX(-1);')
+        + 'animation:walkBy 4.2s linear forwards;');
+      p.textContent = v.who;
+      layer.appendChild(p);
+      // mid-walk: hand a flyer; the penguin reacts (happy take vs shrug).
+      const mid = setTimeout(() => {
+        if (!this.partRef.current) return;
+        if (v.take) {
+          react.textContent = '😄';
+          const fly = this._sceneEl('left:48px;top:90px;width:10px;height:8px;z-index:9;background:#fff;border:1px solid #c4a23a;border-radius:1px;animation:handOff 1.1s ease-out forwards;');
+          this.partRef.current.appendChild(fly);
+          setTimeout(() => fly.remove(), 1150);
+        } else {
+          react.textContent = '🤷'; // waved off — shrug but keep smiling
+          setTimeout(() => { if (react.parentNode) react.textContent = '😊'; }, 1100);
+        }
+      }, 1600);
+      this._sceneTimers.push(mid);
+      setTimeout(() => p.remove(), 4300);
+    };
+    spawnPasser();
+    this._sceneTimers.push(setInterval(spawnPasser, 5200));
+    // occasional gust: a flyer blows away and the penguin chases it (variant beat).
+    this._sceneTimers.push(setInterval(() => {
+      const layer = this.partRef.current;
+      if (!layer) return;
+      const gust = this._sceneEl('left:46px;top:88px;width:11px;height:9px;z-index:9;background:#fff;border:1px solid #c4a23a;border-radius:1px;animation:flyAway 2.2s ease-in forwards;');
+      layer.appendChild(gust);
+      react.textContent = '😮';
+      setTimeout(() => { if (react.parentNode) react.textContent = '😄'; }, 2200);
+      setTimeout(() => gust.remove(), 2300);
+    }, 16000));
+    return true;
+  }
+
+  // 拔草: the penguin arrives at a patch overgrown with tall weeds; over the
+  // shift the weeds thin out as the ground gets clean (progress ∝ elapsed
+  // fraction). Flavour beats rotate: straw hat 👒, sweat-wipe, a short rest.
+  weedScene() {
+    const layer = this.partRef.current;
+    if (!layer) return false;
+    // straw hat sits on the penguin's head for the whole shift.
+    layer.appendChild(this._sceneEl('left:48px;top:8px;width:20px;height:18px;z-index:8;font-size:16px;line-height:18px;text-align:center;', '👒'));
+    // a row of weed clumps in front; start tall, thinned out as work progresses.
+    const CLUMPS = ['🌿', '🌾', '☘️', '🌱'];
+    const weeds = [];
+    for (let i = 0; i < 6; i++) {
+      const x = 18 + i * 14;
+      const w = this._sceneEl('left:' + x + 'px;top:84px;width:14px;height:26px;z-index:6;font-size:18px;line-height:1;text-align:center;transform-origin:bottom center;animation:weedSway ' + (1.6 + (i % 3) * 0.3) + 's ease-in-out infinite;');
+      w.textContent = CLUMPS[i % CLUMPS.length];
+      layer.appendChild(w);
+      weeds.push(w);
+    }
+    // progress: hide weeds (right→left) as elapsed fraction grows; a dirt puff on
+    // each removal. Read live countdown from state each tick.
+    let removed = 0;
+    const progressId = setInterval(() => {
+      const layer = this.partRef.current; const ses = this.state.session;
+      if (!layer || !ses) return;
+      const total = (ses.minutes || 1) * 60;
+      const frac = 1 - this.state.sessionLeft / total; // 0..1 elapsed
+      const want = Math.min(weeds.length, Math.floor(frac * weeds.length));
+      while (removed < want) {
+        const w = weeds[weeds.length - 1 - removed];
+        if (w && w.parentNode) {
+          const puff = this._sceneEl('left:' + (parseInt(w.style.left) - 2) + 'px;top:90px;width:18px;height:14px;z-index:7;font-size:13px;line-height:14px;text-align:center;animation:dirtPuff .8s ease-out forwards;');
+          puff.textContent = '💨';
+          layer.appendChild(puff);
+          setTimeout(() => puff.remove(), 820);
+          w.style.animation = 'weedPull .5s ease-in forwards';
+          setTimeout(() => w.remove(), 520);
+        }
+        removed++;
+      }
+    }, 2500);
+    this._sceneTimers.push(progressId);
+    // flavour beat: sweat-wipe (wing emoji) or a short rest, rotating.
+    const react = this._sceneEl('left:62px;top:30px;width:20px;height:20px;z-index:8;font-size:14px;line-height:20px;text-align:center;');
+    layer.appendChild(react);
+    let fb = 0;
+    this._sceneTimers.push(setInterval(() => {
+      if (!this.partRef.current) return;
+      const FLAV = ['💦', '🤚', '😮‍💨'];
+      react.textContent = FLAV[fb % FLAV.length]; fb++;
+      react.style.animation = 'flavPop 2s ease-out forwards';
+      setTimeout(() => { if (react.parentNode) { react.textContent = ''; react.style.animation = ''; } }, 2000);
+    }, 7000));
+    return true;
+  }
+
   // A single music note drifting up (called repeatedly while listening).
   spawnNote() {
     const layer = this.partRef.current;
