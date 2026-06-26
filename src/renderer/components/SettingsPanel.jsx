@@ -3,9 +3,10 @@ import React from 'react';
 const label = { display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 800, letterSpacing: '.3px', color: '#6b74a8', marginBottom: 4 };
 
 // Compact modal settings dialog sized to fit the small pet window:
-// name, volume, animation speed, window opacity. The dim backdrop only covers
-// the pet window (not the whole screen), keeping things unobtrusive.
-export default function SettingsPanel({ name, volume, speed, opacity, onName, onVolume, onSpeed, onOpacity, onClose }) {
+// name, animation speed, window opacity. (Sound was removed, so there is no
+// volume control.) The dim backdrop only covers the pet window (not the whole
+// screen), keeping things unobtrusive.
+export default function SettingsPanel({ name, speed, opacity, onName, onSpeed, onOpacity, onClose }) {
   return (
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(20,24,60,.35)', backdropFilter: 'blur(2px)', WebkitBackdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 70 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: 196, background: '#fff', border: '3px solid #222a55', borderRadius: 18, padding: 14, boxShadow: '0 8px 0 rgba(34,42,85,.22)', animation: 'popIn .2s ease-out' }}>
@@ -17,10 +18,6 @@ export default function SettingsPanel({ name, volume, speed, opacity, onName, on
         <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.3px', color: '#6b74a8', marginBottom: 4 }}>名字</div>
         <input value={name} onChange={onName} maxLength={12}
           style={{ width: '100%', border: '2px solid #222a55', borderRadius: 9, padding: '7px 10px', fontFamily: "'Nunito'", fontWeight: 800, fontSize: 13, color: '#222a55', outline: 'none', marginBottom: 12 }} />
-
-        <div style={label}><span>音量</span><span>{volume}%</span></div>
-        <input type="range" min="0" max="100" step="1" value={volume} onChange={onVolume}
-          style={{ width: '100%', accentColor: '#ff4d6d', marginBottom: 12 }} />
 
         <div style={label}><span>动画速度</span><span>{speed}x</span></div>
         <input type="range" min="0.5" max="2" step="0.1" value={speed} onChange={onSpeed}
