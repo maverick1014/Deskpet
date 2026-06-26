@@ -2,6 +2,11 @@
 
 ## 1. Activity-authentic focus animations (big feature)
 
+> **Status:** ✅ **上课 / 发传单 / 拔草 shipped in v1.6.0.** The other 9 activities
+> (语文-only flourishes aside, the work jobs 洗碗/清洁工/便利店店员/快递员/程序员/老师 and
+> any per-subject extras) still use the simple book/briefcase fallback — build them
+> next using the same scene system (`startScene`/`_sceneEl`/`clearScene` in App.jsx).
+
 Each **class** and **job** should play its **own multi-beat "scene"** that actually
 looks like the activity — not a single static pose with a prop. Each activity needs
 **2–3 variants** that the engine cycles through so a long session never looks like
