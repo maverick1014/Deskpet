@@ -8,6 +8,18 @@ is pre-release, so versions are milestone markers rather than published releases
 
 New lifelike animations being added one at a time.
 
+## [1.3.0] — 2026-06-26 — Cloud save (optional account)
+
+### Added
+- **Optional cloud save with an email + password account** (Supabase-backed).
+  Sign in from **Settings → ☁️ 云存档** and your pet's save is mirrored to the
+  cloud, so it survives a reinstall or moves with you to another machine.
+  - The pet still works fully **offline** — signing in is optional.
+  - On login, the **newest** save wins (cloud vs local), then changes auto-sync
+    in the background; a **立即同步** button forces an immediate push.
+  - Per-account isolation via Row-Level Security — you only ever see your own
+    save. The publishable key is the only credential shipped in the client.
+
 ## [1.2.0] — 2026-06-26 — Quieter, cleaner, more minimal UI
 
 ### Changed

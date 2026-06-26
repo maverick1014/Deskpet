@@ -7,6 +7,7 @@ import {
 } from './store.js';
 import { genPersonality, normPersonality, traitLabel } from './personality.js';
 import { DIA, pick, greetingPool } from './dialogue.js';
+import { cloudEnabled, currentUser, onAuth, signIn, signUp, signOut, pullCloud, pushCloud } from './cloud.js';
 
 const BODY = '#222a55';
 const BEAK = '#ff9d3d';
@@ -38,6 +39,8 @@ export default class App extends React.Component {
     shopCat: null,
     menu: null, settingsOpen: false, emote: null, say: null, hint: true, hover: false, hoverStat: null, loaded: false,
     entering: true, traits: '',
+    // Cloud save (optional email+password account). `user` is null when signed out.
+    user: null, authEmail: '', authPw: '', authBusy: false, authMsg: '', syncedAt: null,
   };
 
   // Penguin box inside the (larger) window. The penguin is centered, so the
@@ -114,6 +117,8 @@ export default class App extends React.Component {
     window.removeEventListener('beforeunload', this._onUnload);
     if (this._offStage) this._offStage();
     if (this._offRecenter) this._offRecenter();
+    if (this._offAuth) this._offAuth();
+    clearTimeout(this._cloudT);
   }
 
   componentDidUpdate() { this.refreshInteractive(); }
@@ -122,6 +127,7 @@ export default class App extends React.Component {
     const st = await getStage();
     this.applyStage(st);
     const loaded = await this.load();
+    this.initCloud(); // restore session + sync in the background (no-op if signed out)
     this.setState({ traits: traitLabel(this.personality) });
     if (!loaded.gender) { this.setState({ onboard: 'gender', entering: false }); return; } // new pet → choose egg + name
     if (loaded.dead) { this.setState({ entering: false }); return; } // dead pets show the revive overlay, no entrance
@@ -1374,17 +1380,120 @@ export default class App extends React.Component {
     this.setState(st, () => { this.recompute(); this.save(); });
     return { gender: st.gender, dead: !!st.dead };
   }
-  save() {
+  // The full save payload (local + cloud share the exact same shape).
+  snapshot() {
     const s = this.state;
-    saveState({
+    return {
       fullness: s.fullness, energy: s.energy, cleanliness: s.cleanliness, happiness: s.happiness,
       health: s.health, sick: s.sick, dead: s.dead, education: s.education, study: s.study,
       gender: s.gender, playTime: s.playTime, money: s.money, mood: s.mood,
       name: s.name, volume: s.volume, speed: s.speed, opacity: s.opacity,
       personality: this.personality,
       x: this.p.x, y: this.p.y, ts: Date.now(),
-    });
+    };
   }
+  save() {
+    const data = this.snapshot();
+    this._localTs = data.ts;
+    saveState(data);
+    if (this.state.user) this.queueCloudPush(data); // mirror to cloud when signed in
+  }
+
+  // ---- cloud save ----------------------------------------------------------
+  // Debounced upsert so a burst of saves becomes one network write.
+  queueCloudPush(data) {
+    clearTimeout(this._cloudT);
+    this._cloudT = setTimeout(() => {
+      pushCloud(data || this.snapshot())
+        .then(() => { if (this._mounted) this.setState({ syncedAt: Date.now() }); })
+        .catch(() => { /* offline / transient — local save still holds the data */ });
+    }, 2500);
+  }
+
+  // Set up auth: restore any saved session, then keep `user` in sync.
+  async initCloud() {
+    if (!cloudEnabled()) return;
+    this._offAuth = onAuth((user) => { if (this._mounted) this.setState({ user }); });
+    try {
+      const user = await currentUser();
+      if (user) {
+        this.setState({ user });
+        await this.cloudSyncOnLogin();
+      }
+    } catch (e) { /* ignore */ }
+  }
+
+  // On login: newest wins. If the cloud save is newer than the local one, pull it
+  // down and apply it; otherwise push the local save up.
+  async cloudSyncOnLogin() {
+    try {
+      const cloud = await pullCloud();
+      const localTs = this._localTs || 0;
+      if (cloud && (cloud.ts || 0) > localTs) {
+        this.applyCloudSave(cloud);
+        if (this._mounted) this.speak('已从云端恢复~', 2200, true);
+      } else {
+        await pushCloud(this.snapshot());
+      }
+      if (this._mounted) this.setState({ syncedAt: Date.now() });
+    } catch (e) { /* ignore */ }
+  }
+
+  // Apply a cloud save blob to the running pet (same fields as load()).
+  applyCloudSave(d) {
+    if (!d) return;
+    this.personality = normPersonality(d.personality);
+    const st = {};
+    ['fullness', 'energy', 'cleanliness', 'happiness', 'health', 'sick', 'dead', 'education', 'study', 'gender', 'playTime', 'money', 'mood', 'name', 'volume', 'speed', 'opacity'].forEach((k) => {
+      if (d[k] != null) st[k] = d[k];
+    });
+    if (d.x != null && this.minX != null) { this.p.x = clamp(d.x, this.minX, this.maxX); this.p.tx = this.p.x; }
+    if (d.y != null && this.minY != null) { this.p.y = clamp(d.y, this.minY, this.maxY); this.ground = this.p.y; }
+    this.pushWindow(true);
+    this.setState(st, () => { this.recompute(); this.save(); });
+  }
+
+  setAuthEmail = (e) => this.setState({ authEmail: e.target.value });
+  setAuthPw = (e) => this.setState({ authPw: e.target.value });
+
+  // mode: 'in' (sign in) | 'up' (register)
+  doAuth = async (mode) => {
+    const email = (this.state.authEmail || '').trim();
+    const pw = this.state.authPw || '';
+    if (!email || !pw) { this.setState({ authMsg: '请输入邮箱和密码' }); return; }
+    if (pw.length < 6) { this.setState({ authMsg: '密码至少 6 位' }); return; }
+    this.setState({ authBusy: true, authMsg: '' });
+    try {
+      if (mode === 'up') {
+        const res = await signUp(email, pw);
+        if (!res.session) { // email confirmation required
+          this.setState({ authBusy: false, authMsg: '注册成功，请到邮箱点击确认后再登录。' });
+          return;
+        }
+      } else {
+        await signIn(email, pw);
+      }
+      const user = await currentUser();
+      this.setState({ user, authPw: '', authMsg: '' });
+      if (user) await this.cloudSyncOnLogin();
+    } catch (e) {
+      this.setState({ authMsg: (e && e.message) || '操作失败，请重试' });
+    } finally {
+      this.setState({ authBusy: false });
+    }
+  };
+
+  doSignOut = async () => {
+    await signOut();
+    this.setState({ user: null, syncedAt: null, authPw: '' });
+  };
+
+  syncNow = async () => {
+    if (!this.state.user) return;
+    this.setState({ authBusy: true });
+    try { await pushCloud(this.snapshot()); this.setState({ syncedAt: Date.now() }); } catch (e) { /* ignore */ }
+    this.setState({ authBusy: false });
+  };
 
   // ---- render --------------------------------------------------------------
   render() {
@@ -1568,6 +1677,11 @@ export default class App extends React.Component {
             name={s.name} speed={s.speed} opacity={s.opacity}
             onName={this.setName} onSpeed={this.setSpeed} onOpacity={this.setOpacity}
             onClose={this.closeSettings}
+            cloudOn={cloudEnabled()} user={s.user}
+            authEmail={s.authEmail} authPw={s.authPw} authBusy={s.authBusy} authMsg={s.authMsg} syncedAt={s.syncedAt}
+            onAuthEmail={this.setAuthEmail} onAuthPw={this.setAuthPw}
+            onSignIn={() => this.doAuth('in')} onSignUp={() => this.doAuth('up')}
+            onSignOut={this.doSignOut} onSyncNow={this.syncNow}
           />
         )}
       </div>
