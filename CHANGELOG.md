@@ -7,7 +7,19 @@ is pre-release, so versions are milestone markers rather than published releases
 ## [Unreleased] — Animation discovery (ongoing)
 
 New lifelike animations being added one at a time.
-See `TODO.md` for the planned activity-authentic focus animations + 玩耍 mini-games.
+See `TODO.md` for the planned activity-authentic focus animations.
+
+## [1.5.3] — 2026-06-26 — 玩耍 mini-games
+
+### Added
+- **Six mini-games** behind 玩耍 (right-click → 玩耍, or the care-panel button):
+  - 🐟 **接小鱼** — drag to catch falling fish (timed)
+  - 🫧 **戳泡泡** — tap rising bubbles before they escape (timed)
+  - ✌️ **猜拳** — rock/paper/scissors vs the penguin
+  - 🥤 **猜小鱼** — find the fish after the cups shuffle
+  - 🎾 **接球** — stop the marker in the zone to catch the ball
+  - 🧠 **跟我拍** — repeat the penguin's growing colour sequence
+  - Each round raises happiness (and some award a few coins).
 
 ## [1.5.2] — 2026-06-26 — Focus polish
 
