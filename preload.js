@@ -18,4 +18,11 @@ contextBridge.exposeInMainWorld('pengu', {
   // Window behavior.
   setInteractive: (flag) => ipcRenderer.send('win:interactive', !!flag),
   quit: () => ipcRenderer.send('win:quit'),
+
+  // Recall the pet to screen centre (fired from the tray / right-click menu).
+  onRecenter: (cb) => {
+    const handler = () => cb();
+    ipcRenderer.on('pet:recenter', handler);
+    return () => ipcRenderer.removeListener('pet:recenter', handler);
+  },
 });

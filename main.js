@@ -4,13 +4,15 @@
 // window that physically walks around the screen. It never covers your desktop —
 // only the penguin's own pixels capture the mouse; everything else is
 // click-through (hit-test bypass), so you keep working normally.
-const { app, BrowserWindow, screen } = require('electron');
+const { app, BrowserWindow, screen, Tray, Menu, nativeImage } = require('electron');
 const path = require('path');
 const { WINDOW } = require('./src/main/constants');
 const db = require('./src/main/database');
 const ipc = require('./src/main/ipcHandlers');
 
 let win = null;
+let tray = null;
+let isQuitting = false;
 
 // Initial window placement: centre of the usable work area, so a fresh pet (and
 // the onboarding screen) appears in the middle of the display. The renderer takes
@@ -77,17 +79,61 @@ function createWindow() {
   win.on('closed', () => { win = null; });
 }
 
+// Recall the pet to the centre of the primary screen. This is the rescue hatch
+// for when the penguin has wandered (or been dragged) off-screen — common on
+// Windows multi-monitor / display-scaling setups where it can end up somewhere
+// you can't reach it. The renderer owns the walk position, so we just make sure
+// the window is visible and tell it to re-centre and re-clamp.
+function recenterPet() {
+  if (!win || win.isDestroyed()) return;
+  if (!win.isVisible()) win.show();
+  win.webContents.send('pet:recenter');
+}
+
+// System-tray ("collapse section") icon. Since the pet window is frameless and
+// hidden from the taskbar (skipTaskbar), the tray is the one always-reachable
+// control surface: show/hide the pet, recall it to centre, or quit.
+function buildTray() {
+  let image = nativeImage.createFromPath(path.join(__dirname, 'build', 'icon.png'));
+  if (!image.isEmpty()) image = image.resize({ width: 16, height: 16 });
+  tray = new Tray(image.isEmpty() ? nativeImage.createEmpty() : image);
+  tray.setToolTip('Deskpet');
+
+  const menu = Menu.buildFromTemplate([
+    { label: '召回宠物到中央  ·  Bring pet to centre', click: recenterPet },
+    { type: 'separator' },
+    { label: '显示  ·  Show', click: () => { if (win && !win.isDestroyed()) win.show(); } },
+    { label: '隐藏  ·  Hide', click: () => { if (win && !win.isDestroyed()) win.hide(); } },
+    { type: 'separator' },
+    { label: '退出  ·  Quit', click: () => { isQuitting = true; app.quit(); } },
+  ]);
+  tray.setContextMenu(menu);
+
+  // Double-clicking the tray icon recalls the pet — the quickest way to get it
+  // back if it has vanished off the edge of the screen.
+  tray.on('double-click', recenterPet);
+}
+
 app.whenReady().then(() => {
   db.init();
   ipc.register(() => win);
   createWindow();
+  buildTray();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
 
+app.on('before-quit', () => {
+  isQuitting = true;
+  if (tray) { tray.destroy(); tray = null; }
+});
+
+// The pet has no visible window chrome to close, so this normally only fires on
+// a real quit. The tray keeps the app alive in the background regardless.
 app.on('window-all-closed', () => {
+  if (!isQuitting) return;
   db.close();
   app.quit();
 });

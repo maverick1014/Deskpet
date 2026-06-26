@@ -5,6 +5,7 @@
     "main.js",
     "preload.js",
     "src/**/*",
+    "build/icon.png",
     "!src/renderer/**/*.jsx",
     "!**/*.map"
   ],
