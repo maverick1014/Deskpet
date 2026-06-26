@@ -87,6 +87,7 @@ export default class App extends React.Component {
   spriteRef = React.createRef();
   shadowRef = React.createRef();
   canvasRef = React.createRef();
+  sceneRef = React.createRef();
   partRef = React.createRef();
 
   // Stable character (Phase 1). Set synchronously so behavior works before the
@@ -143,7 +144,8 @@ export default class App extends React.Component {
     clearTimeout(this._hideHoverT);
     clearInterval(this._bathBub);
     clearInterval(this._musicInt);
-    if (this._sceneTimers) this._sceneTimers.forEach((id) => { clearInterval(id); clearTimeout(id); });
+    clearTimeout(this._faceArcT);
+    this.stopScene();
     window.removeEventListener('pointermove', this._onMove);
     window.removeEventListener('pointerup', this._onUp);
     window.removeEventListener('mousemove', this._onHover);
@@ -382,40 +384,17 @@ export default class App extends React.Component {
     this.clearProp();
     this.p.busy = true;
     this.p.action = session.kind === 'study' ? 'study' : 'work';
-    // Pick a recognisable multi-beat "scene" for the activity; subjects/jobs with
-    // a dedicated scene get it, everything else falls back to the simple prop.
-    if (!this.startScene(session)) {
-      if (session.kind === 'study') this.bookProp(0); else this.briefcaseProp(0); // 0 = persist until cleared
-    }
+    // Pixel scenes (上课 / 发传单 / 拔草) replace the old book/briefcase props.
+    this.startSceneFor(session);
+    if (session.kind === 'study') this.classFaceArc();
+    else if (!this._scene) this.briefcaseProp(0); // jobs without a scene keep the briefcase (0 = persist)
     this.setState({ session, sessionLeft: Math.max(0, Math.ceil((session.endTs - Date.now()) / 1000)) });
     this.speak(session.kind === 'study' ? '开始专注上课啦~ 要加油📚' : '开始认真工作~ 💼', 2600, true);
   }
 
-  // ---- focus "scenes": recognisable, looping, multi-beat activity animations -
-  // Each scene appends DOM props (all tagged data-focusprop so clearProp sweeps
-  // them) into partRef and drives beats/variants with a light setInterval whose
-  // ids are stored on this._sceneTimers and cleared in clearScene(). The penguin
-  // body keeps its study/work pose; scenes only add surrounding props. Returns
-  // true if a dedicated scene was built (so beginFocus skips the fallback prop).
-  startScene(session) {
-    const layer = this.partRef.current;
-    if (!layer) return false;
-    this.clearScene();
-    if (session.kind === 'study') return this.classScene(session.subjectKey);
-    const name = (JOBS[session.jobIdx] || {}).name;
-    if (name === '发传单') return this.flyerScene();
-    if (name === '拔草') return this.weedScene();
-    return false;
-  }
-  clearScene() {
-    // _sceneTimers holds both interval and timeout ids; clear both kinds.
-    if (this._sceneTimers) this._sceneTimers.forEach((id) => { clearInterval(id); clearTimeout(id); });
-    this._sceneTimers = [];
-  }
-
   clearFocus() {
-    this.clearScene();
     this.clearProp();
+    this.stopScene(); // tear down the pixel scene + face arc + hat, clear scene canvas
     this.p.busy = false;
     if (this.p.action === 'study' || this.p.action === 'work') this.p.action = 'idle';
     this.setState({ session: null, sessionLeft: 0 });
@@ -582,184 +561,6 @@ export default class App extends React.Component {
     if (!dur) el.dataset.focusprop = '1';
     if (dur) setTimeout(() => { if (el.parentNode) el.remove(); if (this._lastProp === el) this._lastProp = null; }, dur + 100);
   }
-
-  // ---- scene builders (each returns true; props tagged data-focusprop) -------
-  // small helper: create a tagged, absolutely-positioned scene element.
-  _sceneEl(css, html) {
-    const el = document.createElement('div');
-    el.dataset.focusprop = '1';
-    el.style.cssText = 'position:absolute;pointer-events:none;' + css;
-    if (html) el.innerHTML = html;
-    return el;
-  }
-
-  // 上课: desk + chair + blackboard; the penguin sits facing the board, which
-  // shows chalk content for the subject. Expression arc each loop: 疑惑 → 思考 →
-  // 恍然大悟 (💡), then the board content rotates to the next variant.
-  classScene(subjKey) {
-    const layer = this.partRef.current;
-    if (!layer) return false;
-    // per-subject board content variants (2–3 each) + a subject flourish.
-    const BOARDS = {
-      cn: { items: ['永', '心', '人'], flourish: '🖌️', tint: '#fff' },
-      en: { items: ['A B C', 'CAT', 'SUN'], flourish: '🔤', tint: '#fff' },
-      ma: { items: ['1 + 1 = 2', '2 × 3 = 6', '9 − 4 = 5'], flourish: '✏️', tint: '#fff' },
-      sc: { items: ['H₂O', '🧪', '⚗︎ + 🔥'], flourish: '🔬', tint: '#bff' },
-    };
-    const cfg = BOARDS[subjKey] || BOARDS.cn;
-    // desk in front of the penguin + a small chair seat under it.
-    layer.appendChild(this._sceneEl('left:30px;top:96px;width:52px;height:16px;z-index:6;background:#b9763f;border:2px solid #6b4a2a;border-radius:3px;box-shadow:0 3px 0 rgba(34,42,85,.2);'));
-    layer.appendChild(this._sceneEl('left:34px;top:108px;width:4px;height:10px;z-index:4;background:#6b4a2a;'));
-    layer.appendChild(this._sceneEl('left:74px;top:108px;width:4px;height:10px;z-index:4;background:#6b4a2a;'));
-    // blackboard up and to the side the penguin faces (left of it).
-    const board = this._sceneEl('left:-6px;top:34px;width:44px;height:34px;z-index:6;background:#2c3a2e;border:3px solid #7a5230;border-radius:3px;box-shadow:0 3px 0 rgba(34,42,85,.2);');
-    const chalk = this._sceneEl('left:0;top:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;color:' + cfg.tint + ';font-size:11px;font-weight:800;text-shadow:0 0 1px rgba(255,255,255,.4);');
-    chalk.textContent = cfg.items[0];
-    board.appendChild(chalk);
-    layer.appendChild(board);
-    // small subject flourish chalk-tray icon under the board.
-    layer.appendChild(this._sceneEl('left:6px;top:69px;width:14px;height:14px;z-index:6;font-size:12px;line-height:14px;text-align:center;', cfg.flourish));
-    // thought bubble above the penguin's head; we swap its emoji through the arc.
-    const think = this._sceneEl('left:64px;top:18px;width:22px;height:22px;z-index:7;font-size:16px;line-height:22px;text-align:center;animation:hintBob 1.6s ease-in-out infinite;');
-    think.textContent = '❓';
-    layer.appendChild(think);
-    // arc: 疑惑(❓) → 思考(🤔) → 恍然大悟(💡 + spark), then rotate the board text.
-    const ARC = ['❓', '🤔', '💡'];
-    let beat = 0, vi = 0;
-    const id = setInterval(() => {
-      if (!this.partRef.current || !think.parentNode) return;
-      beat = (beat + 1) % ARC.length;
-      think.textContent = ARC[beat];
-      think.style.animation = beat === 1 ? 'thinkTap 1s ease-in-out infinite' : 'hintBob 1.6s ease-in-out infinite';
-      if (beat === 0) { // looped back to start — change the board content (variant)
-        vi = (vi + 1) % cfg.items.length;
-        chalk.textContent = cfg.items[vi];
-        chalk.style.animation = 'boardPop .5s ease-out';
-        setTimeout(() => { if (chalk.parentNode) chalk.style.animation = ''; }, 520);
-      }
-    }, 1700);
-    this._sceneTimers.push(id);
-    return true;
-  }
-
-  // 发传单: the penguin stands smiling with a stack of flyers; passers-by walk
-  // across and it hands them a flyer. Variants rotate per passer: take-happily,
-  // wave-off (penguin shrug), or a gust blows a flyer away (chase).
-  flyerScene() {
-    const layer = this.partRef.current;
-    if (!layer) return false;
-    // a stack of flyers held in front of the penguin.
-    layer.appendChild(this._sceneEl('left:34px;top:92px;width:20px;height:16px;z-index:6;background:#fff;border:2px solid #c4a23a;border-radius:2px;box-shadow:2px 2px 0 #ffe08a, 4px 4px 0 #ffd25a;animation:hintBob 1.3s ease-in-out infinite;',
-      '<div style="position:absolute;left:3px;top:3px;right:3px;height:2px;background:#c4a23a"></div><div style="position:absolute;left:3px;top:7px;right:6px;height:2px;background:#d9bf6a"></div>'));
-    // a reaction emoji slot above the penguin (smile / shrug).
-    const react = this._sceneEl('left:64px;top:20px;width:20px;height:20px;z-index:7;font-size:15px;line-height:20px;text-align:center;');
-    react.textContent = '😄';
-    layer.appendChild(react);
-    // passer-by variants: glyph + whether they take a flyer (else wave off).
-    const PASSERS = [
-      { who: '🧍', take: true },   // takes it happily
-      { who: '🧑', take: false },  // waves it off → penguin shrugs, keeps smiling
-      { who: '🚶', take: true },   // in-a-hurry, grabs one
-      { who: '🧓', take: true },
-      { who: '🧑‍🦰', take: false },
-    ];
-    let pi = 0;
-    const spawnPasser = () => {
-      const layer = this.partRef.current;
-      if (!layer) return;
-      const v = PASSERS[pi % PASSERS.length]; pi++;
-      const dir = pi % 2 ? 1 : -1; // alternate walk direction
-      const p = this._sceneEl('top:84px;width:18px;height:20px;z-index:8;font-size:16px;line-height:20px;text-align:center;'
-        + (dir > 0 ? 'left:-22px;--wx:130px;' : 'left:112px;--wx:-130px;transform:scaleX(-1);')
-        + 'animation:walkBy 4.2s linear forwards;');
-      p.textContent = v.who;
-      layer.appendChild(p);
-      // mid-walk: hand a flyer; the penguin reacts (happy take vs shrug).
-      const mid = setTimeout(() => {
-        if (!this.partRef.current) return;
-        if (v.take) {
-          react.textContent = '😄';
-          const fly = this._sceneEl('left:48px;top:90px;width:10px;height:8px;z-index:9;background:#fff;border:1px solid #c4a23a;border-radius:1px;animation:handOff 1.1s ease-out forwards;');
-          this.partRef.current.appendChild(fly);
-          setTimeout(() => fly.remove(), 1150);
-        } else {
-          react.textContent = '🤷'; // waved off — shrug but keep smiling
-          setTimeout(() => { if (react.parentNode) react.textContent = '😊'; }, 1100);
-        }
-      }, 1600);
-      this._sceneTimers.push(mid);
-      setTimeout(() => p.remove(), 4300);
-    };
-    spawnPasser();
-    this._sceneTimers.push(setInterval(spawnPasser, 5200));
-    // occasional gust: a flyer blows away and the penguin chases it (variant beat).
-    this._sceneTimers.push(setInterval(() => {
-      const layer = this.partRef.current;
-      if (!layer) return;
-      const gust = this._sceneEl('left:46px;top:88px;width:11px;height:9px;z-index:9;background:#fff;border:1px solid #c4a23a;border-radius:1px;animation:flyAway 2.2s ease-in forwards;');
-      layer.appendChild(gust);
-      react.textContent = '😮';
-      setTimeout(() => { if (react.parentNode) react.textContent = '😄'; }, 2200);
-      setTimeout(() => gust.remove(), 2300);
-    }, 16000));
-    return true;
-  }
-
-  // 拔草: the penguin arrives at a patch overgrown with tall weeds; over the
-  // shift the weeds thin out as the ground gets clean (progress ∝ elapsed
-  // fraction). Flavour beats rotate: straw hat 👒, sweat-wipe, a short rest.
-  weedScene() {
-    const layer = this.partRef.current;
-    if (!layer) return false;
-    // straw hat sits on the penguin's head for the whole shift.
-    layer.appendChild(this._sceneEl('left:48px;top:8px;width:20px;height:18px;z-index:8;font-size:16px;line-height:18px;text-align:center;', '👒'));
-    // a row of weed clumps in front; start tall, thinned out as work progresses.
-    const CLUMPS = ['🌿', '🌾', '☘️', '🌱'];
-    const weeds = [];
-    for (let i = 0; i < 6; i++) {
-      const x = 18 + i * 14;
-      const w = this._sceneEl('left:' + x + 'px;top:84px;width:14px;height:26px;z-index:6;font-size:18px;line-height:1;text-align:center;transform-origin:bottom center;animation:weedSway ' + (1.6 + (i % 3) * 0.3) + 's ease-in-out infinite;');
-      w.textContent = CLUMPS[i % CLUMPS.length];
-      layer.appendChild(w);
-      weeds.push(w);
-    }
-    // progress: hide weeds (right→left) as elapsed fraction grows; a dirt puff on
-    // each removal. Read live countdown from state each tick.
-    let removed = 0;
-    const progressId = setInterval(() => {
-      const layer = this.partRef.current; const ses = this.state.session;
-      if (!layer || !ses) return;
-      const total = (ses.minutes || 1) * 60;
-      const frac = 1 - this.state.sessionLeft / total; // 0..1 elapsed
-      const want = Math.min(weeds.length, Math.floor(frac * weeds.length));
-      while (removed < want) {
-        const w = weeds[weeds.length - 1 - removed];
-        if (w && w.parentNode) {
-          const puff = this._sceneEl('left:' + (parseInt(w.style.left) - 2) + 'px;top:90px;width:18px;height:14px;z-index:7;font-size:13px;line-height:14px;text-align:center;animation:dirtPuff .8s ease-out forwards;');
-          puff.textContent = '💨';
-          layer.appendChild(puff);
-          setTimeout(() => puff.remove(), 820);
-          w.style.animation = 'weedPull .5s ease-in forwards';
-          setTimeout(() => w.remove(), 520);
-        }
-        removed++;
-      }
-    }, 2500);
-    this._sceneTimers.push(progressId);
-    // flavour beat: sweat-wipe (wing emoji) or a short rest, rotating.
-    const react = this._sceneEl('left:62px;top:30px;width:20px;height:20px;z-index:8;font-size:14px;line-height:20px;text-align:center;');
-    layer.appendChild(react);
-    let fb = 0;
-    this._sceneTimers.push(setInterval(() => {
-      if (!this.partRef.current) return;
-      const FLAV = ['💦', '🤚', '😮‍💨'];
-      react.textContent = FLAV[fb % FLAV.length]; fb++;
-      react.style.animation = 'flavPop 2s ease-out forwards';
-      setTimeout(() => { if (react.parentNode) { react.textContent = ''; react.style.animation = ''; } }, 2000);
-    }, 7000));
-    return true;
-  }
-
   // A single music note drifting up (called repeatedly while listening).
   spawnNote() {
     const layer = this.partRef.current;
@@ -892,6 +693,301 @@ export default class App extends React.Component {
     setTimeout(() => el.remove(), Math.max(300, dur - 250));
   }
 
+  // ---- focus scenes (pure pixel art, ZERO emoji) --------------------------
+  // Technique (A): a wider <canvas> sibling to the penguin, drawn each frame with
+  // little letter-grid sprites via drawSprite(). The penguin's own 112px sprite is
+  // centred over column SCENE_OX of this canvas, so props sit around it. Three
+  // scenes: 上课 (study), 发传单 / 拔草 (the two lvl-0 jobs). Everything is fillRect
+  // pixels — no glyphs, no emoji. Cleared on stopScene / clearFocus / unmount.
+  SCENE_W = 240; SCENE_H = 180; SCENE_OX = 64; SCENE_GND = 116; // ground baseline y
+
+  // Paint a small letter-grid sprite at (ox,oy) with px-sized cells. `flip` mirrors.
+  drawSprite(ctx, grid, palette, ox, oy, px, flip) {
+    const w = grid[0].length;
+    for (let y = 0; y < grid.length; y++) {
+      const row = grid[y];
+      for (let x = 0; x < row.length; x++) {
+        const c = palette[row[x]];
+        if (!c) continue;
+        ctx.fillStyle = c;
+        const dx = flip ? (w - 1 - x) : x;
+        ctx.fillRect(ox + dx * px, oy + y * px, px, px);
+      }
+    }
+  }
+
+  // Scene palette (shared letters across scene sprites; transparent = '.').
+  scenePal() {
+    return {
+      '.': null,
+      w: '#3a2a18', t: '#6b4a2a',           // desk: wood top / legs
+      b: '#2c3a2c', f: '#46603e', c: '#f4f6ef', // blackboard frame / felt / chalk
+      g: '#3fae4e', G: '#2f8a3b', d: '#6b4a2a',  // weed bright / dark green / dirt clod
+      p: '#ffd9b0', n: '#2a3160', r: '#ff6f7a', u: '#4a7bd0', k: '#3a3f55', // people skin / navy / red / blue / dark
+      W: '#ffffff', K: '#222a55', y: '#ffe27a', o: '#ff9d3d', // flyer white / ink / bulb / glow
+    };
+  }
+
+  // ---- scene sprite grids (authored here, drawn as pixels) ----
+  sceneGrids() {
+    if (this._scn) return this._scn;
+    const S = {};
+    // Desk: a wood top with two legs (for 上课).
+    S.desk = [
+      'wwwwwwwwwwwwwwww',
+      'wwwwwwwwwwwwwwww',
+      '.t............t.',
+      '.t............t.',
+      '.t............t.',
+      '.t............t.',
+    ];
+    // Blackboard frame (empty felt); chalk content drawn separately on top.
+    S.board = [
+      'bbbbbbbbbbbbbbbbbb',
+      'bffffffffffffffffb',
+      'bffffffffffffffffb',
+      'bffffffffffffffffb',
+      'bffffffffffffffffb',
+      'bffffffffffffffffb',
+      'bffffffffffffffffb',
+      'bffffffffffffffffb',
+      'bbbbbbbbbbbbbbbbbb',
+    ];
+    // Chalk content per subject (drawn in chalk 'c' over the felt).
+    S.chalk_cn = [ // 语文: 十 stroke (a cross)
+      '......cc......',
+      '......cc......',
+      'cccccccccccccc',
+      'cccccccccccccc',
+      '......cc......',
+      '......cc......',
+    ];
+    S.chalk_en = [ // 英语: blocky A B letterforms
+      'cccc....cccc.',
+      'c..c....c..c.',
+      'cccc....cccc.',
+      'c..c....c..c.',
+      'c..c....cccc.',
+    ];
+    S.chalk_ma = [ // 数学: 1+1=2 in blocky digits
+      '.c...c...c..cc',
+      'cc.ccccc.c....',
+      '.c...c......cc',
+      '.c.cccc.c..c..',
+      'ccc..c..c..ccc',
+    ];
+    S.chalk_sc = [ // 科学: a flask (round bottom + neck)
+      '...cc...',
+      '...cc...',
+      '..cccc..',
+      '.cccccc.',
+      'cccccccc',
+      'cccccccc',
+      '.cccccc.',
+    ];
+    // A pixel lightbulb (for the 恍然大悟 aha! moment) — glass + base + glow.
+    S.bulb = [
+      '.yyy.',
+      'yyyyy',
+      'yyyyy',
+      'yyyyy',
+      '.yyy.',
+      '.kkk.',
+      '.kkk.',
+    ];
+    // Passers-by (发传单): three little pixel figures.
+    S.walkerA = [
+      '.ppp.',
+      '.ppp.',
+      'kuuuk', // arms + red top
+      '.rrr.',
+      '.r.r.',
+      '.k.k.',
+    ];
+    S.walkerB = [
+      '.ppp.',
+      '.ppp.',
+      '.uuu.',
+      '.uuu.',
+      '.n.n.',
+      '.k.k.',
+    ];
+    S.walkerC = [
+      '..pp..',
+      '..pp..',
+      '.kggk.', // green coat, swinging arms
+      '..gg..',
+      '..gg..',
+      '.k..k.',
+    ];
+    // A flyer: white sheet with two dark "text" lines (no glyphs).
+    S.flyer = [
+      'WWWWW',
+      'WKKKW',
+      'WWWWW',
+      'WKKKW',
+      'WWWWW',
+    ];
+    // Weed clumps: a bushy tuft and a sparse one (拔草).
+    S.weedBig = [
+      '..g..g..',
+      '.gggGgg.',
+      'gGgggggG',
+      '.dGddGd.',
+    ];
+    S.weedSmall = [
+      '.g.g.',
+      'gGggg',
+      '.ddd.',
+    ];
+    // A small sweat drop (bright blue) for the 拔草 heat.
+    S.drop = ['.u.', 'uuu', 'uuu', '.u.'];
+    this._scn = S;
+    return S;
+  }
+
+  ensureSceneCtx() {
+    if (this._sctx) return true;
+    const cv = this.sceneRef && this.sceneRef.current;
+    if (!cv) return false;
+    this._sctx = cv.getContext('2d');
+    this._sctx.imageSmoothingEnabled = false;
+    return true;
+  }
+
+  // Start the scene matching the active focus session. Sets up per-scene runtime
+  // state (walkers, weeds, face-arc timer) consumed by drawScene() each frame.
+  startSceneFor(session) {
+    this._scene = null;
+    if (!session) return;
+    if (session.kind === 'study') {
+      const sub = { cn: 'chalk_cn', en: 'chalk_en', ma: 'chalk_ma', sc: 'chalk_sc' };
+      this._scene = { type: 'class', chalk: sub[session.subjectKey] || 'chalk_cn', t0: performance.now() };
+      this._faceOverride = 'confused';
+    } else if (session.kind === 'work') {
+      const job = JOBS[session.jobIdx];
+      if (job && job.name === '拔草') {
+        // Seed weed clumps with positions/sizes; they clear as the shift progresses.
+        const weeds = [];
+        for (let i = 0; i < 8; i++) {
+          weeds.push({ x: 18 + i * 26 + (i % 2 ? 6 : 0), big: i % 3 !== 0, seed: i / 8 });
+        }
+        this._scene = { type: 'weed', weeds, minutes: session.minutes, drops: [] };
+        this._hatOn = true;
+      } else if (job && job.name === '发传单') {
+        this._scene = { type: 'flyer', walkers: [], spawn: 0, took: 0, blow: null };
+      }
+      // other jobs keep no special scene (briefcase prop handles them)
+    }
+  }
+
+  // Tear down the scene: stop the face arc, take off the hat, clear the canvas.
+  stopScene() {
+    this._scene = null;
+    this._faceOverride = null;
+    this._hatOn = false;
+    clearTimeout(this._faceArcT);
+    if (this.ensureSceneCtx()) this._sctx.clearRect(0, 0, this.SCENE_W, this.SCENE_H);
+  }
+
+  // Drive the class expression arc 疑惑 to 思考 to 恍然大悟 on a loop, popping a pixel
+  // bulb at the "aha" beat. Re-arms itself for the whole session.
+  classFaceArc() {
+    const seq = [['confused', 2200], ['think', 2400], ['aha', 1800]];
+    let i = 0;
+    const step = () => {
+      if (!this._scene || this._scene.type !== 'class') return;
+      const [face, ms] = seq[i % seq.length];
+      this._faceOverride = face;
+      this._scene.bulb = face === 'aha';
+      i++;
+      this._faceArcT = setTimeout(step, ms);
+    };
+    step();
+  }
+
+  // Per-frame scene render (called from the loop). Pure pixel fillRect, no glyphs.
+  drawScene(t) {
+    if (!this._scene || !this.ensureSceneCtx()) return;
+    const ctx = this._sctx, PAL = this.scenePal(), G = this.sceneGrids();
+    const OX = this.SCENE_OX, GND = this.SCENE_GND, P = 4;
+    ctx.clearRect(0, 0, this.SCENE_W, this.SCENE_H);
+    const sc = this._scene;
+    const cx = OX + 56; // penguin centre column on the scene canvas
+
+    if (sc.type === 'class') {
+      // Blackboard up-left behind the pet, then the desk in front of its belly.
+      const bx = cx - 120, by = 6;
+      this.drawSprite(ctx, G.board, PAL, bx, by, P);
+      const chalk = G[sc.chalk];
+      const cw = chalk[0].length * P, ch = chalk.length * P;
+      this.drawSprite(ctx, chalk, PAL, bx + (G.board[0].length * P - cw) / 2, by + (G.board.length * P - ch) / 2, P);
+      // Desk across the pet's lower body.
+      this.drawSprite(ctx, G.desk, PAL, cx - 60, GND - 24, P);
+      // Pixel lightbulb pops above the head on the aha beat.
+      if (sc.bulb) {
+        const by2 = 2 + Math.sin(t / 160) * 2;
+        // soft glow ring
+        ctx.fillStyle = 'rgba(255,226,122,.35)';
+        ctx.fillRect(cx - 16, by2 + 2, 32, 32);
+        this.drawSprite(ctx, G.bulb, PAL, cx - 10, by2, P);
+      }
+      return;
+    }
+
+    if (sc.type === 'flyer') {
+      // Spawn passers-by from alternating sides; they walk across and (mostly) take
+      // a flyer as they pass the pet. Driven by wall-clock so it's frame-rate safe.
+      sc.spawn -= 1;
+      if (sc.spawn <= 0 && sc.walkers.length < 3) {
+        const fromLeft = Math.random() < 0.5;
+        const kind = ['walkerA', 'walkerB', 'walkerC'][Math.floor(Math.random() * 3)];
+        sc.walkers.push({ x: fromLeft ? -24 : this.SCENE_W + 24, dir: fromLeft ? 1 : -1, kind, took: Math.random() < 0.6, gave: false });
+        sc.spawn = 90 + Math.floor(Math.random() * 90);
+      }
+      // The pet holds a flyer out toward its facing side.
+      const hold = cx + (this.p.facing > 0 ? 26 : -34);
+      this.drawSprite(ctx, G.flyer, PAL, hold, GND - 34 + Math.sin(t / 220) * 2, P);
+      for (const w of sc.walkers) {
+        w.x += w.dir * 0.9;
+        const wy = GND - 24 + (Math.floor(t / 180) % 2 ? 0 : -2); // little walk bob
+        this.drawSprite(ctx, G[w.kind], PAL, w.x, wy, P, w.dir < 0);
+        // Hand a flyer over as they pass the pet.
+        const near = Math.abs((w.x + 10) - cx) < 30;
+        if (near && w.took && !w.gave) { w.gave = true; sc.took++; }
+        if (near && w.took) this.drawSprite(ctx, G.flyer, PAL, w.x + (w.dir > 0 ? -14 : 18), wy + 6, 3);
+      }
+      sc.walkers = sc.walkers.filter((w) => w.x > -40 && w.x < this.SCENE_W + 40);
+      // Occasionally a flyer blows away across the top of the scene.
+      if (!sc.blow && Math.random() < 0.004) sc.blow = { x: cx, y: GND - 40, vx: 1.4 };
+      if (sc.blow) {
+        sc.blow.x += sc.blow.vx; sc.blow.y -= 0.9; sc.blow.vx += 0.02;
+        this.drawSprite(ctx, G.flyer, PAL, sc.blow.x, sc.blow.y + Math.sin(t / 120) * 4, P, true);
+        if (sc.blow.x > this.SCENE_W + 30 || sc.blow.y < -20) sc.blow = null;
+      }
+      return;
+    }
+
+    if (sc.type === 'weed') {
+      // Clear weeds as the shift progresses: 1 - left/total.
+      const total = (sc.minutes || 30) * 60;
+      const left = this.state.sessionLeft || total;
+      const prog = clamp(1 - left / total, 0, 1);
+      const cleared = Math.floor(prog * sc.weeds.length);
+      sc.weeds.forEach((wd, i) => {
+        if (i < cleared) return; // already pulled
+        const grid = wd.big ? G.weedBig : G.weedSmall;
+        const sway = Math.sin(t / 400 + wd.seed * 6) * 1.5;
+        this.drawSprite(ctx, grid, PAL, wd.x + sway, GND - (wd.big ? 16 : 12), P);
+      });
+      // Sweat drops fly off the head now and then (heat of work).
+      if (Math.random() < 0.03) sc.drops.push({ x: cx + (Math.random() * 30 - 15), y: 24, vy: 1 });
+      sc.drops.forEach((d) => { d.y += d.vy; d.vy += 0.08; this.drawSprite(ctx, G.drop, PAL, d.x, d.y, 3); });
+      sc.drops = sc.drops.filter((d) => d.y < GND);
+      return;
+    }
+  }
+
   // ---- screen geometry / walk bounds --------------------------------------
   // p.x / p.y is the WINDOW's top-left. The penguin is centered in the window,
   // offset by (offX, offY). We clamp so the PENGUIN stays inside the work area
@@ -1018,6 +1114,13 @@ export default class App extends React.Component {
       eat: sw(idle, [[5, '..DLLELLLLELLD..'], [6, '..DLELELLELELD..'], [8, '..DLLLLOOLLLLD..']]),
       love: sw(idle, [[5, '..DLLCCLLCCLLD..'], [6, '..DLLCCLLCCLLD..'], [8, '..DLLLLOOLLLLD..']]), // heart eyes + smile
       yawn: sw(idle, [[6, this.CLOSED], [7, '..DLLLEEEELLLD..'], [8, '..DLLLEEEELLLD..']]), // shut eyes + wide open mouth
+      // ---- class-scene expression arc (疑惑 to 思考 to 恍然大悟), all drawn ----
+      // 疑惑: slanted little brows + small dot eyes + tiny frown
+      confused: sw(idle, [[5, '..DLDLLLLLLDLD..'], [6, '..DLLELLLLELLD..'], [8, '..DLLLOOLLLLLD..']]),
+      // 思考: eyes glance up (eye pixels raised a row) + neutral beak
+      think: sw(idle, [[5, '..DLLELLLLELLD..'], [6, '..DLLLLLLLLLLD..'], [8, '..DLLLLOOLLLLD..']]),
+      // 恍然大悟: wide bright eyes + open beak (the "aha!" moment)
+      aha: sw(idle, [[5, '..DLEELLEELLLD..'], [6, '..DLEELLEELLLD..'], [7, '..DLCLLOOLLCLD..'], [8, '..DLLLOOOOLLLD..']]),
     };
     // Egg / baby stage: a head poking out of a cracked egg — shell cap on top,
     // egg shell as the lower body, with a gender-coloured ribbon band (R).
@@ -1032,7 +1135,7 @@ export default class App extends React.Component {
   }
   pal() {
     const ribbon = GENDER_COLOR[this.state.gender] || SCARF;
-    return { '.': null, D: BODY, L: '#ffffff', O: BEAK, S: ribbon, E: '#1a1f3d', C: '#ff9bbb', T: '#5bc8ff', G: '#9c8a63', K: '#fde7c4', R: ribbon };
+    return { '.': null, D: BODY, L: '#ffffff', O: BEAK, S: ribbon, E: '#1a1f3d', C: '#ff9bbb', T: '#5bc8ff', G: '#9c8a63', K: '#fde7c4', R: ribbon, H: '#e7b85c', J: '#f2cf7e' };
   }
   swap(g, i, row) { const c = g.slice(); c[i] = row; return c; }
   withClosed(g) { return this.swap(g, 6, this.CLOSED); }
@@ -1052,6 +1155,16 @@ export default class App extends React.Component {
     smudge(11, [6, 9]);
     smudge(12, [4, 8, 11]);
     smudge(13, [7]);
+    return c;
+  }
+  // A pixel straw hat drawn ON the penguin's head — overlays the top rows of the
+  // sprite (brim 'H', crown 'J', band 'R'). Used by the 拔草 (weed) work scene.
+  withHat(g) {
+    const c = g.slice();
+    c[0] = '......JJJJ......'; // crown top
+    c[1] = '.....JJJJJJ.....'; // crown
+    c[2] = '...HHJJJJJJHH...'; // brim + crown
+    c[3] = '..HHHRRRRRRHHH..'; // wide brim with a band
     return c;
   }
   ensureCtx() {
@@ -1115,6 +1228,8 @@ export default class App extends React.Component {
       this._lastDraw = t;
       this.render2d(t, sp);
     }
+    // Pixel focus scene (上课/发传单/拔草) animates every frame while active.
+    if (this._scene) this.drawScene(t);
 
     this._raf = requestAnimationFrame(this.loop);
   };
@@ -1146,6 +1261,25 @@ export default class App extends React.Component {
       return;
     }
 
+    // Class scene drives the face through 疑惑 to 思考 to 恍然大悟 via _faceOverride.
+    if (this._faceOverride && this.G[this._faceOverride]) {
+      let grid = this._faceOverride;
+      grid = this.G[grid];
+      if (p.blinkOn && this._faceOverride !== 'aha') grid = this.withClosed(grid);
+      if (this.state.cleanliness <= 25) grid = this.withDirt(grid);
+      if (this._hatOn) grid = this.withHat(grid);
+      if (this.ensureCtx()) this.draw(grid);
+      const jy = Math.sin(t / 300) * 3, tilt = this._faceOverride === 'think' ? -4 : 3;
+      if (this.spriteRef.current) {
+        this.spriteRef.current.style.transform =
+          `translateY(${(-jy).toFixed(1)}px) rotate(${tilt}deg) scaleX(${p.facing}) scaleY(1)`;
+        this.spriteRef.current.style.filter = 'none';
+        this.spriteRef.current.style.opacity = '1';
+      }
+      if (this.shadowRef.current) { this.shadowRef.current.style.transform = 'scaleX(1)'; this.shadowRef.current.style.opacity = '0.34'; }
+      return;
+    }
+
     let face = this.G.idle;
     if (p.action === 'dead') face = this.G.sad;
     else if (p.action === 'sleep') face = this.G.sleepy;
@@ -1172,6 +1306,7 @@ export default class App extends React.Component {
     if (p.action === 'walk') grid = this.withFeet(face, Math.floor(t / (150 / sp)) % 2);
     if (p.blinkOn && face !== this.G.sleepy && face !== this.G.sad) grid = this.withClosed(grid);
     if (this.state.cleanliness <= 25) grid = this.withDirt(grid);
+    if (this._hatOn) grid = this.withHat(grid); // straw hat for the 拔草 scene
     if (this.ensureCtx()) this.draw(grid);
 
     let jy = 0, rot = 0, tilt = 0, sy = 1;
@@ -1993,6 +2128,8 @@ export default class App extends React.Component {
               </div>
             </div>
           )}
+          {/* pixel focus scene (desk/blackboard/passers-by/weeds) — drawn around the pet */}
+          <canvas ref={this.sceneRef} width={this.SCENE_W} height={this.SCENE_H} style={{ position: 'absolute', left: -this.SCENE_OX, top: 0, width: this.SCENE_W, height: this.SCENE_H, imageRendering: 'pixelated', pointerEvents: 'none', zIndex: 2 }} />
           <div ref={this.shadowRef} style={{ position: 'absolute', left: '50%', top: 104, width: 80, height: 18, marginLeft: -40, background: 'radial-gradient(ellipse at center,rgba(20,24,60,.34),rgba(20,24,60,0) 70%)', borderRadius: '50%' }} />
           <div ref={this.partRef} style={{ position: 'absolute', left: 0, top: 0, width: 112, height: 112, pointerEvents: 'none', zIndex: 5 }} />
           <div ref={this.spriteRef} style={{ position: 'absolute', left: 0, top: 0, width: 112, height: 112, willChange: 'transform', transformOrigin: '50% 92%', zIndex: 3 }}>
