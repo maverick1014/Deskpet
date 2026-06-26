@@ -23,7 +23,7 @@ export default function SettingsPanel({
   const sbtn = (bg) => ({ flex: 1, textAlign: 'center', background: bg, color: '#fff', padding: '7px 0', borderRadius: 9, fontWeight: 900, fontSize: 12, cursor: authBusy ? 'default' : 'pointer', opacity: authBusy ? 0.6 : 1 });
   return (
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(20,24,60,.35)', backdropFilter: 'blur(2px)', WebkitBackdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 70 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: 196, background: '#fff', border: '3px solid #222a55', borderRadius: 18, padding: 14, boxShadow: '0 8px 0 rgba(34,42,85,.22)', animation: 'popIn .2s ease-out' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: 196, maxHeight: 'calc(100% - 16px)', overflowY: 'auto', boxSizing: 'border-box', background: '#fff', border: '3px solid #222a55', borderRadius: 18, padding: 14, boxShadow: '0 8px 0 rgba(34,42,85,.22)', animation: 'popIn .2s ease-out' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <span style={{ fontWeight: 900, fontSize: 15, color: '#222a55', letterSpacing: '1px' }}>设置</span>
           <div onClick={onClose} style={{ width: 24, height: 24, border: '2px solid #222a55', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontWeight: 900, color: '#222a55', fontSize: 12 }}>✕</div>

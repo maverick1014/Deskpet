@@ -1539,6 +1539,9 @@ export default class App extends React.Component {
     }
     const bubbleBelow = !panelBelow; // bubble sits opposite the panel
     const placement = panelBelow ? 'below' : 'above';
+    // The shop list can be tall, so it opens as a window-centred, scrollable
+    // sheet (the small anchored bubble would clip it at the window's edge).
+    const shopOpen = !!s.shopCat;
 
     return (
       <div ref={this.rootRef} className="stage" style={{ opacity: appOpacity }}>
@@ -1596,7 +1599,9 @@ export default class App extends React.Component {
           <div
             ref={this.hoverRef}
             onPointerDown={this.stopDown}
-            style={{ position: 'absolute', left: '50%', width: 176, marginLeft: -88, ...(panelBelow ? { top: 138 } : { bottom: 138 }), transform: `translateX(${shiftPanel}px) scale(${panelOpen ? 1 : 0.92})`, transformOrigin: panelBelow ? '50% 0%' : '50% 100%', opacity: panelOpen ? 1 : 0, pointerEvents: panelOpen ? 'auto' : 'none', transition: 'opacity .14s ease, transform .14s ease', zIndex: 14, cursor: 'default' }}
+            style={shopOpen
+              ? { position: 'absolute', left: '50%', top: '50%', width: 188, transform: `translate(-50%,-50%) translateX(${shiftPanel}px)`, opacity: 1, pointerEvents: 'auto', transition: 'opacity .14s ease', zIndex: 16, cursor: 'default' }
+              : { position: 'absolute', left: '50%', width: 176, marginLeft: -88, ...(panelBelow ? { top: 138 } : { bottom: 138 }), transform: `translateX(${shiftPanel}px) scale(${panelOpen ? 1 : 0.92})`, transformOrigin: panelBelow ? '50% 0%' : '50% 100%', opacity: panelOpen ? 1 : 0, pointerEvents: panelOpen ? 'auto' : 'none', transition: 'opacity .14s ease, transform .14s ease', zIndex: 14, cursor: 'default' }}
           >
             <StatusBar
               stat={s.hoverStat}
@@ -1604,6 +1609,7 @@ export default class App extends React.Component {
               money={s.money}
               placement={placement}
               arrowShift={shiftPanel}
+              centered={shopOpen}
               fullness={fullness} cleanliness={cleanliness} happiness={happiness} health={health}
               onStat={this.setHoverStat} onLeave={this.clearHoverStat}
               onOpenCat={this.openCat} onBuy={this.buyItem} onBack={this.backShop} onPlay={this.playFree}
