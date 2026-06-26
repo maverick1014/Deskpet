@@ -425,7 +425,7 @@ export default class App extends React.Component {
       const job = JOBS[ses.jobIdx];
       const weak = this._weakUntil && performance.now() < this._weakUntil;
       const pay = Math.round(job.rate * ses.minutes * (weak ? 0.7 : 1));
-      this.setState((s) => ({ money: s.money + pay, energy: Math.max(0, s.energy - 18), cleanliness: Math.max(0, s.cleanliness - 8), happiness: Math.max(0, s.happiness - 3) }), () => this.save());
+      this.setState((s) => ({ money: s.money + pay, energy: Math.max(0, s.energy - 18), cleanliness: Math.max(0, s.cleanliness - 8), happiness: Math.min(100, s.happiness + 2) }), () => this.save());
       this.doneAnim('work');
       this.speak(`${job.name}下班！赚到 +${pay}💰`, 3400, true);
     }
@@ -527,10 +527,16 @@ export default class App extends React.Component {
       '<div style="position:absolute;right:7px;bottom:9px;width:6px;height:2px;background:#c2c8e0"></div>';
     layer.appendChild(el);
     this._lastProp = el;
+    if (!dur) el.dataset.focusprop = '1'; // persistent (focus) prop — tag so clearProp always finds it
     if (dur) setTimeout(() => { if (el.parentNode) el.remove(); if (this._lastProp === el) this._lastProp = null; }, dur + 100);
   }
-  // Remove a persistent study/work prop (dur=0 props live until cleared).
-  clearProp() { if (this._lastProp) { this._lastProp.remove(); this._lastProp = null; } }
+  // Remove persistent study/work props. Sweeps ALL tagged props (not just the
+  // last) so feed/bath particles created mid-session can't orphan the book/case.
+  clearProp() {
+    if (this._lastProp) { this._lastProp.remove(); this._lastProp = null; }
+    const layer = this.partRef.current;
+    if (layer) layer.querySelectorAll('[data-focusprop]').forEach((e) => e.remove());
+  }
   // A briefcase the pet carries while working.
   briefcaseProp(dur) {
     const layer = this.partRef.current;
@@ -543,6 +549,7 @@ export default class App extends React.Component {
       '<div style="position:absolute;left:50%;top:2px;bottom:2px;width:2px;margin-left:-1px;background:#6b4a2a"></div></div>';
     layer.appendChild(el);
     this._lastProp = el;
+    if (!dur) el.dataset.focusprop = '1';
     if (dur) setTimeout(() => { if (el.parentNode) el.remove(); if (this._lastProp === el) this._lastProp = null; }, dur + 100);
   }
   // A single music note drifting up (called repeatedly while listening).
@@ -1044,7 +1051,7 @@ export default class App extends React.Component {
     // Health/sickness stay slow (below) so faster needs don't make it sick easily.
     const aRate = 0.0040 * (0.75 + this.personality.appetite / 200); // ~5h to hungry (slowed)
     const cleanDrop = 0.0026 + (this.p.action === 'walk' ? 0.0015 : 0); // ~8–9h to dirty (slowed)
-    const happyDrop = 0.0045; // ~3h to bored without play
+    const happyDrop = this.state.session ? 0 : 0.0045; // engaged while studying/working → no boredom
     this.setState((s) => {
       const fullness = Math.max(0, s.fullness - aRate);
       const cleanliness = Math.max(0, s.cleanliness - cleanDrop);
