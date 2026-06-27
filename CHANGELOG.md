@@ -9,6 +9,14 @@ is pre-release, so versions are milestone markers rather than published releases
 New lifelike animations being added one at a time.
 See `TODO.md` for the remaining activity-authentic focus animations.
 
+## [1.7.2] — 2026-06-26 — Sprite audit fix
+
+### Changed
+- Verified every existing sprite (all penguin poses, scene props, and game
+  pieces) by rendering and visually checking each via the `pixel-art` skill.
+- **Redrew the 数学 chalkboard** — its `1 + 1 = 2` now reads clearly as blocky
+  pixel digits instead of scattered marks.
+
 ## [1.7.1] — 2026-06-26 — A proper penguin sit-down
 
 ### Changed
