@@ -68,6 +68,13 @@ add it to `setupGrids()` / `sceneGrids()` / `games.js` and build
 For an animated pose, render the **key frames** (or the base grid for each
 `p.action` state) and check them as a set so the motion will read.
 
+## When auditing / reviewing existing art
+Render the sprites into a few **composite preview sheets** (one per category:
+poses, scene props, game pieces) and **send the unique/notable ones to the owner
+with `SendUserFile`** so they can do a quick visual review — don't just describe
+them in text. Group them, caption what each is, and note that motion is added at
+runtime via transforms (the sheets show static frames).
+
 ## When spawning sub-agents for pixel art
 Pass these instructions (or tell them to run this skill): they must author grids
 this way, run the render-and-look self-check on every sprite, and never use emoji.
