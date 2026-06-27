@@ -1375,7 +1375,7 @@ export default class App extends React.Component {
     let face = this.G.idle;
     if (p.action === 'dead') face = this.G.sad;
     else if (p.action === 'sleep') face = this.G.sleepy;
-    else if (p.action === 'play' || p.action === 'dance' || p.action === 'ball' || p.action === 'badminton' || p.action === 'bath') face = this.G.happy;
+    else if (p.action === 'play' || p.action === 'dance' || p.action === 'ball' || p.action === 'badminton' || p.action === 'bath' || p.action === 'swing') face = this.G.happy;
     else if (p.action === 'sit') face = this.G.sit;
     else if (p.action === 'weak') face = this.G.sad;
     else if (p.action === 'work') face = this.G.happy;
@@ -1423,6 +1423,7 @@ export default class App extends React.Component {
     }
     if (p.action === 'study') { jy = Math.sin(t / 300) * 3; tilt = 4; }                         // gentle reading nod
     if (p.action === 'work') { jy = Math.abs(Math.sin(t / 160)) * 8; rot = Math.sin(t / 120) * 6 * p.facing; } // busy bob
+    if (p.action === 'swing') { rot = Math.sin(t * 0.0045) * 8 * p.facing; jy = Math.sin(t * 0.009) * 2; } // leans side-to-side, swinging the bubble wand (in phase with games.js)
     if (p.action === 'sit') { sy = 0.86; jy = -8; }   // settle down low — sitting (grid splays feet forward)
     if (p.action === 'weak') { sy = 0.6; jy = -16 + Math.sin(t / 650) * 1.5; tilt = 5 * p.facing; } // slumped, too hungry
     if (p.action === 'sleep') { tilt = -12; jy = -10; }
