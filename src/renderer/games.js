@@ -40,6 +40,15 @@ export const SPR = {
     '..K..',
     '..K..',
   ],
+  // Just the gold ring (the wand head). The handle/flipper is drawn as a navy
+  // line from the pet's shoulder so the whole wand can SWING as one arm.
+  ring: [
+    '.yyy.',
+    'y...y',
+    'y...y',
+    'y...y',
+    '.yyy.',
+  ],
   // Three bubble sizes (small / medium / big) — pixel circles with a highlight.
   bubbleS: [
     '.bb.',
@@ -219,46 +228,93 @@ export class GameEngine {
     }
   }
 
+  // A short navy limb segment (flipper / wand handle) — a thick pixel line from
+  // (x0,y0) to (x1,y1). Used to draw the arm that HOLDS and swings the wand.
+  _limb(x0, y0, x1, y1, half) {
+    const ctx = this.ctx;
+    ctx.fillStyle = GAME_PAL.K;
+    const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)) | 0;
+    const s = 2 * half + 1;
+    for (let i = 0; i <= n; i++) {
+      const u = n ? i / n : 0;
+      const x = Math.round(x0 + (x1 - x0) * u) - half;
+      const y = Math.round(y0 + (y1 - y0) * u) - half;
+      ctx.fillRect(x, y, s, s);
+    }
+  }
+
   // ========================================================================
-  // 吹泡泡 (bubble) — REFERENCE GAME. The pet pulls out a pixel wand and blows
-  // random-size pixel bubbles that drift up; click a bubble to pop it (+1);
-  // every 10 pops -> +happiness & a happy reaction.
+  // 吹泡泡 (bubble) — REFERENCE GAME. The pet HOLDS the bubble wand in its
+  // flipper and SWINGS it through an arc; bubbles are produced along the swing
+  // path (off the ring) only while the wand is moving — not blown from the beak.
+  // Click a bubble to pop it (+1); every 10 pops -> +happiness & a happy hop.
+  // The body lean (App 'swing' action) and this arm use the SAME sin(t*0.0045)
+  // so the flipper stays in phase with the pet.
   // ========================================================================
   _startBubble() {
     this.state.spawn = 0;
-    this.host.setAction && this.host.setAction('play', 600);
-    this.host.speak && this.host.speak('呼——吹泡泡！', 1500);
+    this.state.pth = null;          // previous swing angle (for swing speed)
+    this.state.act = 0;             // re-assert 'swing' body action periodically
+    this.host.setAction && this.host.setAction('swing', 1200);
+    this.host.speak && this.host.speak('挥棒~吹泡泡！', 1500);
   }
   _stepBubble(t, f) {
     const st = this.state, g = this.geom;
-    // The pet holds the wand near its beak on the facing side; bubbles bud off it.
-    const flip = this.host.facing() < 0;
-    const wandX = g.cx + (flip ? -28 : 14);
-    const wandY = g.gnd - 56;
-    this.sprite('wand', wandX, wandY, this.px, flip);
+    const dir = this.host.facing() < 0 ? -1 : 1;
 
-    // Spawn a new bubble at the wand ring, random size + gentle horizontal drift.
+    // Keep the pet in the side-to-side 'swing' body pose while the game runs.
+    st.act -= f;
+    if (st.act <= 0) { this.host.setAction && this.host.setAction('swing', 1200); st.act = 54; }
+
+    // Arm geometry (overlay px; the pet is ~112px tall, feet at g.gnd, centre g.cx).
+    const ARM = 34, RINGOUT = 13;
+    const sway = Math.sin(t * 0.0045);                 // in phase with the body lean
+    const sx = g.cx + dir * 30 + sway * dir * 6;       // shoulder (flipper joint)
+    const sy = g.gnd - 58;
+    const th = 0.15 + 0.95 * sway;                     // swing angle from straight-down
+    const dth = st.pth == null ? 0 : th - st.pth;
+    st.pth = th;
+    const gx = sx + dir * ARM * Math.sin(th);          // grip (flipper tip)
+    const gy = sy + ARM * Math.cos(th);
+    const rx = sx + dir * (ARM + RINGOUT) * Math.sin(th); // ring centre
+    const ry = sy + (ARM + RINGOUT) * Math.cos(th);
+
+    // Produce bubbles off the ring while the wand sweeps fast (mid-swing).
+    const speed = Math.abs(dth);
+    const tsign = dth >= 0 ? 1 : -1;
+    const tx = dir * Math.cos(th) * tsign;             // ring's tangential direction
+    const ty = -Math.sin(th) * tsign;
     st.spawn -= f;
-    if (st.spawn <= 0 && this.pieces.length < 9) {
-      const sizes = ['bubbleS', 'bubbleM', 'bubbleL'];
-      const sprite = sizes[Math.floor(Math.random() * sizes.length)];
-      const px = sprite === 'bubbleL' ? 4 : (sprite === 'bubbleM' ? 4 : 3);
-      this.pieces.push({
-        id: this._idc++, sprite, px,
-        x: wandX + 2, y: wandY - 4,
-        vx: (Math.random() * 2 - 1) * 0.5 + (flip ? -0.4 : 0.4),
-        vy: -(0.7 + Math.random() * 0.9),
-        ph: Math.random() * 6.28,
-      });
-      st.spawn = 22 + Math.random() * 26;
+    if (speed > 0.03 && st.spawn <= 0 && this.pieces.length < 12) {
+      const n = speed > 0.05 ? 2 : 1;
+      for (let k = 0; k < n; k++) {
+        const sizes = ['bubbleS', 'bubbleM', 'bubbleM', 'bubbleL'];
+        const sprite = sizes[Math.floor(Math.random() * sizes.length)];
+        const px = sprite === 'bubbleS' ? 3 : 4;
+        this.pieces.push({
+          id: this._idc++, sprite, px,
+          x: rx + tx * 6 + (Math.random() * 2 - 1) * 2,
+          y: ry + ty * 6 + (Math.random() * 2 - 1) * 2,
+          vx: tx * 1.6 + (Math.random() * 2 - 1) * 0.4,
+          vy: ty * 1.0 - (0.6 + Math.random() * 0.8),  // float upward off the swing
+          ph: Math.random() * 6.28,
+        });
+      }
+      st.spawn = 2.5 + Math.random() * 2.5;
     }
-    // Float bubbles up with a wobble; drop ones that drift off the top/sides.
+
+    // Float bubbles up with a wobble (drawn UNDER the wand); drop off-screen ones.
     for (const b of this.pieces) {
-      b.x += (b.vx + Math.sin(t / 360 + b.ph) * 0.4) * f;
+      b.x += (b.vx + Math.sin(t / 360 + b.ph) * 0.45) * f;
       b.y += b.vy * f;
       this.sprite(b.sprite, b.x, b.y, b.px);
     }
     this.pieces = this.pieces.filter((b) => b.y > -28 && b.x > -28 && b.x < g.W + 28);
+
+    // Draw the swinging arm + gold ring ON TOP so the wand reads clearly.
+    this._limb(sx, sy, gx, gy, 3);                     // thick navy flipper
+    this._limb(gx, gy, rx, ry, 2);                     // thinner handle
+    this.sprite('ring', rx - 7, ry - 7, 3);            // gold wand head (5×5 @ px3)
   }
   _popBubble(i, p) {
     this.pieces.splice(i, 1);

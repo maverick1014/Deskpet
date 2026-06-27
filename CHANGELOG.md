@@ -9,7 +9,22 @@ is pre-release, so versions are milestone markers rather than published releases
 New lifelike animations being added one at a time.
 See `TODO.md` for the remaining activity-authentic focus animations.
 
-## [1.7.2] — 2026-06-26 — Sprite audit fix
+## [1.7.3] — 2026-06-27 — 吹泡泡 now swings the wand like a 2D character
+
+### Changed
+- **The penguin now HOLDS the bubble wand in its flipper and SWINGS it.** Bubbles
+  are produced along the wand's swing path (off the gold ring) only while the
+  wand is moving — it no longer blows them statically from its beak.
+  - A new **`swing` body action** leans the penguin side-to-side, kept in phase
+    (`sin(t*0.0045)`) with the on-canvas arm so the flipper stays attached.
+  - The wand is drawn as a swinging arm: a thick navy **flipper** + thinner
+    **handle** line from the shoulder, with the **gold ring** at the tip; faster
+    swings shed more bubbles, which then float up and away.
+  - Pop a bubble (+1) as before; every 10 pops → +happiness & a happy hop.
+- Authored and visually self-checked via the `pixel-art` skill at the real game
+  scale before wiring in.
+
+
 
 ### Changed
 - Verified every existing sprite (all penguin poses, scene props, and game
