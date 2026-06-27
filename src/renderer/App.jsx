@@ -777,12 +777,12 @@ export default class App extends React.Component {
       'c..c....c..c.',
       'c..c....cccc.',
     ];
-    S.chalk_ma = [ // 数学: 1+1=2 in blocky digits
-      '.c...c...c..cc',
-      'cc.ccccc.c....',
-      '.c...c......cc',
-      '.c.cccc.c..c..',
-      'ccc..c..c..ccc',
+    S.chalk_ma = [ // 数学: 1+1=2 in blocky digits (1 · + · 1 · = · 2)
+      '.c.....c....ccc',
+      'cc..c.cc.ccc..c',
+      '.c.ccc.c....ccc',
+      '.c..c..c.cccc..',
+      'ccc...ccc...ccc',
     ];
     S.chalk_sc = [ // 科学: a flask (round bottom + neck)
       '...cc...',
