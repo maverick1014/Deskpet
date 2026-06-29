@@ -797,6 +797,12 @@ export default class App extends React.Component {
       'cccccccc',
       '.cccccc.',
     ];
+    // ---- 上课 subject props (drawn upper-right of the pet so each course reads) ----
+    S.flask = ['.cc.', '.cc.', '.cc.', 'czzc', 'czzc', 'czzc', 'cccc'];   // 科学 beaker + liquid
+    S.abacus = ['wwwwww', 'wruruw', 'wururw', 'wruruw', 'wwwwww'];        // 数学 abacus
+    S.brush = ['...h', '..h.', '.h..', 'aaa.', 'aaa.', '.a..'];           // 语文 calligraphy brush
+    S.inkpot = ['.kk.', 'kkkk', 'kkkk'];                                  // 语文 ink pot
+    S.book = ['.cccc.', 'cWWWWc', 'cWKKWc', 'cWKKWc', 'cWWWWc', '.cccc.']; // 英语 open book
     // A pixel lightbulb (for the 恍然大悟 aha! moment) — glass + base + glow.
     S.bulb = [
       '.yyy.',
@@ -1010,6 +1016,39 @@ export default class App extends React.Component {
       this.drawSprite(ctx, chalk, PAL, bx + (G.board[0].length * P - cw) / 2, by + (G.board.length * P - ch) / 2, P);
       // Desk across the pet's lower body.
       this.drawSprite(ctx, G.desk, PAL, cx - 60, GND - 24, P);
+      // Subject-specific prop up-right so each course is recognisable + animated.
+      const PB = P + 1;
+      if (sc.chalk === 'chalk_sc') {
+        // 科学 — a bubbling flask; bubbles rise and a spark flickers.
+        const fx = cx + 40, fy = GND - 56;
+        this.drawSprite(ctx, G.flask, PAL, fx, fy, PB);
+        if (!sc.fb) sc.fb = [];
+        if (Math.random() < 0.16 && sc.fb.length < 8) sc.fb.push({ x: fx + 6 + Math.random() * 8, y: fy + 12, vy: -(0.4 + Math.random() * 0.5) });
+        ctx.fillStyle = '#7fc8ff';
+        sc.fb.forEach((b) => { b.y += b.vy; ctx.fillRect(b.x, b.y, 4, 4); });
+        sc.fb = sc.fb.filter((b) => b.y > fy - 18);
+        if (Math.floor(t / 240) % 5 === 0) { ctx.fillStyle = '#ffe27a'; ctx.fillRect(fx + 14, fy - 4, 4, 4); }
+      } else if (sc.chalk === 'chalk_ma') {
+        // 数学 — an abacus; a counting bead slides back and forth.
+        const ax = cx + 36, ay = GND - 44;
+        this.drawSprite(ctx, G.abacus, PAL, ax, ay, PB);
+        ctx.fillStyle = '#ffd23d';
+        ctx.fillRect(ax + 6 + (Math.floor(t / 500) % 4) * 6, ay - 6, 5, 5); // a bead being counted up
+      } else if (sc.chalk === 'chalk_cn') {
+        // 语文 — a calligraphy brush dips into the ink and writes (bobs).
+        const bxp = cx + 44, byp = GND - 50 + Math.abs(Math.sin(t / 260)) * 8;
+        this.drawSprite(ctx, G.inkpot, PAL, cx + 38, GND - 18, PB);
+        this.drawSprite(ctx, G.brush, PAL, bxp, byp, PB);
+      } else {
+        // 英语 — an open book; little chalk letters float up as it "reads aloud".
+        const kx = cx + 40, ky = GND - 50;
+        this.drawSprite(ctx, G.book, PAL, kx, ky, PB);
+        if (!sc.fb) sc.fb = [];
+        if (Math.random() < 0.04 && sc.fb.length < 4) sc.fb.push({ x: kx + 6 + Math.random() * 14, y: ky - 2, vy: -0.5 });
+        ctx.fillStyle = '#f4f6ef';
+        sc.fb.forEach((b) => { b.y += b.vy; ctx.fillRect(b.x, b.y, 4, 6); });
+        sc.fb = sc.fb.filter((b) => b.y > ky - 22);
+      }
       // Pixel lightbulb pops above the head on the aha beat.
       if (sc.bulb) {
         const by2 = 2 + Math.sin(t / 160) * 2;
