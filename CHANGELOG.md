@@ -9,6 +9,41 @@ is pre-release, so versions are milestone markers rather than published releases
 New lifelike animations being added one at a time.
 See `TODO.md` for the remaining activity-authentic focus animations.
 
+## [1.10.0] — 2026-06-29 — Lively, knowledge-driven study courses
+
+### Changed
+- **上课 is now a real little student, not a static desk.** A class plays a lively
+  loop of beats: listen → 思考 → 恍然大悟 (lightbulb) → **举手回答** (raises a flipper
+  and blurts the answer) → **打瞌睡** (dozes, Z's drift up, head droops) → **被粉笔
+  砸醒** (a chalk flies in from the board and it jolts awake). The blackboard is
+  de-emphasised — only shown when the pet is paying attention.
+
+### Added
+- **Subjects teach real knowledge that the pet then uses.** While studying it
+  "learns out loud" — 科学 光合作用/折射/声音传播…, 数学 sums & shapes, 语文 诗句/成语,
+  **英语 spoken in English**. Once it has studied a subject, it mixes those facts
+  into its idle chatter — so studying visibly makes it smarter.
+- **英语 dresses the pet up as a dapper little gentleman** — a black top hat + bow
+  tie — practising its English out loud.
+
+## [1.9.0] — 2026-06-27 — Required cloud account with always-on auto-sync
+
+### Changed
+- **A cloud account is now required.** On launch the pet is gated behind a
+  **login / signup** screen; once signed in, the save is mirrored to the cloud
+  **automatically** — there's no optional toggle anymore.
+- **Always-on auto-sync.** Every change is debounced-pushed to the cloud while
+  signed in, and the **newest save wins** on login (cloud vs local).
+
+### Added
+- **Offline-tolerant play.** A previously-signed-in pet resolves its account
+  from the **cached session with no network call**, so it keeps playing offline
+  — only the syncing pauses.
+- **Auto-resync on reconnect.** When the network comes back (or after a failed
+  push), the latest save is flushed to the cloud automatically, so nothing
+  edited offline is lost. The login screen shows an offline notice since the
+  **first** signup/login needs a connection.
+
 ## [1.8.0] — 2026-06-27 — Every job is now a dressed-up, acted-out scene
 
 ### Added

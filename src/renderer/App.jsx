@@ -8,8 +8,8 @@ import {
   loadState, saveState, getStage, moveWindow, onStageUpdate, setInteractive, quitApp, onRecenter,
 } from './store.js';
 import { genPersonality, normPersonality, traitLabel } from './personality.js';
-import { DIA, pick, greetingPool } from './dialogue.js';
-import { cloudEnabled, currentUser, onAuth, signIn, signUp, signOut, pullCloud, pushCloud } from './cloud.js';
+import { DIA, pick, greetingPool, studyLine, knowledgePool } from './dialogue.js';
+import { cloudEnabled, currentUser, currentSession, onAuth, signIn, signUp, signOut, pullCloud, pushCloud } from './cloud.js';
 
 const BODY = '#222a55';
 const BEAK = '#ff9d3d';
@@ -71,9 +71,12 @@ export default class App extends React.Component {
     playOpen: false, playGame: null, gameScore: 0,
     shopCat: null,
     menu: null, settingsOpen: false, emote: null, say: null, hint: true, hover: false, hoverStat: null, loaded: false,
-    entering: true, traits: '',
-    // Cloud save (optional email+password account). `user` is null when signed out.
+    entering: false, traits: '',
+    // Cloud account (email+password). REQUIRED — `user` is null until signed in.
     user: null, authEmail: '', authPw: '', authBusy: false, authMsg: '', syncedAt: null,
+    // Cloud account is REQUIRED: `authChecked` gates the app behind a login until
+    // the session is resolved; `online` tracks connectivity for auto-resync.
+    authChecked: false, online: (typeof navigator !== 'undefined' ? navigator.onLine : true), authMode: 'in',
   };
 
   // Penguin box inside the (larger) window. The penguin is centered, so the
@@ -121,10 +124,16 @@ export default class App extends React.Component {
     this._onUp = (e) => this.onUp(e);
     this._onHover = (e) => this.onHover(e);
     this._onUnload = () => this.save();
+    // Auto-resync: when the network comes back, push the latest save so nothing
+    // edited offline is lost. Going offline just flips the indicator.
+    this._onOnline = () => { if (this._mounted) this.setState({ online: true }); this.flushCloud(); };
+    this._onOffline = () => { if (this._mounted) this.setState({ online: false }); };
     window.addEventListener('pointermove', this._onMove);
     window.addEventListener('pointerup', this._onUp);
     window.addEventListener('mousemove', this._onHover);
     window.addEventListener('beforeunload', this._onUnload);
+    window.addEventListener('online', this._onOnline);
+    window.addEventListener('offline', this._onOffline);
     this._offStage = onStageUpdate((st) => this.applyStage(st));
     this._offRecenter = onRecenter(() => this.recenter());
 
@@ -154,6 +163,8 @@ export default class App extends React.Component {
     window.removeEventListener('pointerup', this._onUp);
     window.removeEventListener('mousemove', this._onHover);
     window.removeEventListener('beforeunload', this._onUnload);
+    window.removeEventListener('online', this._onOnline);
+    window.removeEventListener('offline', this._onOffline);
     if (this._offStage) this._offStage();
     if (this._offRecenter) this._offRecenter();
     if (this._offAuth) this._offAuth();
@@ -165,13 +176,27 @@ export default class App extends React.Component {
   async boot() {
     const st = await getStage();
     this.applyStage(st);
-    const loaded = await this.load();
-    this.initCloud(); // restore session + sync in the background (no-op if signed out)
+    this._loaded = await this.load();
     this.setState({ traits: traitLabel(this.personality) });
-    if (!loaded.gender) { this.setState({ onboard: 'gender', entering: false }); return; } // new pet → choose egg + name
-    if (loaded.dead) { this.setState({ entering: false }); return; } // dead pets show the revive overlay, no entrance
+    // A cloud account is REQUIRED. Resolve the (offline-safe) session first; if
+    // nobody is signed in, the render shows the login gate and the pet waits.
+    await this.initCloud();
+    this.maybeStartPet();
+  }
+
+  // Start the pet (entrance / onboarding) once the login gate is satisfied —
+  // i.e. a user is signed in, or the cloud client is unavailable (degraded mode).
+  maybeStartPet() {
+    if (this._petStarted) return;
+    if (cloudEnabled() && !this.state.user) return; // gate is up; wait for login
+    this._petStarted = true;
+    const gender = this.state.gender || (this._loaded && this._loaded.gender);
+    const dead = this.state.dead || (this._loaded && this._loaded.dead);
+    if (!gender) { this.setState({ onboard: 'gender', entering: false }); return; } // new pet → choose egg + name
+    if (dead) { this.setState({ entering: false }); return; } // dead pets show the revive overlay, no entrance
 
     // Entrance: the pet hops out of Doraemon's "Anywhere Door" on launch.
+    this.setState({ entering: true });
     this.p.action = 'enter'; this.p.busy = true;
     this.p.aStart = performance.now(); this.p.aDur = 1000;
     setTimeout(() => { if (this._mounted) { this.sfx('play'); this.spawn('play'); } }, 220);
@@ -797,6 +822,10 @@ export default class App extends React.Component {
       'cccccccc',
       '.cccccc.',
     ];
+    // ---- 上课 lively beats: a raised flipper (举手), a thrown chalk, a sleepy Z ----
+    S.handUp = ['.KK.', '.KK.', '.KK.', 'KKKK', '.KK.'];   // a navy flipper raised to answer (K = navy in scenePal)
+    S.chalkpiece = ['cc', 'cc'];                            // a flying piece of chalk
+    S.zz = ['cccc', '...c', '..c.', '.c..', 'cccc'];        // a little "Z" while dozing
     // ---- 上课 subject props (drawn upper-right of the pet so each course reads) ----
     S.flask = ['.cc.', '.cc.', '.cc.', 'czzc', 'czzc', 'czzc', 'cccc'];   // 科学 beaker + liquid
     S.abacus = ['wwwwww', 'wruruw', 'wururw', 'wruruw', 'wwwwww'];        // 数学 abacus
@@ -935,8 +964,10 @@ export default class App extends React.Component {
     if (!session) return;
     if (session.kind === 'study') {
       const sub = { cn: 'chalk_cn', en: 'chalk_en', ma: 'chalk_ma', sc: 'chalk_sc' };
-      this._scene = { type: 'class', chalk: sub[session.subjectKey] || 'chalk_cn', t0: performance.now() };
+      this._scene = { type: 'class', subj: session.subjectKey, chalk: sub[session.subjectKey] || 'chalk_cn', t0: performance.now(), beat: 'listen', chalkThrow: null };
       this._faceOverride = 'confused';
+      // 英语 class — the pet dresses up as a dapper little gentleman.
+      if (session.subjectKey === 'en') this._gear = 'english';
     } else if (session.kind === 'work') {
       const job = JOBS[session.jobIdx];
       if (job && job.name === '拔草') {
@@ -982,20 +1013,66 @@ export default class App extends React.Component {
     if (this.ensureSceneCtx()) this._sctx.clearRect(0, 0, this.SCENE_W, this.SCENE_H);
   }
 
-  // Drive the class expression arc 疑惑 to 思考 to 恍然大悟 on a loop, popping a pixel
-  // bulb at the "aha" beat. Re-arms itself for the whole session.
+  // Drive a lively "real student" loop of class BEATS rather than one stiff arc:
+  // listen → 疑惑/think → 恍然大悟(灯泡) → 举手回答 → 打瞌睡 → 被粉笔砸醒. Each beat sets
+  // the face + a scene flag drawScene() reads. Re-arms itself for the whole session.
   classFaceArc() {
-    const seq = [['confused', 2200], ['think', 2400], ['aha', 1800]];
+    const seq = [
+      ['listen', 'idle', 2200],
+      ['think', 'think', 2200],
+      ['aha', 'aha', 1700],
+      ['raise', 'happy', 2000],
+      ['doze', 'sleepy', 2600],
+      ['wake', 'aha', 1100],
+    ];
     let i = 0;
     const step = () => {
       if (!this._scene || this._scene.type !== 'class') return;
-      const [face, ms] = seq[i % seq.length];
+      const [beat, face, ms] = seq[i % seq.length];
+      this._scene.beat = beat;
       this._faceOverride = face;
-      this._scene.bulb = face === 'aha';
+      this._scene.bulb = beat === 'aha';
+      // 被粉笔砸醒: launch a chalk from the teacher's (board) side toward the pet.
+      this._scene.chalkThrow = beat === 'wake' ? { x: 8, y: 20 } : null;
+      if (beat === 'wake') { this.spawn('play'); this.speak('哇！醒了醒了~', 1600, true); }
+      // 举手回答: blurt out the answer (a fact it's learning for this subject).
+      if (beat === 'raise') { const line = studyLine(this._scene.subj); if (line) this.speak(line, 2400, true); }
       i++;
       this._faceArcT = setTimeout(step, ms);
     };
     step();
+  }
+
+  // Draw the subject-specific "what am I learning" prop up-right of the pet —
+  // 科学 a bubbling flask, 数学 an abacus, 语文 a brush + ink, 英语 an open book.
+  drawClassSubject(ctx, PAL, G, t, cx, GND, PB, sc) {
+    if (sc.chalk === 'chalk_sc') {
+      const fx = cx + 40, fy = GND - 56;
+      this.drawSprite(ctx, G.flask, PAL, fx, fy, PB);
+      if (!sc.fb) sc.fb = [];
+      if (Math.random() < 0.16 && sc.fb.length < 8) sc.fb.push({ x: fx + 6 + Math.random() * 8, y: fy + 12, vy: -(0.4 + Math.random() * 0.5) });
+      ctx.fillStyle = '#7fc8ff';
+      sc.fb.forEach((b) => { b.y += b.vy; ctx.fillRect(b.x, b.y, 4, 4); });
+      sc.fb = sc.fb.filter((b) => b.y > fy - 18);
+      if (Math.floor(t / 240) % 5 === 0) { ctx.fillStyle = '#ffe27a'; ctx.fillRect(fx + 14, fy - 4, 4, 4); }
+    } else if (sc.chalk === 'chalk_ma') {
+      const ax = cx + 36, ay = GND - 44;
+      this.drawSprite(ctx, G.abacus, PAL, ax, ay, PB);
+      ctx.fillStyle = '#ffd23d';
+      ctx.fillRect(ax + 6 + (Math.floor(t / 500) % 4) * 6, ay - 6, 5, 5);
+    } else if (sc.chalk === 'chalk_cn') {
+      const bxp = cx + 44, byp = GND - 50 + Math.abs(Math.sin(t / 260)) * 8;
+      this.drawSprite(ctx, G.inkpot, PAL, cx + 38, GND - 18, PB);
+      this.drawSprite(ctx, G.brush, PAL, bxp, byp, PB);
+    } else {
+      const kx = cx + 40, ky = GND - 50;
+      this.drawSprite(ctx, G.book, PAL, kx, ky, PB);
+      if (!sc.fb) sc.fb = [];
+      if (Math.random() < 0.04 && sc.fb.length < 4) sc.fb.push({ x: kx + 6 + Math.random() * 14, y: ky - 2, vy: -0.5 });
+      ctx.fillStyle = '#f4f6ef';
+      sc.fb.forEach((b) => { b.y += b.vy; ctx.fillRect(b.x, b.y, 4, 6); });
+      sc.fb = sc.fb.filter((b) => b.y > ky - 22);
+    }
   }
 
   // Per-frame scene render (called from the loop). Pure pixel fillRect, no glyphs.
@@ -1008,54 +1085,46 @@ export default class App extends React.Component {
     const cx = OX + 56; // penguin centre column on the scene canvas
 
     if (sc.type === 'class') {
-      // Blackboard up-left behind the pet, then the desk in front of its belly.
-      const bx = cx - 120, by = 6;
-      this.drawSprite(ctx, G.board, PAL, bx, by, P);
-      const chalk = G[sc.chalk];
-      const cw = chalk[0].length * P, ch = chalk.length * P;
-      this.drawSprite(ctx, chalk, PAL, bx + (G.board[0].length * P - cw) / 2, by + (G.board.length * P - ch) / 2, P);
-      // Desk across the pet's lower body.
-      this.drawSprite(ctx, G.desk, PAL, cx - 60, GND - 24, P);
-      // Subject-specific prop up-right so each course is recognisable + animated.
+      // A lively class, not a static desk: the board is de-emphasised (shown only
+      // when the pet is paying attention), and the beat drives what it's doing.
       const PB = P + 1;
-      if (sc.chalk === 'chalk_sc') {
-        // 科学 — a bubbling flask; bubbles rise and a spark flickers.
-        const fx = cx + 40, fy = GND - 56;
-        this.drawSprite(ctx, G.flask, PAL, fx, fy, PB);
-        if (!sc.fb) sc.fb = [];
-        if (Math.random() < 0.16 && sc.fb.length < 8) sc.fb.push({ x: fx + 6 + Math.random() * 8, y: fy + 12, vy: -(0.4 + Math.random() * 0.5) });
-        ctx.fillStyle = '#7fc8ff';
-        sc.fb.forEach((b) => { b.y += b.vy; ctx.fillRect(b.x, b.y, 4, 4); });
-        sc.fb = sc.fb.filter((b) => b.y > fy - 18);
-        if (Math.floor(t / 240) % 5 === 0) { ctx.fillStyle = '#ffe27a'; ctx.fillRect(fx + 14, fy - 4, 4, 4); }
-      } else if (sc.chalk === 'chalk_ma') {
-        // 数学 — an abacus; a counting bead slides back and forth.
-        const ax = cx + 36, ay = GND - 44;
-        this.drawSprite(ctx, G.abacus, PAL, ax, ay, PB);
-        ctx.fillStyle = '#ffd23d';
-        ctx.fillRect(ax + 6 + (Math.floor(t / 500) % 4) * 6, ay - 6, 5, 5); // a bead being counted up
-      } else if (sc.chalk === 'chalk_cn') {
-        // 语文 — a calligraphy brush dips into the ink and writes (bobs).
-        const bxp = cx + 44, byp = GND - 50 + Math.abs(Math.sin(t / 260)) * 8;
-        this.drawSprite(ctx, G.inkpot, PAL, cx + 38, GND - 18, PB);
-        this.drawSprite(ctx, G.brush, PAL, bxp, byp, PB);
-      } else {
-        // 英语 — an open book; little chalk letters float up as it "reads aloud".
-        const kx = cx + 40, ky = GND - 50;
-        this.drawSprite(ctx, G.book, PAL, kx, ky, PB);
-        if (!sc.fb) sc.fb = [];
-        if (Math.random() < 0.04 && sc.fb.length < 4) sc.fb.push({ x: kx + 6 + Math.random() * 14, y: ky - 2, vy: -0.5 });
-        ctx.fillStyle = '#f4f6ef';
-        sc.fb.forEach((b) => { b.y += b.vy; ctx.fillRect(b.x, b.y, 4, 6); });
-        sc.fb = sc.fb.filter((b) => b.y > ky - 22);
+      const beat = sc.beat || 'listen';
+      if (beat === 'listen' || beat === 'think') {
+        const bx = cx - 120, by = 6;
+        this.drawSprite(ctx, G.board, PAL, bx, by, P);
+        const chalk = G[sc.chalk];
+        const cw = chalk[0].length * P, ch = chalk.length * P;
+        this.drawSprite(ctx, chalk, PAL, bx + (G.board[0].length * P - cw) / 2, by + (G.board.length * P - ch) / 2, P);
       }
-      // Pixel lightbulb pops above the head on the aha beat.
+      this.drawSprite(ctx, G.desk, PAL, cx - 60, GND - 24, P); // desk (always)
+      // The subject prop (the knowledge focus) shows on the learning beats.
+      if (beat === 'listen' || beat === 'think' || beat === 'aha' || beat === 'raise') {
+        this.drawClassSubject(ctx, PAL, G, t, cx, GND, PB, sc);
+      }
+      // Beat flourishes — what the little student is actually doing. These sit in
+      // the clear right/left margins (the scene canvas is behind the wide body).
+      if (beat === 'raise') {
+        // 举手回答: a raised flipper bobs eagerly beside it with a chalk "!".
+        const hx = cx + 46, hy = GND - 72 - Math.abs(Math.sin(t / 150)) * 6;
+        this.drawSprite(ctx, G.handUp, PAL, hx, hy, PB);
+        ctx.fillStyle = '#ffe27a';
+        ctx.fillRect(hx + 6, hy - 18, 4, 10); ctx.fillRect(hx + 6, hy - 5, 4, 4);
+      } else if (beat === 'doze') {
+        // 打瞌睡: Z's drift up the right margin from the dozing head.
+        if (!sc.zz) sc.zz = [];
+        if (Math.random() < 0.07 && sc.zz.length < 3) sc.zz.push({ x: cx + 44, y: GND - 78 });
+        sc.zz.forEach((z) => { z.y -= 0.5; z.x += 0.25; this.drawSprite(ctx, G.zz, PAL, z.x, z.y, z.y < 30 ? 4 : 3); });
+        sc.zz = sc.zz.filter((z) => z.y > 6);
+      } else if (beat === 'wake' && sc.chalkThrow) {
+        // 被粉笔砸醒: a chalk flies in from the teacher's (board) side toward the head.
+        const ct = sc.chalkThrow; ct.x += 7; ct.y += 1.2;
+        this.drawSprite(ctx, G.chalkpiece, PAL, ct.x, ct.y, 4);
+      }
+      // 恍然大悟 bulb beside the head (no room above a standing pet).
       if (sc.bulb) {
-        const by2 = 2 + Math.sin(t / 160) * 2;
-        // soft glow ring
-        ctx.fillStyle = 'rgba(255,226,122,.35)';
-        ctx.fillRect(cx - 16, by2 + 2, 32, 32);
-        this.drawSprite(ctx, G.bulb, PAL, cx - 10, by2, P);
+        const bx2 = cx - 46, byy = 8 + Math.sin(t / 150) * 2;
+        ctx.fillStyle = 'rgba(255,226,122,.35)'; ctx.fillRect(bx2 - 6, byy - 2, 36, 36);
+        this.drawSprite(ctx, G.bulb, PAL, bx2, byy, PB);
       }
       return;
     }
@@ -1564,6 +1633,11 @@ export default class App extends React.Component {
         sw([[5, '..DLPPPLLPPPLD..'], [6, '..DLPEPLLPEPLD..'],
             [10, '...SSNNNNSSSS...']]);
         break;
+      case 'english': // 英语 — a dapper black top hat + bow tie (a spirited gentleman)
+        sw([[0, '......PPPP......'], [1, '......PPPP......'],
+            [2, '.....PPPPPP.....'], [3, '....PPPPPPPP....'],
+            [4, '..PPPPPPPPPPPP..'], [10, '...SSSSPPSSSS...']]);
+        break;
       default: break;
     }
     return c;
@@ -1690,10 +1764,16 @@ export default class App extends React.Component {
       if (this._hatOn) grid = this.withHat(grid);
       if (this._gear) grid = this.withGear(grid);
       if (this.ensureCtx()) this.draw(grid);
-      const jy = Math.sin(t / 300) * 3, tilt = this._faceOverride === 'think' ? -4 : 3;
+      // The body moves with the class beat — droops while dozing, jolts on waking,
+      // sits up eagerly to answer — so studying reads as a lively little student.
+      const beat = this._scene && this._scene.beat;
+      let jy = Math.sin(t / 300) * 3, tilt = this._faceOverride === 'think' ? -4 : 3, sy = 1;
+      if (beat === 'doze') { tilt = 15 * p.facing; jy = -7 + Math.sin(t / 600) * 1.5; sy = 0.94; }
+      else if (beat === 'wake') { tilt = -8 + Math.sin(t / 40) * 4; jy = 7; } // startled jolt + shake
+      else if (beat === 'raise') { jy = 4 + Math.abs(Math.sin(t / 150)) * 3; tilt = -2; }
       if (this.spriteRef.current) {
         this.spriteRef.current.style.transform =
-          `translateY(${(-jy).toFixed(1)}px) rotate(${tilt}deg) scaleX(${p.facing}) scaleY(1)`;
+          `translateY(${(-jy).toFixed(1)}px) rotate(${tilt}deg) scaleX(${p.facing}) scaleY(${sy})`;
         this.spriteRef.current.style.filter = 'none';
         this.spriteRef.current.style.opacity = '1';
       }
@@ -1934,6 +2014,18 @@ export default class App extends React.Component {
     this.maybeChatter();
     if (this.p.action === 'weak' && Math.random() < 0.14) this.speak(pick(DIA.weak));
 
+    // While studying, the pet "learns out loud" — speaks a fact for the subject
+    // (English class is spoken in English). Non-intrusive: just a bubble.
+    const ses = this.state.session;
+    if (ses && ses.kind === 'study' && !this.state.say) {
+      this._studyCtr = (this._studyCtr || 0) + 1;
+      if (this._studyCtr >= 11 && Math.random() < 0.5) {
+        this._studyCtr = 0;
+        const line = studyLine(ses.subjectKey);
+        if (line) this.speak(line, 3000, true);
+      }
+    }
+
     // Death: total neglect drains health to 0 (you'll have seen the 🤒 warnings).
     if (this.state.health <= 0 && !this.state.dead) this.die();
 
@@ -1968,10 +2060,26 @@ export default class App extends React.Component {
     else if (s.cleanliness <= 25) pool = DIA.dirty;
     else if (s.energy < 30) pool = DIA.sleepy;
     else if (!this.isGrown()) pool = DIA.baby; // a baby still babbles
-    if (!pool) return;                          // content & grown → stay quiet, do its own thing
+    if (!pool) {
+      // Content & grown: every so often show off something it learned in class.
+      const learned = this.learnedSubjects();
+      if (learned.length && Math.random() < (0.05 + this.personality.liveliness / 2200)) {
+        const facts = knowledgePool(learned);
+        if (facts.length) this.speak(pick(facts), 3200);
+      }
+      return;
+    }
     const chance = 0.08 + this.personality.liveliness / 1400;
     if (Math.random() > chance) return;
     this.speak(pick(pool));
+  }
+
+  // Subjects the pet has studied (and can now talk about): everything once it has
+  // graduated a level, plus any subject it has started at the current level.
+  learnedSubjects() {
+    const done = this.state.classDone || {};
+    if ((this.state.schoolLevel || 0) > 0) return SUBJECTS.map((s) => s.key);
+    return SUBJECTS.filter((s) => (done[s.key] || 0) > 0).map((s) => s.key);
   }
 
   // ---- behaviors -----------------------------------------------------------
@@ -2303,22 +2411,36 @@ export default class App extends React.Component {
     clearTimeout(this._cloudT);
     this._cloudT = setTimeout(() => {
       pushCloud(data || this.snapshot())
-        .then(() => { if (this._mounted) this.setState({ syncedAt: Date.now() }); })
-        .catch(() => { /* offline / transient — local save still holds the data */ });
+        .then(() => { if (this._mounted) this.setState({ syncedAt: Date.now() }); this._cloudDirty = false; })
+        .catch(() => { this._cloudDirty = true; /* offline — local save holds it; flush on reconnect */ });
     }, 2500);
   }
 
-  // Set up auth: restore any saved session, then keep `user` in sync.
+  // Set up auth: restore any saved session (offline-safe), then keep `user` in
+  // sync. A cloud account is required, so this also gates the pet via authChecked.
   async initCloud() {
-    if (!cloudEnabled()) return;
-    this._offAuth = onAuth((user) => { if (this._mounted) this.setState({ user }); });
+    if (!cloudEnabled()) { if (this._mounted) this.setState({ authChecked: true }); return; } // degraded mode: no gate
+    this._offAuth = onAuth((user) => {
+      if (!this._mounted) return;
+      this.setState({ user, authChecked: true });
+      if (user) { this.cloudSyncOnLogin(); this.maybeStartPet(); }
+    });
     try {
-      const user = await currentUser();
-      if (user) {
-        this.setState({ user });
-        await this.cloudSyncOnLogin();
-      }
-    } catch (e) { /* ignore */ }
+      const session = await currentSession();          // cached, no network → works offline
+      const user = session ? session.user : null;
+      this.setState({ user, authChecked: true });
+      if (user) await this.cloudSyncOnLogin();          // pull newest (no-op / silent if offline)
+    } catch (e) {
+      if (this._mounted) this.setState({ authChecked: true });
+    }
+  }
+
+  // Push the latest save to the cloud (used on reconnect / after a failed push).
+  flushCloud() {
+    if (!this.state.user) return;
+    pushCloud(this.snapshot())
+      .then(() => { if (this._mounted) this.setState({ syncedAt: Date.now() }); this._cloudDirty = false; })
+      .catch(() => { this._cloudDirty = true; }); // still offline — keep it pending
   }
 
   // On login: newest wins. If the cloud save is newer than the local one, pull it
@@ -2374,7 +2496,7 @@ export default class App extends React.Component {
       }
       const user = await currentUser();
       this.setState({ user, authPw: '', authMsg: '' });
-      if (user) await this.cloudSyncOnLogin();
+      if (user) { await this.cloudSyncOnLogin(); this.maybeStartPet(); }
     } catch (e) {
       this.setState({ authMsg: (e && e.message) || '操作失败，请重试' });
     } finally {
@@ -2492,6 +2614,9 @@ export default class App extends React.Component {
   // ---- render --------------------------------------------------------------
   render() {
     const s = this.state;
+    // A cloud account is required: until one is signed in, the login gate covers
+    // everything and the pet stays hidden. (Skipped if the cloud client is down.)
+    const gateUp = cloudEnabled() && s.authChecked && !s.user;
     const fullness = clamp(s.fullness, 0, 100);
     const happiness = clamp(s.happiness, 0, 100);
     const cleanliness = clamp(s.cleanliness, 0, 100);
@@ -2540,7 +2665,7 @@ export default class App extends React.Component {
           onPointerDown={this.onDown}
           onContextMenu={this.onContext}
           onDoubleClick={this.onDouble}
-          style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: 112, height: 130, cursor: 'grab', touchAction: 'none', zIndex: 30, display: s.onboard ? 'none' : 'block' }}
+          style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: 112, height: 130, cursor: 'grab', touchAction: 'none', zIndex: 30, display: (s.onboard || gateUp) ? 'none' : 'block' }}
         >
           {/* Anywhere Door — pops up behind the pet during the launch entrance */}
           {s.entering && (
@@ -2624,6 +2749,33 @@ export default class App extends React.Component {
             onCenter={() => { this.closeMenu(); this.recenter(); }}
             onSettings={this.openSettings} onQuit={this.quit}
           />
+        )}
+
+        {/* login gate — a cloud account is required before the pet appears */}
+        {gateUp && (
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 95, background: 'rgba(207,224,255,.96)' }}>
+            <div onPointerDown={this.stopDown} style={{ width: 212, background: '#fff', border: '3px solid #222a55', borderRadius: 18, padding: 16, textAlign: 'center', boxShadow: '0 8px 0 rgba(34,42,85,.25)', animation: 'popIn .2s ease-out' }}>
+              <div style={{ fontWeight: 900, fontSize: 15, color: '#222a55', marginBottom: 2 }}>{s.authMode === 'up' ? '注册账号' : '登录'}</div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#8a93c2', marginBottom: 12, lineHeight: 1.4 }}>
+                登录后存档会自动云端同步，换设备或重装都不丢失。
+              </div>
+              <input type="email" autoFocus placeholder="邮箱" value={s.authEmail} onChange={this.setAuthEmail}
+                style={{ width: '100%', boxSizing: 'border-box', border: '2px solid #222a55', borderRadius: 9, padding: '8px 10px', fontFamily: "'Nunito'", fontWeight: 800, fontSize: 13, color: '#222a55', outline: 'none', marginBottom: 8 }} />
+              <input type="password" placeholder="密码（至少 6 位）" value={s.authPw} onChange={this.setAuthPw}
+                onKeyDown={(e) => { if (e.key === 'Enter') this.doAuth(s.authMode === 'up' ? 'up' : 'in'); }}
+                style={{ width: '100%', boxSizing: 'border-box', border: '2px solid #222a55', borderRadius: 9, padding: '8px 10px', fontFamily: "'Nunito'", fontWeight: 800, fontSize: 13, color: '#222a55', outline: 'none', marginBottom: 10 }} />
+              {s.authMsg && <div style={{ fontSize: 10, fontWeight: 800, color: '#e85c93', marginBottom: 8 }}>{s.authMsg}</div>}
+              {!s.online && <div style={{ fontSize: 10, fontWeight: 800, color: '#e09a3c', marginBottom: 8 }}>当前离线 · 首次登录/注册需要联网</div>}
+              <div onClick={() => !s.authBusy && this.doAuth(s.authMode === 'up' ? 'up' : 'in')}
+                style={{ background: s.authBusy ? '#cfd4e6' : '#222a55', color: '#fff', padding: 9, borderRadius: 11, fontWeight: 900, fontSize: 13, cursor: s.authBusy ? 'default' : 'pointer', boxShadow: '0 4px 0 rgba(34,42,85,.3)' }}>
+                {s.authBusy ? '请稍候…' : (s.authMode === 'up' ? '注册并开始' : '登录')}
+              </div>
+              <div onClick={() => this.setState({ authMode: s.authMode === 'up' ? 'in' : 'up', authMsg: '' })}
+                style={{ fontSize: 10.5, fontWeight: 800, color: '#5b6bd0', cursor: 'pointer', marginTop: 11 }}>
+                {s.authMode === 'up' ? '已有账号？去登录' : '没有账号？注册一个'}
+              </div>
+            </div>
+          </div>
         )}
 
         {/* onboarding — choose an egg (gender), then name the pet */}

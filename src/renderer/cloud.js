@@ -1,7 +1,8 @@
-// Optional cloud save backed by Supabase (email + password accounts). The pet
-// works fully offline; signing in just mirrors the local save to the cloud so it
-// survives a reinstall or moves between machines. Every call degrades gracefully
-// to a no-op when the client can't be created or the user isn't signed in.
+// Cloud save backed by Supabase (email + password accounts). A signed-in account
+// is REQUIRED to play; once in, the save auto-mirrors to the cloud so it survives
+// a reinstall or moves between machines. Offline play still works from the cached
+// session (see currentSession). Every call degrades gracefully to a no-op when the
+// client can't be created or the user isn't signed in.
 import { createClient } from '@supabase/supabase-js';
 
 // Public project credentials. The publishable key is safe to ship in the client:
@@ -29,6 +30,19 @@ export async function currentUser() {
   try {
     const { data } = await supa.auth.getUser();
     return (data && data.user) || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// The cached session, read from local storage WITHOUT a network call — so a
+// previously-signed-in pet still resolves its user while offline. Returns the
+// session (with .user) or null.
+export async function currentSession() {
+  if (!supa) return null;
+  try {
+    const { data } = await supa.auth.getSession();
+    return (data && data.session) || null;
   } catch (e) {
     return null;
   }
