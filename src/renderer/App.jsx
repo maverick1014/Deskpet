@@ -934,6 +934,9 @@ export default class App extends React.Component {
       } else if (job && job.name === '程序员') {
         this._scene = { type: 'coder', scroll: 0, bulb: 0 };
         this._gear = 'coder';
+      } else if (job && job.name === '老师') {
+        this._scene = { type: 'teach' };
+        this._gear = 'teacher';
       }
       // other jobs keep no special scene (briefcase prop handles them)
     }
@@ -1179,6 +1182,33 @@ export default class App extends React.Component {
       } else if (Math.random() < 0.006) {
         sc.bulb = 32;
       }
+      return;
+    }
+
+    if (sc.type === 'teach') {
+      // The pet (in glasses + bow tie) points a pointer at a chalkboard whose
+      // subject rotates; the pointer taps along the lines and chalk marks flash.
+      const right = this.p.facing > 0;
+      const bw = G.board[0].length * P, bh = G.board.length * P;
+      const boardX = right ? cx + 44 : cx - 44 - bw, boardY = 8;
+      this.drawSprite(ctx, G.board, PAL, boardX, boardY, P);
+      const subs = ['chalk_cn', 'chalk_en', 'chalk_ma', 'chalk_sc'];
+      const chalk = G[subs[Math.floor(t / 6000) % subs.length]];
+      const cw = chalk[0].length * P, chh = chalk.length * P;
+      this.drawSprite(ctx, chalk, PAL, boardX + (bw - cw) / 2, boardY + (bh - chh) / 2, P);
+      // The pointer runs from the pet's flipper to a tap point on the board.
+      const handX = right ? cx + 28 : cx - 28, handY = GND - 48;
+      const tapStep = Math.floor(t / 700) % 3;
+      const tapX = right ? boardX + 8 : boardX + bw - 8;
+      const tapY = boardY + 12 + tapStep * 9 + Math.sin(t / 120) * 1.5;
+      ctx.fillStyle = '#7a4a24';
+      const steps = 16;
+      for (let i = 0; i <= steps; i++) {
+        const u = i / steps;
+        ctx.fillRect(Math.round(handX + (tapX - handX) * u) - 1, Math.round(handY + (tapY - handY) * u) - 1, 3, 3);
+      }
+      // A chalk-tap mark flashes at the pointer tip.
+      if (Math.floor(t / 260) % 2) { ctx.fillStyle = '#f4f6ef'; ctx.fillRect(tapX - 2, Math.round(tapY) - 2, 4, 4); }
       return;
     }
   }
