@@ -733,6 +733,10 @@ export default class App extends React.Component {
       g: '#3fae4e', G: '#2f8a3b', d: '#6b4a2a',  // weed bright / dark green / dirt clod
       p: '#ffd9b0', n: '#2a3160', r: '#ff6f7a', u: '#4a7bd0', k: '#3a3f55', // people skin / navy / red / blue / dark
       W: '#ffffff', K: '#222a55', y: '#ffe27a', o: '#ff9d3d', // flyer white / ink / bulb / glow
+      // ---- job-scene prop colours ----
+      m: '#aebccd', M: '#5f7286', z: '#7fc8ff', e: '#eef7ff', // metal light/dark, water/soap, suds-shine
+      x: '#c8995a', X: '#9c6b34', h: '#7a4a24',               // cardboard light/dark, handle brown
+      a: '#2b2f3a', i: '#5ad0a0', s: '#cfd8e6', v: '#ff5a5f', // device black, screen green, steel pale, laser red
     };
   }
 
@@ -850,6 +854,19 @@ export default class App extends React.Component {
     ];
     // A small sweat drop (bright blue) for the 拔草 heat.
     S.drop = ['.u.', 'uuu', 'uuu', '.u.'];
+    // ---- 洗碗 (dishwashing): a metal sink, plates/bowls, suds, a clean shine ----
+    S.sink = [
+      'mmmmmmmmmmmmmmmm',
+      'mMMMMMMMMMMMMMMm',
+      'mMzzzzzzzzzzzzMm',
+      'mMzzzzzzzzzzzzMm',
+      'mMMMMMMMMMMMMMMm',
+      '.M............M.',
+    ];
+    S.plate = ['.WWWW.', 'WeeeeW', 'WeeeeW', '.WWWW.'];
+    S.bowl = ['W....W', 'WeeeeW', '.WeeW.', '.WWWW.'];
+    S.suds = ['.ee.', 'eeee', 'eeee', '.ee.'];
+    S.shine = ['..e..', '..e..', 'eeeee', '..e..', '..e..'];
     this._scn = S;
     return S;
   }
@@ -884,6 +901,9 @@ export default class App extends React.Component {
         this._hatOn = true;
       } else if (job && job.name === '发传单') {
         this._scene = { type: 'flyer', walkers: [], spawn: 0, took: 0, blow: null };
+      } else if (job && job.name === '洗碗') {
+        this._scene = { type: 'dish', suds: [], shine: 0 };
+        this._gear = 'dish';
       }
       // other jobs keep no special scene (briefcase prop handles them)
     }
@@ -894,6 +914,7 @@ export default class App extends React.Component {
     this._scene = null;
     this._faceOverride = null;
     this._hatOn = false;
+    this._gear = null;
     clearTimeout(this._faceArcT);
     if (this.ensureSceneCtx()) this._sctx.clearRect(0, 0, this.SCENE_W, this.SCENE_H);
   }
@@ -992,6 +1013,36 @@ export default class App extends React.Component {
       if (Math.random() < 0.03) sc.drops.push({ x: cx + (Math.random() * 30 - 15), y: 24, vy: 1 });
       sc.drops.forEach((d) => { d.y += d.vy; d.vy += 0.08; this.drawSprite(ctx, G.drop, PAL, d.x, d.y, 3); });
       sc.drops = sc.drops.filter((d) => d.y < GND);
+      return;
+    }
+
+    if (sc.type === 'dish') {
+      // The pet (in its apron) stands at a sink on its facing side and scrubs a
+      // plate; suds rise and a "squeaky clean" shine pops when one is finished.
+      // The scene canvas sits BEHIND the pet, so the sink goes beside the body.
+      const right = this.p.facing > 0;
+      const sinkX = right ? cx + 30 : cx - 94, sinkY = GND - 22;
+      this.drawSprite(ctx, G.sink, PAL, sinkX, sinkY, P);
+      const mid = sinkX + 24;
+      // Plate/bowl scrubbed back-and-forth inside the basin (variant rotates).
+      const scrub = Math.sin(t / 110) * 6;
+      const variant = Math.floor(t / 3600) % 2;
+      const dishG = variant ? G.bowl : G.plate;
+      const dishX = mid - 12 + scrub, dishY = sinkY - 2 + Math.sin(t / 80) * 1.5;
+      this.drawSprite(ctx, dishG, PAL, dishX, dishY, P);
+      // Suds bubble up out of the sink.
+      if (Math.random() < 0.18 && sc.suds.length < 14) {
+        sc.suds.push({ x: sinkX + 8 + Math.random() * 48, y: sinkY, vy: -(0.4 + Math.random() * 0.7), px: Math.random() < 0.5 ? 2 : 3 });
+      }
+      sc.suds.forEach((b) => { b.y += b.vy; b.x += Math.sin((t + b.y * 8) / 200) * 0.4; this.drawSprite(ctx, G.suds, PAL, b.x, b.y, b.px); });
+      sc.suds = sc.suds.filter((b) => b.y > 2);
+      // A clean-shine sparkle over the plate now and then.
+      if (sc.shine > 0) {
+        sc.shine -= 1;
+        this.drawSprite(ctx, G.shine, PAL, dishX + 6, dishY - 10, 3);
+      } else if (Math.random() < 0.01) {
+        sc.shine = 24;
+      }
       return;
     }
   }
@@ -1208,7 +1259,9 @@ export default class App extends React.Component {
   }
   pal() {
     const ribbon = GENDER_COLOR[this.state.gender] || SCARF;
-    return { '.': null, D: BODY, L: '#ffffff', O: BEAK, S: ribbon, E: '#1a1f3d', C: '#ff9bbb', T: '#5bc8ff', G: '#9c8a63', K: '#fde7c4', R: ribbon, H: '#e7b85c', J: '#f2cf7e' };
+    return { '.': null, D: BODY, L: '#ffffff', O: BEAK, S: ribbon, E: '#1a1f3d', C: '#ff9bbb', T: '#5bc8ff', G: '#9c8a63', K: '#fde7c4', R: ribbon, H: '#e7b85c', J: '#f2cf7e',
+      // ---- job attire colours (worn on the penguin during work scenes) ----
+      M: '#39507f', N: '#d23b4b', P: '#23262e', W: '#f4f7fc', Y: '#ffc62e', B: '#8a5a2b', I: '#aeb9c8', Q: '#16263f' };
   }
   swap(g, i, row) { const c = g.slice(); c[i] = row; return c; }
   withClosed(g) { return this.swap(g, 6, this.CLOSED); }
@@ -1238,6 +1291,46 @@ export default class App extends React.Component {
     c[1] = '.....JJJJJJ.....'; // crown
     c[2] = '...HHJJJJJJHH...'; // brim + crown
     c[3] = '..HHHRRRRRRHHH..'; // wide brim with a band
+    return c;
+  }
+  // Job attire worn on the penguin during a work scene (set via this._gear).
+  // Each overlay row-swaps the base grid (like withHat) so the pet visibly wears
+  // the outfit for its job. Authored + visually checked via the pixel-art skill.
+  withGear(g) {
+    const c = g.slice();
+    const sw = (reps) => { for (const r of reps) c[r[0]] = r[1]; };
+    switch (this._gear) {
+      case 'dish': // 洗碗 — a blue apron (bib + skirt) over the belly
+        sw([[8, '..DLLMMMMMMLLD..'], [9, '..DDMMMMMMMMDD..'],
+            [11, '..DDDMMMMMMDDD..'], [12, '..DDMMMMMMMMDD..'],
+            [13, '..DDMMMMMMMMDD..'], [14, '...DDMMMMMMDD...']]);
+        break;
+      case 'clean': // 清洁工 — a blue cap with a small steel brim
+        sw([[0, '......MMMM......'], [1, '....MMMMMMMM....'],
+            [2, '...MMMMMMMMMM...'], [3, '..MMMMMMMMMMMM..'],
+            [4, '.IIDDLLLLLLDDII.']]);
+        break;
+      case 'store': // 便利店店员 — red visor + red vest over the chest
+        sw([[3, '..NNNNNNNNNNNN..'], [4, '.IINNLLLLLLNNII.'],
+            [5, '..DNLLLLLLLLND..'], [8, '..DNLLLLLLLLND..'],
+            [9, '..DDNLLLLLLNDD..']]);
+        break;
+      case 'courier': // 快递员 — yellow hi-viz cap + vest stripes
+        sw([[0, '......YYYY......'], [1, '....YYYYYYYY....'],
+            [2, '...YYYYYYYYYY...'], [3, '..YYYYYYYYYYYY..'],
+            [4, '.YYDDLLLLLLDDYY.'], [11, '..DDDYLLLLYDDD..'],
+            [12, '..DDDYLLLLYDDD..'], [13, '..DDDYLLLLYDDD..']]);
+        break;
+      case 'coder': // 程序员 — black headphones (band + ear cups)
+        sw([[2, '...PDDDDDDDDP...'], [3, '..PDDDDDDDDDDP..'],
+            [4, '..PDLLLLLLLLDP..'], [5, '..PLLLLLLLLLLP..']]);
+        break;
+      case 'teacher': // 老师 — black ring spectacles + a red bow tie
+        sw([[5, '..DLPPPLLPPPLD..'], [6, '..DLPEPLLPEPLD..'],
+            [10, '...SSNNNNSSSS...']]);
+        break;
+      default: break;
+    }
     return c;
   }
   ensureCtx() {
@@ -1360,6 +1453,7 @@ export default class App extends React.Component {
       if (p.blinkOn && this._faceOverride !== 'aha') grid = this.withClosed(grid);
       if (this.state.cleanliness <= 25) grid = this.withDirt(grid);
       if (this._hatOn) grid = this.withHat(grid);
+      if (this._gear) grid = this.withGear(grid);
       if (this.ensureCtx()) this.draw(grid);
       const jy = Math.sin(t / 300) * 3, tilt = this._faceOverride === 'think' ? -4 : 3;
       if (this.spriteRef.current) {
@@ -1399,6 +1493,7 @@ export default class App extends React.Component {
     if (p.blinkOn && face !== this.G.sleepy && face !== this.G.sad) grid = this.withClosed(grid);
     if (this.state.cleanliness <= 25) grid = this.withDirt(grid);
     if (this._hatOn) grid = this.withHat(grid); // straw hat for the 拔草 scene
+    if (this._gear) grid = this.withGear(grid); // job attire for the work scenes
     if (this.ensureCtx()) this.draw(grid);
 
     let jy = 0, rot = 0, tilt = 0, sy = 1;
