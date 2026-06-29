@@ -9,7 +9,7 @@ import {
 } from './store.js';
 import { genPersonality, normPersonality, traitLabel } from './personality.js';
 import { DIA, pick, greetingPool } from './dialogue.js';
-import { cloudEnabled, currentUser, onAuth, signIn, signUp, signOut, pullCloud, pushCloud } from './cloud.js';
+import { cloudEnabled, currentUser, currentSession, onAuth, signIn, signUp, signOut, pullCloud, pushCloud } from './cloud.js';
 
 const BODY = '#222a55';
 const BEAK = '#ff9d3d';
@@ -71,9 +71,12 @@ export default class App extends React.Component {
     playOpen: false, playGame: null, gameScore: 0,
     shopCat: null,
     menu: null, settingsOpen: false, emote: null, say: null, hint: true, hover: false, hoverStat: null, loaded: false,
-    entering: true, traits: '',
-    // Cloud save (optional email+password account). `user` is null when signed out.
+    entering: false, traits: '',
+    // Cloud account (email+password). REQUIRED — `user` is null until signed in.
     user: null, authEmail: '', authPw: '', authBusy: false, authMsg: '', syncedAt: null,
+    // Cloud account is REQUIRED: `authChecked` gates the app behind a login until
+    // the session is resolved; `online` tracks connectivity for auto-resync.
+    authChecked: false, online: (typeof navigator !== 'undefined' ? navigator.onLine : true), authMode: 'in',
   };
 
   // Penguin box inside the (larger) window. The penguin is centered, so the
@@ -121,10 +124,16 @@ export default class App extends React.Component {
     this._onUp = (e) => this.onUp(e);
     this._onHover = (e) => this.onHover(e);
     this._onUnload = () => this.save();
+    // Auto-resync: when the network comes back, push the latest save so nothing
+    // edited offline is lost. Going offline just flips the indicator.
+    this._onOnline = () => { if (this._mounted) this.setState({ online: true }); this.flushCloud(); };
+    this._onOffline = () => { if (this._mounted) this.setState({ online: false }); };
     window.addEventListener('pointermove', this._onMove);
     window.addEventListener('pointerup', this._onUp);
     window.addEventListener('mousemove', this._onHover);
     window.addEventListener('beforeunload', this._onUnload);
+    window.addEventListener('online', this._onOnline);
+    window.addEventListener('offline', this._onOffline);
     this._offStage = onStageUpdate((st) => this.applyStage(st));
     this._offRecenter = onRecenter(() => this.recenter());
 
@@ -154,6 +163,8 @@ export default class App extends React.Component {
     window.removeEventListener('pointerup', this._onUp);
     window.removeEventListener('mousemove', this._onHover);
     window.removeEventListener('beforeunload', this._onUnload);
+    window.removeEventListener('online', this._onOnline);
+    window.removeEventListener('offline', this._onOffline);
     if (this._offStage) this._offStage();
     if (this._offRecenter) this._offRecenter();
     if (this._offAuth) this._offAuth();
@@ -165,13 +176,27 @@ export default class App extends React.Component {
   async boot() {
     const st = await getStage();
     this.applyStage(st);
-    const loaded = await this.load();
-    this.initCloud(); // restore session + sync in the background (no-op if signed out)
+    this._loaded = await this.load();
     this.setState({ traits: traitLabel(this.personality) });
-    if (!loaded.gender) { this.setState({ onboard: 'gender', entering: false }); return; } // new pet → choose egg + name
-    if (loaded.dead) { this.setState({ entering: false }); return; } // dead pets show the revive overlay, no entrance
+    // A cloud account is REQUIRED. Resolve the (offline-safe) session first; if
+    // nobody is signed in, the render shows the login gate and the pet waits.
+    await this.initCloud();
+    this.maybeStartPet();
+  }
+
+  // Start the pet (entrance / onboarding) once the login gate is satisfied —
+  // i.e. a user is signed in, or the cloud client is unavailable (degraded mode).
+  maybeStartPet() {
+    if (this._petStarted) return;
+    if (cloudEnabled() && !this.state.user) return; // gate is up; wait for login
+    this._petStarted = true;
+    const gender = this.state.gender || (this._loaded && this._loaded.gender);
+    const dead = this.state.dead || (this._loaded && this._loaded.dead);
+    if (!gender) { this.setState({ onboard: 'gender', entering: false }); return; } // new pet → choose egg + name
+    if (dead) { this.setState({ entering: false }); return; } // dead pets show the revive overlay, no entrance
 
     // Entrance: the pet hops out of Doraemon's "Anywhere Door" on launch.
+    this.setState({ entering: true });
     this.p.action = 'enter'; this.p.busy = true;
     this.p.aStart = performance.now(); this.p.aDur = 1000;
     setTimeout(() => { if (this._mounted) { this.sfx('play'); this.spawn('play'); } }, 220);
@@ -2303,22 +2328,36 @@ export default class App extends React.Component {
     clearTimeout(this._cloudT);
     this._cloudT = setTimeout(() => {
       pushCloud(data || this.snapshot())
-        .then(() => { if (this._mounted) this.setState({ syncedAt: Date.now() }); })
-        .catch(() => { /* offline / transient — local save still holds the data */ });
+        .then(() => { if (this._mounted) this.setState({ syncedAt: Date.now() }); this._cloudDirty = false; })
+        .catch(() => { this._cloudDirty = true; /* offline — local save holds it; flush on reconnect */ });
     }, 2500);
   }
 
-  // Set up auth: restore any saved session, then keep `user` in sync.
+  // Set up auth: restore any saved session (offline-safe), then keep `user` in
+  // sync. A cloud account is required, so this also gates the pet via authChecked.
   async initCloud() {
-    if (!cloudEnabled()) return;
-    this._offAuth = onAuth((user) => { if (this._mounted) this.setState({ user }); });
+    if (!cloudEnabled()) { if (this._mounted) this.setState({ authChecked: true }); return; } // degraded mode: no gate
+    this._offAuth = onAuth((user) => {
+      if (!this._mounted) return;
+      this.setState({ user, authChecked: true });
+      if (user) { this.cloudSyncOnLogin(); this.maybeStartPet(); }
+    });
     try {
-      const user = await currentUser();
-      if (user) {
-        this.setState({ user });
-        await this.cloudSyncOnLogin();
-      }
-    } catch (e) { /* ignore */ }
+      const session = await currentSession();          // cached, no network → works offline
+      const user = session ? session.user : null;
+      this.setState({ user, authChecked: true });
+      if (user) await this.cloudSyncOnLogin();          // pull newest (no-op / silent if offline)
+    } catch (e) {
+      if (this._mounted) this.setState({ authChecked: true });
+    }
+  }
+
+  // Push the latest save to the cloud (used on reconnect / after a failed push).
+  flushCloud() {
+    if (!this.state.user) return;
+    pushCloud(this.snapshot())
+      .then(() => { if (this._mounted) this.setState({ syncedAt: Date.now() }); this._cloudDirty = false; })
+      .catch(() => { this._cloudDirty = true; }); // still offline — keep it pending
   }
 
   // On login: newest wins. If the cloud save is newer than the local one, pull it
@@ -2374,7 +2413,7 @@ export default class App extends React.Component {
       }
       const user = await currentUser();
       this.setState({ user, authPw: '', authMsg: '' });
-      if (user) await this.cloudSyncOnLogin();
+      if (user) { await this.cloudSyncOnLogin(); this.maybeStartPet(); }
     } catch (e) {
       this.setState({ authMsg: (e && e.message) || '操作失败，请重试' });
     } finally {
@@ -2492,6 +2531,9 @@ export default class App extends React.Component {
   // ---- render --------------------------------------------------------------
   render() {
     const s = this.state;
+    // A cloud account is required: until one is signed in, the login gate covers
+    // everything and the pet stays hidden. (Skipped if the cloud client is down.)
+    const gateUp = cloudEnabled() && s.authChecked && !s.user;
     const fullness = clamp(s.fullness, 0, 100);
     const happiness = clamp(s.happiness, 0, 100);
     const cleanliness = clamp(s.cleanliness, 0, 100);
@@ -2540,7 +2582,7 @@ export default class App extends React.Component {
           onPointerDown={this.onDown}
           onContextMenu={this.onContext}
           onDoubleClick={this.onDouble}
-          style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: 112, height: 130, cursor: 'grab', touchAction: 'none', zIndex: 30, display: s.onboard ? 'none' : 'block' }}
+          style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: 112, height: 130, cursor: 'grab', touchAction: 'none', zIndex: 30, display: (s.onboard || gateUp) ? 'none' : 'block' }}
         >
           {/* Anywhere Door — pops up behind the pet during the launch entrance */}
           {s.entering && (
@@ -2624,6 +2666,33 @@ export default class App extends React.Component {
             onCenter={() => { this.closeMenu(); this.recenter(); }}
             onSettings={this.openSettings} onQuit={this.quit}
           />
+        )}
+
+        {/* login gate — a cloud account is required before the pet appears */}
+        {gateUp && (
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 95, background: 'rgba(207,224,255,.96)' }}>
+            <div onPointerDown={this.stopDown} style={{ width: 212, background: '#fff', border: '3px solid #222a55', borderRadius: 18, padding: 16, textAlign: 'center', boxShadow: '0 8px 0 rgba(34,42,85,.25)', animation: 'popIn .2s ease-out' }}>
+              <div style={{ fontWeight: 900, fontSize: 15, color: '#222a55', marginBottom: 2 }}>{s.authMode === 'up' ? '注册账号' : '登录'}</div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#8a93c2', marginBottom: 12, lineHeight: 1.4 }}>
+                登录后存档会自动云端同步，换设备或重装都不丢失。
+              </div>
+              <input type="email" autoFocus placeholder="邮箱" value={s.authEmail} onChange={this.setAuthEmail}
+                style={{ width: '100%', boxSizing: 'border-box', border: '2px solid #222a55', borderRadius: 9, padding: '8px 10px', fontFamily: "'Nunito'", fontWeight: 800, fontSize: 13, color: '#222a55', outline: 'none', marginBottom: 8 }} />
+              <input type="password" placeholder="密码（至少 6 位）" value={s.authPw} onChange={this.setAuthPw}
+                onKeyDown={(e) => { if (e.key === 'Enter') this.doAuth(s.authMode === 'up' ? 'up' : 'in'); }}
+                style={{ width: '100%', boxSizing: 'border-box', border: '2px solid #222a55', borderRadius: 9, padding: '8px 10px', fontFamily: "'Nunito'", fontWeight: 800, fontSize: 13, color: '#222a55', outline: 'none', marginBottom: 10 }} />
+              {s.authMsg && <div style={{ fontSize: 10, fontWeight: 800, color: '#e85c93', marginBottom: 8 }}>{s.authMsg}</div>}
+              {!s.online && <div style={{ fontSize: 10, fontWeight: 800, color: '#e09a3c', marginBottom: 8 }}>当前离线 · 首次登录/注册需要联网</div>}
+              <div onClick={() => !s.authBusy && this.doAuth(s.authMode === 'up' ? 'up' : 'in')}
+                style={{ background: s.authBusy ? '#cfd4e6' : '#222a55', color: '#fff', padding: 9, borderRadius: 11, fontWeight: 900, fontSize: 13, cursor: s.authBusy ? 'default' : 'pointer', boxShadow: '0 4px 0 rgba(34,42,85,.3)' }}>
+                {s.authBusy ? '请稍候…' : (s.authMode === 'up' ? '注册并开始' : '登录')}
+              </div>
+              <div onClick={() => this.setState({ authMode: s.authMode === 'up' ? 'in' : 'up', authMsg: '' })}
+                style={{ fontSize: 10.5, fontWeight: 800, color: '#5b6bd0', cursor: 'pointer', marginTop: 11 }}>
+                {s.authMode === 'up' ? '已有账号？去登录' : '没有账号？注册一个'}
+              </div>
+            </div>
+          </div>
         )}
 
         {/* onboarding — choose an egg (gender), then name the pet */}

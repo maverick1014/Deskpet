@@ -9,6 +9,24 @@ is pre-release, so versions are milestone markers rather than published releases
 New lifelike animations being added one at a time.
 See `TODO.md` for the remaining activity-authentic focus animations.
 
+## [1.9.0] — 2026-06-27 — Required cloud account with always-on auto-sync
+
+### Changed
+- **A cloud account is now required.** On launch the pet is gated behind a
+  **login / signup** screen; once signed in, the save is mirrored to the cloud
+  **automatically** — there's no optional toggle anymore.
+- **Always-on auto-sync.** Every change is debounced-pushed to the cloud while
+  signed in, and the **newest save wins** on login (cloud vs local).
+
+### Added
+- **Offline-tolerant play.** A previously-signed-in pet resolves its account
+  from the **cached session with no network call**, so it keeps playing offline
+  — only the syncing pauses.
+- **Auto-resync on reconnect.** When the network comes back (or after a failed
+  push), the latest save is flushed to the cloud automatically, so nothing
+  edited offline is lost. The login screen shows an offline notice since the
+  **first** signup/login needs a connection.
+
 ## [1.8.0] — 2026-06-27 — Every job is now a dressed-up, acted-out scene
 
 ### Added
