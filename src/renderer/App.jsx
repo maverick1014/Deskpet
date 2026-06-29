@@ -880,6 +880,9 @@ export default class App extends React.Component {
     S.itemB = ['.u', 'uu', 'uu'];                 // a blue bottle
     S.itemC = ['xx', 'xx'];                       // a cardboard box
     S.receipt = ['WW', 'KK', 'WW', 'KK', 'WW', 'KK'];
+    // ---- 快递员 (courier): parcels (two sizes) with tape ----
+    S.boxS = ['xxxx', 'xXXx', 'xXXx', 'xxxx'];
+    S.boxL = ['xxxxxx', 'xXXXXx', 'xXXXXx', 'xXXXXx', 'xxxxxx'];
     this._scn = S;
     return S;
   }
@@ -923,6 +926,9 @@ export default class App extends React.Component {
       } else if (job && job.name === '便利店店员') {
         this._scene = { type: 'store', itemX: 0, scanFlash: 0, receipt: 0, item: 0 };
         this._gear = 'store';
+      } else if (job && job.name === '快递员') {
+        this._scene = { type: 'courier' };
+        this._gear = 'courier';
       }
       // other jobs keep no special scene (briefcase prop handles them)
     }
@@ -1111,6 +1117,30 @@ export default class App extends React.Component {
         const r = G.receipt.slice(0, sc.receipt);
         this.drawSprite(ctx, r, PAL, scanX + 2, counterY + 6, 3);
         if (sc.receipt >= 6 && Math.random() < 0.02) sc.receipt = 0; // tear off
+      }
+      return;
+    }
+
+    if (sc.type === 'courier') {
+      // The pet (in its hi-viz cap + vest) carries a parcel that bobs as it jogs
+      // in place, with a stack of parcels waiting to the side.
+      const right = this.p.facing > 0;
+      // A waiting pile of parcels on one side.
+      const pileX = right ? cx - 90 : cx + 58;
+      this.drawSprite(ctx, G.boxL, PAL, pileX, GND - 20, P);
+      this.drawSprite(ctx, G.boxS, PAL, pileX + 6, GND - 36, P);
+      // The carried parcel (size rotates) held at the pet's side, bobbing.
+      const big = Math.floor(t / 3200) % 2 === 0;
+      const carriedG = big ? G.boxL : G.boxS;
+      const cyBob = Math.abs(Math.sin(t / 130)) * 4;     // jog bob
+      const cX = right ? cx + 30 : cx - 54;
+      this.drawSprite(ctx, carriedG, PAL, cX, GND - 58 - cyBob, P);
+      // Little speed/jog dashes behind it now and then.
+      if (Math.floor(t / 180) % 2) {
+        ctx.fillStyle = '#cfd8e6';
+        const dx = right ? cx + 22 : cx + 36;
+        ctx.fillRect(dx, GND - 40, 6, 2);
+        ctx.fillRect(dx - 4, GND - 32, 8, 2);
       }
       return;
     }
