@@ -30,6 +30,16 @@ See `TODO.md` for the remaining activity-authentic focus animations.
 - New **job-attire system** (`withGear`) draws the outfit on the penguin, the way
   the 拔草 straw hat already did. All hand-drawn pixel art, authored + visually
   self-checked at real scene scale via the `pixel-art` skill. No emoji.
+- **The four study courses now look distinct** — each shows its own animated prop
+  beside the desk: 语文 a calligraphy brush + ink, 英语 an open book with floating
+  letters, 数学 an abacus with a counting bead, 科学 a bubbling beaker.
+- **Redesigned the egg/baby penguin** into a cuter hatching chick — round head,
+  big sparkly eyes, tiny beak, in a cracked egg shell with a zigzag rim.
+
+### Changed
+- **Bigger, more detailed job tools** so the activity reads at a glance (sink with
+  a faucet, broom with a clear handle + fanned bristles, a proper register/scanner,
+  parcels with a tape cross + label, a larger code monitor).
 
 ## [1.7.3] — 2026-06-27 — 吹泡泡 now swings the wand like a 2D character
 
