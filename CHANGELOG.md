@@ -9,6 +9,27 @@ is pre-release, so versions are milestone markers rather than published releases
 New lifelike animations being added one at a time.
 See `TODO.md` for the remaining activity-authentic focus animations.
 
+## [1.10.1] — 2026-06-29 — Pacing & polish from play-testing
+
+### Changed
+- **Calmer class pacing.** 上课 is now mostly the pet quietly doing homework for a
+  long stretch (a sheet + scribbling pencil), with the lively beats (思考/恍然大悟/
+  举手回答/打瞌睡→被粉笔砸醒) as *occasional* interruptions — no more constant chalk.
+- **拔草 is a proper weeding routine.** The pet arrives at a weedy patch, **puts on
+  its work hat**, then pulls the tall weeds **one by one left-to-right** (kicking up
+  dirt), **rests and wipes its brow** now and then, and when the patch is clear
+  **trudges to a fresh patch** and starts over.
+- **发传单 passers-by are now full, penguin-sized people** (were tiny) — everything
+  drawn to the pet's scale.
+- **吹泡泡 bubbles are bigger and gentler** — about 1–2 per second, large (easy to
+  click), drifting slowly upward instead of a fast spray.
+- **Speech bubbles size better** — longer/English lines get a comfortable width
+  instead of wrapping into one narrow word per line.
+
+### Added
+- **A "中断专注？" confirmation** before a class/shift is broken, so a stray click or
+  double-click doesn't wipe your focus progress.
+
 ## [1.10.0] — 2026-06-29 — Lively, knowledge-driven study courses
 
 ### Changed

@@ -77,6 +77,7 @@ export default class App extends React.Component {
     // Cloud account is REQUIRED: `authChecked` gates the app behind a login until
     // the session is resolved; `online` tracks connectivity for auto-resync.
     authChecked: false, online: (typeof navigator !== 'undefined' ? navigator.onLine : true), authMode: 'in',
+    confirmBreak: false, // a "中断专注？" confirm guards focus from stray clicks
   };
 
   // Penguin box inside the (larger) window. The penguin is centered, so the
@@ -256,7 +257,7 @@ export default class App extends React.Component {
 
   // 玩耍 opens the mini-game picker (playing breaks focus if a session is on).
   playFree = () => {
-    if (this.state.session) { this.breakFocus(); return; }
+    if (this.state.session) { this.requestBreakFocus(); return; }
     this.closeMenu();
     if (this.state.playGame) this.stopGame(); // reopening the picker ends the current game
     this.setState({ playOpen: true, hover: false, hoverStat: null, shopCat: null, schoolMenu: false, workMenu: false });
@@ -419,6 +420,7 @@ export default class App extends React.Component {
     // Pixel scenes (上课 / 发传单 / 拔草) replace the old book/briefcase props.
     this.startSceneFor(session);
     if (session.kind === 'study') this.classFaceArc();
+    else if (this._scene && this._scene.type === 'weed') this.weedBeats();
     else if (!this._scene) this.briefcaseProp(0); // jobs without a scene keep the briefcase (0 = persist)
     this.setState({ session, sessionLeft: Math.max(0, Math.ceil((session.endTs - Date.now()) / 1000)) });
     this.speak(session.kind === 'study' ? '开始专注上课啦~ 要加油📚' : '开始认真工作~ 💼', 2600, true);
@@ -433,6 +435,12 @@ export default class App extends React.Component {
     this.recompute();
   }
 
+  // Ask before breaking focus so a stray click/tap doesn't wipe the session.
+  requestBreakFocus = () => {
+    if (!this.state.session) return false;
+    this.setState({ confirmBreak: true });
+    return true;
+  };
   // The owner broke focus (played, quit, or stopped manually): progress is lost.
   breakFocus = () => {
     if (!this.state.session) return false;
@@ -826,6 +834,8 @@ export default class App extends React.Component {
     S.handUp = ['.KK.', '.KK.', '.KK.', 'KKKK', '.KK.'];   // a navy flipper raised to answer (K = navy in scenePal)
     S.chalkpiece = ['cc', 'cc'];                            // a flying piece of chalk
     S.zz = ['cccc', '...c', '..c.', '.c..', 'cccc'];        // a little "Z" while dozing
+    S.paper = ['WWWWWW', 'WKKKKW', 'WWWWWW', 'WKKKKW', 'WWWWWW'];  // homework sheet
+    S.pencil = ['....o', '...y.', '..y..', '.y...', 'k....'];      // a pencil (writing tip = k)
     // ---- 上课 subject props (drawn upper-right of the pet so each course reads) ----
     S.flask = ['.cc.', '.cc.', '.cc.', 'czzc', 'czzc', 'czzc', 'cccc'];   // 科学 beaker + liquid
     S.abacus = ['wwwwww', 'wruruw', 'wururw', 'wruruw', 'wwwwww'];        // 数学 abacus
@@ -843,50 +853,55 @@ export default class App extends React.Component {
       '.kkk.',
     ];
     // Passers-by (发传单): three little pixel figures.
-    S.walkerA = [
-      '.ppp.',
-      '.ppp.',
-      'kuuuk', // arms + red top
-      '.rrr.',
-      '.r.r.',
-      '.k.k.',
+    // Passers-by (发传单): full pixel people drawn at the PENGUIN's 7px scale, so
+    // they're the same height as the pet (16 rows). Three distinct folks.
+    S.walkerA = [ // dark hair, red shirt
+      '....kkkk....', '...pppppp...', '...pppppp...', '...pppppp...',
+      '....pppp....', '..rrrrrrrr..', '.prrrrrrrrp.', '.prrrrrrrrp.',
+      '..rrrrrrrr..', '..rrrrrrrr..', '..nnnnnnnn..', '..nnn..nnn..',
+      '..nnn..nnn..', '..nnn..nnn..', '..kk....kk..', '.kkk....kkk.',
     ];
-    S.walkerB = [
-      '.ppp.',
-      '.ppp.',
-      '.uuu.',
-      '.uuu.',
-      '.n.n.',
-      '.k.k.',
+    S.walkerB = [ // navy cap, blue shirt
+      '...nnnnnn...', '..nnnnnnnn..', '...pppppp...', '...pppppp...',
+      '....pppp....', '..uuuuuuuu..', '.puuuuuuuup.', '.puuuuuuuup.',
+      '..uuuuuuuu..', '..uuuuuuuu..', '..kkkkkkkk..', '..kkk..kkk..',
+      '..kkk..kkk..', '..kkk..kkk..', '..kk....kk..', '.kkk....kkk.',
     ];
-    S.walkerC = [
-      '..pp..',
-      '..pp..',
-      '.kggk.', // green coat, swinging arms
-      '..gg..',
-      '..gg..',
-      '.k..k.',
+    S.walkerC = [ // dark hair, green shirt
+      '....kkkk....', '...pppppp...', '...pppppp...', '...pppppp...',
+      '....pppp....', '..gggggggg..', '.pggggggggp.', '.pggggggggp.',
+      '..gggggggg..', '..gggggggg..', '..nnnnnnnn..', '..nnn..nnn..',
+      '..nnn..nnn..', '..nnn..nnn..', '..kk....kk..', '.kkk....kkk.',
     ];
-    // A flyer: white sheet with two dark "text" lines (no glyphs).
+    // A flyer: white sheet with dark "text" lines (no glyphs), pet-hand sized.
     S.flyer = [
-      'WWWWW',
-      'WKKKW',
-      'WWWWW',
-      'WKKKW',
-      'WWWWW',
+      'WWWWWW',
+      'WKKKKW',
+      'WWWWWW',
+      'WKKKKW',
+      'WWWWWW',
     ];
-    // Weed clumps: a bushy tuft and a sparse one (拔草).
+    // Weed clumps (拔草) — TALL tufts at the penguin's scale (drawn at 6px).
     S.weedBig = [
-      '..g..g..',
-      '.gggGgg.',
+      'g..g...g',
+      '.gg.gg.g',
+      'g.gGgGg.',
+      '.gGgggG.',
       'gGgggggG',
-      '.dGddGd.',
+      '.gGgggG.',
+      'gGgggggG',
+      '..dggd..',
+      '..dddd..',
     ];
     S.weedSmall = [
-      '.g.g.',
-      'gGggg',
-      '.ddd.',
+      '.g.g.g',
+      'g.gGg.',
+      '.gggg.',
+      'gGggGg',
+      '..dd..',
+      '.dddd.',
     ];
+    S.dirtpuff = ['.dd.', 'dddd', '.dd.'];               // dirt kicked up when a weed pops
     // A small sweat drop (bright blue) for the 拔草 heat.
     S.drop = ['.u.', 'uuu', 'uuu', '.u.'];
     // ---- 洗碗 (dishwashing): a metal sink with a faucet, plates, suds, a shine ----
@@ -971,13 +986,10 @@ export default class App extends React.Component {
     } else if (session.kind === 'work') {
       const job = JOBS[session.jobIdx];
       if (job && job.name === '拔草') {
-        // Seed weed clumps with positions/sizes; they clear as the shift progresses.
-        const weeds = [];
-        for (let i = 0; i < 8; i++) {
-          weeds.push({ x: 18 + i * 26 + (i % 2 ? 6 : 0), big: i % 3 !== 0, seed: i / 8 });
-        }
-        this._scene = { type: 'weed', weeds, minutes: session.minutes, drops: [] };
-        this._hatOn = true;
+        // Beat-driven 拔草: arrive → change clothes → pull weeds L→R → rest/wipe →
+        // move to a new patch → repeat. weedBeats() runs the sequence.
+        this._scene = { type: 'weed', weeds: [], beat: 'arrive', pull: null, pullT: 0, drops: [], puffs: [] };
+        this._hatOn = false; // puts the straw hat on after arriving (换装)
       } else if (job && job.name === '发传单') {
         this._scene = { type: 'flyer', walkers: [], spawn: 0, took: 0, blow: null };
       } else if (job && job.name === '洗碗') {
@@ -1013,34 +1025,95 @@ export default class App extends React.Component {
     if (this.ensureSceneCtx()) this._sctx.clearRect(0, 0, this.SCENE_W, this.SCENE_H);
   }
 
-  // Drive a lively "real student" loop of class BEATS rather than one stiff arc:
-  // listen → 疑惑/think → 恍然大悟(灯泡) → 举手回答 → 打瞌睡 → 被粉笔砸醒. Each beat sets
-  // the face + a scene flag drawScene() reads. Re-arms itself for the whole session.
+  // Class pacing: mostly the pet just CALMLY studies / does homework for a long
+  // stretch, with an OCCASIONAL lively beat (思考 / 恍然大悟 / 举手回答 / 打瞌睡→被粉笔
+  // 砸醒) — not a constant loop. Re-arms itself for the whole session.
   classFaceArc() {
-    const seq = [
-      ['listen', 'idle', 2200],
-      ['think', 'think', 2200],
-      ['aha', 'aha', 1700],
-      ['raise', 'happy', 2000],
-      ['doze', 'sleepy', 2600],
-      ['wake', 'aha', 1100],
+    const guard = () => this._scene && this._scene.type === 'class';
+    const events = [
+      ['think', 'think', 2600],   // a quiet ponder
+      ['think', 'think', 2600],
+      ['aha', 'aha', 2000],       // a small "got it!"
+      ['raise', 'happy', 2200],   // raises a hand to answer
+      ['doze', 'sleepy', 3000],   // nods off… (→ chalk wake)
     ];
-    let i = 0;
-    const step = () => {
-      if (!this._scene || this._scene.type !== 'class') return;
-      const [beat, face, ms] = seq[i % seq.length];
+    // Long, calm baseline: head down, doing homework.
+    const study = () => {
+      if (!guard()) return;
+      this._scene.beat = 'study';
+      this._faceOverride = 'idle';
+      this._scene.bulb = false;
+      this._scene.chalkThrow = null;
+      this._faceArcT = setTimeout(event, 15000 + Math.random() * 12000); // ~15–27s of quiet study
+    };
+    // One brief interruption, then straight back to studying.
+    const event = () => {
+      if (!guard()) return;
+      const [beat, face, ms] = events[Math.floor(Math.random() * events.length)];
       this._scene.beat = beat;
       this._faceOverride = face;
       this._scene.bulb = beat === 'aha';
-      // 被粉笔砸醒: launch a chalk from the teacher's (board) side toward the pet.
-      this._scene.chalkThrow = beat === 'wake' ? { x: 8, y: 20 } : null;
-      if (beat === 'wake') { this.spawn('play'); this.speak('哇！醒了醒了~', 1600, true); }
-      // 举手回答: blurt out the answer (a fact it's learning for this subject).
       if (beat === 'raise') { const line = studyLine(this._scene.subj); if (line) this.speak(line, 2400, true); }
-      i++;
-      this._faceArcT = setTimeout(step, ms);
+      this._faceArcT = setTimeout(() => {
+        if (!guard()) return;
+        if (beat === 'doze') {
+          // 被粉笔砸醒 — only ever right after actually dozing off.
+          this._scene.beat = 'wake'; this._faceOverride = 'aha';
+          this._scene.chalkThrow = { x: 8, y: 20 };
+          this.spawn('play'); this.speak('哇！醒了醒了~', 1600, true);
+          this._faceArcT = setTimeout(study, 1100);
+        } else {
+          study();
+        }
+      }, ms);
     };
-    step();
+    study();
+  }
+
+  // Run the 拔草 shift as a sequence: arrive at a weedy patch → put on the work
+  // hat → pull weeds one by one left-to-right (dirt puffs) → occasionally rest and
+  // wipe sweat → when the patch is clear, trudge to a NEW patch and repeat.
+  weedBeats() {
+    const guard = () => this._scene && this._scene.type === 'weed';
+    const GND = this.SCENE_GND;
+    const fill = () => {
+      const w = [];
+      for (let i = 0; i < 6; i++) w.push({ x: 8 + i * 38, big: i % 2 === 0, seed: i, gone: false });
+      this._scene.weeds = w;
+    };
+    const weed = () => {
+      if (!guard()) return;
+      this._scene.beat = 'weed';
+      const next = this._scene.weeds.find((w) => !w.gone);
+      if (!next) { // patch cleared → walk to a fresh patch
+        this._scene.beat = 'move';
+        this.speak('这片拔完啦，去下一片~', 1900, true);
+        this._faceArcT = setTimeout(() => { if (guard()) { fill(); weed(); } }, 2100);
+        return;
+      }
+      this._scene.pull = next; this._scene.pullT = performance.now();
+      this._faceArcT = setTimeout(() => {
+        if (!guard()) return;
+        next.gone = true;
+        this._scene.puffs.push({ x: next.x + 18, y: GND - 10, life: 22 });
+        this._scene.pull = null;
+        if (Math.random() < 0.3) { // a breather + wipe the brow
+          this._scene.beat = 'rest';
+          this.speak('呼~ 擦擦汗', 1600, true);
+          this._faceArcT = setTimeout(weed, 2300);
+        } else {
+          this._faceArcT = setTimeout(weed, 800);
+        }
+      }, 1000);
+    };
+    this._scene.beat = 'arrive'; this._hatOn = false; fill();
+    this.speak('哇，好多杂草！', 1700, true);
+    this._faceArcT = setTimeout(() => {
+      if (!guard()) return;
+      this._scene.beat = 'dress'; this._hatOn = true; // 换上工作服 (straw hat)
+      this.speak('换上工作帽，开干！', 1800, true);
+      this._faceArcT = setTimeout(weed, 1500);
+    }, 1800);
   }
 
   // Draw the subject-specific "what am I learning" prop up-right of the pet —
@@ -1085,11 +1158,11 @@ export default class App extends React.Component {
     const cx = OX + 56; // penguin centre column on the scene canvas
 
     if (sc.type === 'class') {
-      // A lively class, not a static desk: the board is de-emphasised (shown only
-      // when the pet is paying attention), and the beat drives what it's doing.
+      // Mostly a calm student doing homework; the board only shows on the brief
+      // "think" beat, and the lively beats are occasional (see classFaceArc).
       const PB = P + 1;
-      const beat = sc.beat || 'listen';
-      if (beat === 'listen' || beat === 'think') {
+      const beat = sc.beat || 'study';
+      if (beat === 'think') {
         const bx = cx - 120, by = 6;
         this.drawSprite(ctx, G.board, PAL, bx, by, P);
         const chalk = G[sc.chalk];
@@ -1097,8 +1170,16 @@ export default class App extends React.Component {
         this.drawSprite(ctx, chalk, PAL, bx + (G.board[0].length * P - cw) / 2, by + (G.board.length * P - ch) / 2, P);
       }
       this.drawSprite(ctx, G.desk, PAL, cx - 60, GND - 24, P); // desk (always)
-      // The subject prop (the knowledge focus) shows on the learning beats.
-      if (beat === 'listen' || beat === 'think' || beat === 'aha' || beat === 'raise') {
+      if (beat === 'study') {
+        // Quietly doing homework: a sheet on the right with a pencil scribbling.
+        const px = cx + 44, py = GND - 30;
+        this.drawSprite(ctx, G.paper, PAL, px, py, PB);
+        const sx = px + 6 + (Math.sin(t / 200) * 0.5 + 0.5) * 14;
+        const syy = py + 6 + Math.abs(Math.sin(t / 95)) * 8;
+        this.drawSprite(ctx, G.pencil, PAL, sx, syy, PB);
+      }
+      // The subject prop (the knowledge focus) shows on the active learning beats.
+      if (beat === 'think' || beat === 'aha' || beat === 'raise') {
         this.drawClassSubject(ctx, PAL, G, t, cx, GND, PB, sc);
       }
       // Beat flourishes — what the little student is actually doing. These sit in
@@ -1130,28 +1211,28 @@ export default class App extends React.Component {
     }
 
     if (sc.type === 'flyer') {
-      // Spawn passers-by from alternating sides; they walk across and (mostly) take
-      // a flyer as they pass the pet. Driven by wall-clock so it's frame-rate safe.
+      // Passers-by are full pixel people the SAME height as the pet (drawn at 7px).
+      const WP = 7, wW = G.walkerA[0].length * WP, wTop = GND - G.walkerA.length * WP;
       sc.spawn -= 1;
-      if (sc.spawn <= 0 && sc.walkers.length < 3) {
+      if (sc.spawn <= 0 && sc.walkers.length < 2) {
         const fromLeft = Math.random() < 0.5;
         const kind = ['walkerA', 'walkerB', 'walkerC'][Math.floor(Math.random() * 3)];
-        sc.walkers.push({ x: fromLeft ? -24 : this.SCENE_W + 24, dir: fromLeft ? 1 : -1, kind, took: Math.random() < 0.6, gave: false });
-        sc.spawn = 90 + Math.floor(Math.random() * 90);
+        sc.walkers.push({ x: fromLeft ? -wW : this.SCENE_W + wW, dir: fromLeft ? 1 : -1, kind, took: Math.random() < 0.6, gave: false });
+        sc.spawn = 150 + Math.floor(Math.random() * 120);
       }
       // The pet holds a flyer out toward its facing side.
-      const hold = cx + (this.p.facing > 0 ? 26 : -34);
-      this.drawSprite(ctx, G.flyer, PAL, hold, GND - 34 + Math.sin(t / 220) * 2, P);
+      const hold = cx + (this.p.facing > 0 ? 26 : -38);
+      this.drawSprite(ctx, G.flyer, PAL, hold, GND - 40 + Math.sin(t / 220) * 2, P);
       for (const w of sc.walkers) {
-        w.x += w.dir * 0.9;
-        const wy = GND - 24 + (Math.floor(t / 180) % 2 ? 0 : -2); // little walk bob
-        this.drawSprite(ctx, G[w.kind], PAL, w.x, wy, P, w.dir < 0);
-        // Hand a flyer over as they pass the pet.
-        const near = Math.abs((w.x + 10) - cx) < 30;
+        w.x += w.dir * 1.1;
+        const bob = (Math.floor(t / 170) % 2 ? 0 : -2); // little walk bob
+        this.drawSprite(ctx, G[w.kind], PAL, w.x, wTop + bob, WP, w.dir < 0);
+        // Hand a flyer over (at the person's hand height) as they pass the pet.
+        const near = Math.abs((w.x + wW / 2) - cx) < 40;
         if (near && w.took && !w.gave) { w.gave = true; sc.took++; }
-        if (near && w.took) this.drawSprite(ctx, G.flyer, PAL, w.x + (w.dir > 0 ? -14 : 18), wy + 6, 3);
+        if (near && w.took) this.drawSprite(ctx, G.flyer, PAL, w.x + (w.dir > 0 ? -10 : wW - 14), GND - 64, P);
       }
-      sc.walkers = sc.walkers.filter((w) => w.x > -40 && w.x < this.SCENE_W + 40);
+      sc.walkers = sc.walkers.filter((w) => w.x > -wW - 10 && w.x < this.SCENE_W + wW + 10);
       // Occasionally a flyer blows away across the top of the scene.
       if (!sc.blow && Math.random() < 0.004) sc.blow = { x: cx, y: GND - 40, vx: 1.4 };
       if (sc.blow) {
@@ -1163,19 +1244,22 @@ export default class App extends React.Component {
     }
 
     if (sc.type === 'weed') {
-      // Clear weeds as the shift progresses: 1 - left/total.
-      const total = (sc.minutes || 30) * 60;
-      const left = this.state.sessionLeft || total;
-      const prog = clamp(1 - left / total, 0, 1);
-      const cleared = Math.floor(prog * sc.weeds.length);
-      sc.weeds.forEach((wd, i) => {
-        if (i < cleared) return; // already pulled
+      // Tall weeds across the patch; cleared one-by-one left→right by weedBeats().
+      const WP = 6;
+      (sc.weeds || []).forEach((wd) => {
+        if (wd.gone) return;
         const grid = wd.big ? G.weedBig : G.weedSmall;
-        const sway = Math.sin(t / 400 + wd.seed * 6) * 1.5;
-        this.drawSprite(ctx, grid, PAL, wd.x + sway, GND - (wd.big ? 16 : 12), P);
+        const sway = Math.sin(t / 400 + wd.seed * 6) * 2;
+        const pulling = sc.pull === wd;                  // the one being yanked shakes + lifts
+        const shake = pulling ? Math.sin(t / 35) * 3 : 0;
+        const lift = pulling ? Math.min(10, (performance.now() - (sc.pullT || 0)) / 90) : 0;
+        this.drawSprite(ctx, grid, PAL, wd.x + sway + shake, GND - grid.length * WP + lift, WP);
       });
-      // Sweat drops fly off the head now and then (heat of work).
-      if (Math.random() < 0.03) sc.drops.push({ x: cx + (Math.random() * 30 - 15), y: 24, vy: 1 });
+      // Dirt puffs when a weed pops out.
+      (sc.puffs || []).forEach((p) => { p.life -= 1; p.y -= 0.4; this.drawSprite(ctx, G.dirtpuff, PAL, p.x, p.y, 4); });
+      sc.puffs = (sc.puffs || []).filter((p) => p.life > 0);
+      // Sweat drops + a wipe only while resting (catching its breath).
+      if (sc.beat === 'rest' && Math.random() < 0.12) sc.drops.push({ x: cx + (Math.random() * 24 - 6), y: 26, vy: 1 });
       sc.drops.forEach((d) => { d.y += d.vy; d.vy += 0.08; this.drawSprite(ctx, G.drop, PAL, d.x, d.y, 3); });
       sc.drops = sc.drops.filter((d) => d.y < GND);
       return;
@@ -1382,7 +1466,7 @@ export default class App extends React.Component {
   }
   // Start a chosen game in-window: hide the picker, spin up the engine.
   startGame = (key) => {
-    if (this.state.session) { this.breakFocus(); return; }
+    if (this.state.session) { this.requestBreakFocus(); return; }
     this.p.busy = false;
     this.setState({ playOpen: false, playGame: key, gameScore: 0 }, () => {
       if (!this.ensureGameCtx()) { setTimeout(() => this.startGame(key), 60); return; }
@@ -1832,7 +1916,16 @@ export default class App extends React.Component {
       rot = Math.sin(pr * Math.PI) * 8 * p.facing;      // a little flourish
     }
     if (p.action === 'study') { jy = Math.sin(t / 300) * 3; tilt = 4; }                         // gentle reading nod
-    if (p.action === 'work') { jy = Math.abs(Math.sin(t / 160)) * 8; rot = Math.sin(t / 120) * 6 * p.facing; } // busy bob
+    if (p.action === 'work') {
+      const ws = this._scene && this._scene.type === 'weed' ? this._scene : null;
+      if (ws) {
+        if (ws.beat === 'weed' && ws.pull) { tilt = 24 * p.facing; jy = -5; }            // bend down, yanking a weed
+        else if (ws.beat === 'rest') { tilt = -6 * p.facing; jy = 3 + Math.sin(t / 280); } // stand up, wipe the brow
+        else if (ws.beat === 'move') { jy = -Math.abs(Math.sin(t / 110)) * 5; }            // trudge to the next patch
+        else if (ws.beat === 'dress') { sy = 1 + Math.sin(t / 70) * 0.06; }                // a little change-clothes shimmy
+        else { tilt = 8 * p.facing; jy = Math.abs(Math.sin(t / 240)) * 3; }                // hunched over the patch
+      } else { jy = Math.abs(Math.sin(t / 160)) * 8; rot = Math.sin(t / 120) * 6 * p.facing; } // generic busy bob
+    }
     if (p.action === 'swing') { rot = Math.sin(t * 0.0045) * 8 * p.facing; jy = Math.sin(t * 0.009) * 2; } // leans side-to-side, swinging the bubble wand (in phase with games.js)
     if (p.action === 'sit') { sy = 0.86; jy = -8; }   // settle down low — sitting (grid splays feet forward)
     if (p.action === 'weak') { sy = 0.6; jy = -16 + Math.sin(t / 650) * 1.5; tilt = 5 * p.facing; } // slumped, too hungry
@@ -2306,7 +2399,7 @@ export default class App extends React.Component {
     }
     this.refreshInteractive();
   };
-  onDouble = (e) => { e.preventDefault(); clearTimeout(this._clickT); if (this.state.session) { this.breakFocus(); return; } if (this.isGrown()) this.dance(); else this.ballAct(); };
+  onDouble = (e) => { e.preventDefault(); clearTimeout(this._clickT); if (this.state.session) { this.requestBreakFocus(); return; } if (this.isGrown()) this.dance(); else this.ballAct(); };
   onContext = (e) => {
     e.preventDefault();
     const r = this.rootRef.current.getBoundingClientRect();
@@ -2627,8 +2720,10 @@ export default class App extends React.Component {
     // Short lines stay on one line (no awkward 2-line wrap); only long ones wrap.
     const sayLen = s.say ? [...s.say].length : 0;
     const bubble = s.say
-      ? { content: s.say, text: true, nowrap: sayLen <= 14 }
-      : (s.emote ? { content: s.emote, text: false, nowrap: true } : null);
+      // Short lines stay on one line; longer ones (esp. English) get a comfortable
+      // fixed width so they wrap into a few lines, not one narrow word per line.
+      ? { content: s.say, text: true, nowrap: sayLen <= 14, width: sayLen <= 14 ? null : 188 }
+      : (s.emote ? { content: s.emote, text: false, nowrap: true, width: null } : null);
 
     const dirty = cleanliness <= 25;
     const panelOpen = !!(s.hover || s.shopCat);
@@ -2709,7 +2804,7 @@ export default class App extends React.Component {
           )}
 
           {bubble && (
-            <div style={{ position: 'absolute', left: '50%', ...(bubbleBelow ? { top: 134 } : { bottom: 118 }), transform: `translateX(-50%) translateX(${shiftBubble}px)`, maxWidth: 206, background: '#fff', border: '2px solid #222a55', borderRadius: 12, padding: bubble.text ? '5px 10px' : '3px 8px', fontSize: bubble.text ? 12.5 : 17, fontWeight: 800, color: '#222a55', lineHeight: 1.3, textAlign: 'center', boxShadow: '0 3px 0 rgba(34,42,85,.18)', animation: 'bubbleIn .25s ease-out', pointerEvents: 'none', zIndex: 12, whiteSpace: bubble.nowrap ? 'nowrap' : 'normal' }}>{bubble.content}</div>
+            <div style={{ position: 'absolute', left: '50%', ...(bubbleBelow ? { top: 134 } : { bottom: 118 }), transform: `translateX(-50%) translateX(${shiftBubble}px)`, maxWidth: 206, ...(bubble.width ? { width: bubble.width } : {}), boxSizing: 'border-box', background: '#fff', border: '2px solid #222a55', borderRadius: 12, padding: bubble.text ? '5px 10px' : '3px 8px', fontSize: bubble.text ? 12.5 : 17, fontWeight: 800, color: '#222a55', lineHeight: 1.3, textAlign: 'center', boxShadow: '0 3px 0 rgba(34,42,85,.18)', animation: 'bubbleIn .25s ease-out', pointerEvents: 'none', zIndex: 12, whiteSpace: bubble.nowrap ? 'nowrap' : 'normal' }}>{bubble.content}</div>
           )}
 
           {/* hover care panel + shop — flips above/below the pet, nudged on-screen */}
@@ -2745,7 +2840,7 @@ export default class App extends React.Component {
             onPlay={() => { this.closeMenu(); this.playFree(); }}
             onSit={this.sitAct}
             onStudy={this.studyAct} onWork={this.workAct} onMedicine={this.openMedicine}
-            focusing={!!s.session} onStopFocus={() => { this.closeMenu(); this.breakFocus(); }}
+            focusing={!!s.session} onStopFocus={() => { this.closeMenu(); this.requestBreakFocus(); }}
             onCenter={() => { this.closeMenu(); this.recenter(); }}
             onSettings={this.openSettings} onQuit={this.quit}
           />
@@ -2773,6 +2868,28 @@ export default class App extends React.Component {
               <div onClick={() => this.setState({ authMode: s.authMode === 'up' ? 'in' : 'up', authMsg: '' })}
                 style={{ fontSize: 10.5, fontWeight: 800, color: '#5b6bd0', cursor: 'pointer', marginTop: 11 }}>
                 {s.authMode === 'up' ? '已有账号？去登录' : '没有账号？注册一个'}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* confirm before breaking a focus session (so a mis-click doesn't reset it) */}
+        {s.confirmBreak && (
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 96 }}>
+            <div onPointerDown={this.stopDown} style={{ width: 200, background: '#fff', border: '3px solid #222a55', borderRadius: 18, padding: 16, textAlign: 'center', boxShadow: '0 8px 0 rgba(34,42,85,.25)', animation: 'popIn .2s ease-out' }}>
+              <div style={{ fontWeight: 900, fontSize: 14, color: '#222a55', marginBottom: 4 }}>
+                中断{s.session && s.session.kind === 'work' ? '上班' : '上课'}？
+              </div>
+              <div style={{ fontSize: 10.5, fontWeight: 700, color: '#8a93c2', marginBottom: 13, lineHeight: 1.4 }}>
+                这次的专注进度会清零哦，确定要中断吗？
+              </div>
+              <div onClick={() => this.setState({ confirmBreak: false })}
+                style={{ background: '#36c98f', color: '#fff', padding: 9, borderRadius: 11, fontWeight: 900, fontSize: 13, cursor: 'pointer', marginBottom: 8, boxShadow: '0 4px 0 rgba(34,42,85,.2)' }}>
+                继续专注
+              </div>
+              <div onClick={() => { this.setState({ confirmBreak: false }); this.breakFocus(); }}
+                style={{ background: '#fff', color: '#e85c93', border: '2px solid #e85c93', padding: 8, borderRadius: 11, fontWeight: 900, fontSize: 12, cursor: 'pointer' }}>
+                确定中断
               </div>
             </div>
           </div>

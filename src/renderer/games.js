@@ -279,33 +279,28 @@ export class GameEngine {
     const rx = sx + dir * (ARM + RINGOUT) * Math.sin(th); // ring centre
     const ry = sy + (ARM + RINGOUT) * Math.cos(th);
 
-    // Produce bubbles off the ring while the wand sweeps fast (mid-swing).
-    const speed = Math.abs(dth);
-    const tsign = dth >= 0 ? 1 : -1;
-    const tx = dir * Math.cos(th) * tsign;             // ring's tangential direction
-    const ty = -Math.sin(th) * tsign;
+    // A bubble buds off the ring on a steady, gentle cadence (~1–2 per second) —
+    // BIG so it's easy to click, drifting slowly upward. (Not a fast spray.)
+    const tx = dir * Math.cos(th);                     // ring's tangential direction
+    const ty = -Math.sin(th);
     st.spawn -= f;
-    if (speed > 0.03 && st.spawn <= 0 && this.pieces.length < 12) {
-      const n = speed > 0.05 ? 2 : 1;
-      for (let k = 0; k < n; k++) {
-        const sizes = ['bubbleS', 'bubbleM', 'bubbleM', 'bubbleL'];
-        const sprite = sizes[Math.floor(Math.random() * sizes.length)];
-        const px = sprite === 'bubbleS' ? 3 : 4;
-        this.pieces.push({
-          id: this._idc++, sprite, px,
-          x: rx + tx * 6 + (Math.random() * 2 - 1) * 2,
-          y: ry + ty * 6 + (Math.random() * 2 - 1) * 2,
-          vx: tx * 1.6 + (Math.random() * 2 - 1) * 0.4,
-          vy: ty * 1.0 - (0.6 + Math.random() * 0.8),  // float upward off the swing
-          ph: Math.random() * 6.28,
-        });
-      }
-      st.spawn = 2.5 + Math.random() * 2.5;
+    if (st.spawn <= 0 && this.pieces.length < 8) {
+      const sprite = Math.random() < 0.6 ? 'bubbleL' : 'bubbleM';
+      const px = sprite === 'bubbleL' ? 6 : 5;         // big, easy targets
+      this.pieces.push({
+        id: this._idc++, sprite, px,
+        x: rx + tx * 4 + (Math.random() * 2 - 1) * 2,
+        y: ry + ty * 4,
+        vx: (Math.random() * 2 - 1) * 0.25,            // gentle sideways drift
+        vy: -(0.22 + Math.random() * 0.22),            // slow float upward
+        ph: Math.random() * 6.28,
+      });
+      st.spawn = 34 + Math.random() * 22;              // ~1–1.6 bubbles / second
     }
 
-    // Float bubbles up with a wobble (drawn UNDER the wand); drop off-screen ones.
+    // Float bubbles up with a gentle wobble (drawn UNDER the wand); drop off-screen.
     for (const b of this.pieces) {
-      b.x += (b.vx + Math.sin(t / 360 + b.ph) * 0.45) * f;
+      b.x += (b.vx + Math.sin(t / 520 + b.ph) * 0.25) * f;
       b.y += b.vy * f;
       this.sprite(b.sprite, b.x, b.y, b.px);
     }
