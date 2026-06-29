@@ -872,6 +872,14 @@ export default class App extends React.Component {
     S.dust = ['.ss.', 'ssss', '.ss.'];
     S.pan = ['m....m', 'mMMMMm', '.mmmm.'];
     S.trash = ['.k.', 'k.k'];
+    // ---- 便利店店员 (clerk): a counter, a scanner with a laser, items, receipt ----
+    S.counter = ['mmmmmmmmmm', 'MMMMMMMMMM', '.M......M.'];
+    S.scanner = ['.aaaa.', 'avvvva', '.aaaa.'];
+    S.scanON = ['.aaaa.', 'vvvvvv', '.aaaa.'];   // laser flash when an item scans
+    S.itemA = ['rr', 'rr', 'rr'];                 // a red can
+    S.itemB = ['.u', 'uu', 'uu'];                 // a blue bottle
+    S.itemC = ['xx', 'xx'];                       // a cardboard box
+    S.receipt = ['WW', 'KK', 'WW', 'KK', 'WW', 'KK'];
     this._scn = S;
     return S;
   }
@@ -912,6 +920,9 @@ export default class App extends React.Component {
       } else if (job && job.name === '清洁工') {
         this._scene = { type: 'clean', dust: [] };
         this._gear = 'clean';
+      } else if (job && job.name === '便利店店员') {
+        this._scene = { type: 'store', itemX: 0, scanFlash: 0, receipt: 0, item: 0 };
+        this._gear = 'store';
       }
       // other jobs keep no special scene (briefcase prop handles them)
     }
@@ -1074,6 +1085,33 @@ export default class App extends React.Component {
       const panX = right ? cx - 86 : cx + 56, panY = GND - 8;
       this.drawSprite(ctx, G.pan, PAL, panX, panY, P);
       if (Math.floor(t / 4000) % 2) this.drawSprite(ctx, G.trash, PAL, panX + 26, GND - 6, 3);
+      return;
+    }
+
+    if (sc.type === 'store') {
+      // The pet (in its visor + vest) works a counter: items slide along it past
+      // a scanner whose laser flashes on each scan, and a receipt prints out.
+      const right = this.p.facing > 0;
+      const counterX = right ? cx + 18 : cx - 58, counterY = GND - 14;
+      this.drawSprite(ctx, G.counter, PAL, counterX, counterY, P);
+      const scanX = counterX + 26, scanY = counterY - 8;       // scanner near the inner end
+      // An item slides across the counter toward the scanner, then a new one.
+      sc.itemX += 0.9;
+      const span = 44;
+      if (sc.itemX > span) { sc.itemX = 0; sc.item = (sc.item + 1) % 3; }
+      const itemG = sc.item === 0 ? G.itemA : (sc.item === 1 ? G.itemB : G.itemC);
+      const itX = counterX + 40 - sc.itemX, itY = counterY - 8;
+      this.drawSprite(ctx, itemG, PAL, itX, itY, P);
+      // Scan when the item crosses the scanner: flash the laser + grow the receipt.
+      if (Math.abs(itX - scanX) < 6 && sc.scanFlash <= 0) { sc.scanFlash = 10; sc.receipt = Math.min(6, sc.receipt + 2); }
+      if (sc.scanFlash > 0) sc.scanFlash -= 1;
+      this.drawSprite(ctx, sc.scanFlash > 0 ? G.scanON : G.scanner, PAL, scanX, scanY, P);
+      // A receipt prints downward from the counter edge; tears off when long.
+      if (sc.receipt > 0) {
+        const r = G.receipt.slice(0, sc.receipt);
+        this.drawSprite(ctx, r, PAL, scanX + 2, counterY + 6, 3);
+        if (sc.receipt >= 6 && Math.random() < 0.02) sc.receipt = 0; // tear off
+      }
       return;
     }
   }
@@ -1341,10 +1379,10 @@ export default class App extends React.Component {
             [2, '...MMMMMMMMMM...'], [3, '..MMMMMMMMMMMM..'],
             [4, '.IIDDLLLLLLDDII.']]);
         break;
-      case 'store': // 便利店店员 — red visor + red vest over the chest
-        sw([[3, '..NNNNNNNNNNNN..'], [4, '.IINNLLLLLLNNII.'],
-            [5, '..DNLLLLLLLLND..'], [8, '..DNLLLLLLLLND..'],
-            [9, '..DDNLLLLLLNDD..']]);
+      case 'store': // 便利店店员 — red uniform cap + a small white name badge
+        sw([[0, '......NNNN......'], [1, '....NNNNNNNN....'],
+            [2, '...NNNNNNNNNN...'], [3, '..NNNNNNNNNNNN..'],
+            [4, '.IIDDLLLLLLDDII.'], [11, '..DDDWWLLLLDDD..']]);
         break;
       case 'courier': // 快递员 — yellow hi-viz cap + vest stripes
         sw([[0, '......YYYY......'], [1, '....YYYYYYYY....'],
