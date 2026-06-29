@@ -2,10 +2,13 @@
 
 ## 1. Activity-authentic focus animations (big feature)
 
-> **Status:** ✅ **上课 / 发传单 / 拔草 shipped in v1.6.0.** The other 9 activities
-> (语文-only flourishes aside, the work jobs 洗碗/清洁工/便利店店员/快递员/程序员/老师 and
-> any per-subject extras) still use the simple book/briefcase fallback — build them
-> next using the same scene system (`startScene`/`_sceneEl`/`clearScene` in App.jsx).
+> **Status:** ✅ **上课 / 发传单 / 拔草 shipped in v1.6.0.**
+> ✅ **All six work jobs (洗碗 / 清洁工 / 便利店店员 / 快递员 / 程序员 / 老师) shipped in
+> v1.8.0** — each penguin now wears the job's attire (via the `withGear` system)
+> and acts the job out as a multi-beat pixel scene with rotating variants, built
+> on the same `startSceneFor`/`drawScene` scene system in App.jsx.
+> Remaining (optional polish): per-subject study flourishes beyond the shared
+> 疑惑→思考→恍然大悟 arc (e.g. 语文 brush strokes, 科学 bubbling flask).
 
 Each **class** and **job** should play its **own multi-beat "scene"** that actually
 looks like the activity — not a single static pose with a prop. Each activity needs
