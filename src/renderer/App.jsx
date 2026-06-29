@@ -1442,16 +1442,16 @@ export default class App extends React.Component {
       // FORWARD — a real penguin-sitting silhouette (paired with a squash below).
       sit: sw(idle, [[8, '..DLLLLOOLLLLD..'], [14, '..DDLLLLLLLLDD..'], [15, '..OOOO....OOOO..']]),
     };
-    // Egg / baby stage: a head poking out of a cracked egg — shell cap on top,
-    // egg shell as the lower body, with a gender-coloured ribbon band (R).
+    // Egg / baby stage: a cute baby penguin (big sparkly eyes, tiny beak) sitting
+    // in a cracked egg shell with a zigzag rim and a gender-coloured ribbon (R).
     const egg = [
-      '.....KK.KK......', '...KKKKKKKKKK...', '..KKKKKKKKKKKK..', '...DDDDDDDDDD...',
-      '..DDDDDDDDDDDD..', '..DLLLLLLLLLLD..', '..DLLEELLEELLD..', '..DLCLLOOLLCLD..',
-      '..DLLLLLLLLLLD..', '..DDLLLLLLLLDD..', '.KKKKKKKKKKKKKK.', 'KKKKRRRRRRRRKKKK',
-      'KKKKKKKKKKKKKKKK', '.KKKKKKKKKKKKKK.', '..KKKKKKKKKKKK..', '...KKKKKKKKKK...',
+      '......DDDD......', '....DDDDDDDD....', '...DDDDDDDDDD...', '..DDDDDDDDDDDD..',
+      '..DDLLLLLLLLDD..', '..DLLLLLLLLLLD..', '..DLLELLLLLELD..', '..DLEELLLLEELD..',
+      '..DLLCLOOLCLLD..', '..DDLLLLLLLLDD..', '.K.KK.KK.KK.KK..', 'KKKKKKKKKKKKKKKK',
+      'KKKKRRRRRRRRKKKK', 'KKKKKKKKKKKKKKKK', '.KKKKKKKKKKKKKK.', '..KKKKKKKKKKKK..',
     ];
     this.EGG = egg;
-    this.EGG_BLINK = sw(egg, [[6, '..DLLLLLLLLLLD..']]); // eyes shut (squint)
+    this.EGG_BLINK = sw(egg, [[6, '..DLLLLLLLLLLD..'], [7, '..DLLEELLEELLD..']]); // eyes shut (squint)
   }
   pal() {
     const ribbon = GENDER_COLOR[this.state.gender] || SCARF;
