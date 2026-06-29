@@ -7,8 +7,11 @@
 > v1.8.0** — each penguin now wears the job's attire (via the `withGear` system)
 > and acts the job out as a multi-beat pixel scene with rotating variants, built
 > on the same `startSceneFor`/`drawScene` scene system in App.jsx.
-> Remaining (optional polish): per-subject study flourishes beyond the shared
-> 疑惑→思考→恍然大悟 arc (e.g. 语文 brush strokes, 科学 bubbling flask).
+> ✅ **Study courses got a lively, knowledge-driven v2 in v1.10.0** — class plays
+> varied student beats (listen / 思考 / 恍然大悟 / 举手回答 / 打瞌睡 → 被粉笔砸醒), the
+> board is de-emphasised, each subject teaches real facts the pet speaks while
+> studying and later reuses in idle chatter, and 英语 dresses it as a top-hatted
+> gentleman speaking English.
 
 Each **class** and **job** should play its **own multi-beat "scene"** that actually
 looks like the activity — not a single static pose with a prop. Each activity needs
