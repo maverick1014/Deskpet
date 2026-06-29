@@ -733,6 +733,10 @@ export default class App extends React.Component {
       g: '#3fae4e', G: '#2f8a3b', d: '#6b4a2a',  // weed bright / dark green / dirt clod
       p: '#ffd9b0', n: '#2a3160', r: '#ff6f7a', u: '#4a7bd0', k: '#3a3f55', // people skin / navy / red / blue / dark
       W: '#ffffff', K: '#222a55', y: '#ffe27a', o: '#ff9d3d', // flyer white / ink / bulb / glow
+      // ---- job-scene prop colours ----
+      m: '#aebccd', M: '#5f7286', z: '#7fc8ff', e: '#eef7ff', // metal light/dark, water/soap, suds-shine
+      x: '#c8995a', X: '#9c6b34', h: '#7a4a24',               // cardboard light/dark, handle brown
+      a: '#2b2f3a', i: '#5ad0a0', s: '#cfd8e6', v: '#ff5a5f', // device black, screen green, steel pale, laser red
     };
   }
 
@@ -793,6 +797,12 @@ export default class App extends React.Component {
       'cccccccc',
       '.cccccc.',
     ];
+    // ---- 上课 subject props (drawn upper-right of the pet so each course reads) ----
+    S.flask = ['.cc.', '.cc.', '.cc.', 'czzc', 'czzc', 'czzc', 'cccc'];   // 科学 beaker + liquid
+    S.abacus = ['wwwwww', 'wruruw', 'wururw', 'wruruw', 'wwwwww'];        // 数学 abacus
+    S.brush = ['...h', '..h.', '.h..', 'aaa.', 'aaa.', '.a..'];           // 语文 calligraphy brush
+    S.inkpot = ['.kk.', 'kkkk', 'kkkk'];                                  // 语文 ink pot
+    S.book = ['.cccc.', 'cWWWWc', 'cWKKWc', 'cWKKWc', 'cWWWWc', '.cccc.']; // 英语 open book
     // A pixel lightbulb (for the 恍然大悟 aha! moment) — glass + base + glow.
     S.bulb = [
       '.yyy.',
@@ -850,6 +860,61 @@ export default class App extends React.Component {
     ];
     // A small sweat drop (bright blue) for the 拔草 heat.
     S.drop = ['.u.', 'uuu', 'uuu', '.u.'];
+    // ---- 洗碗 (dishwashing): a metal sink with a faucet, plates, suds, a shine ----
+    S.sink = [
+      '...ssss.....',   // faucet pipe + spout arm
+      '...s..s.....',
+      '......s.....',   // spout
+      'mmmmmmmmmmmm',   // rim
+      'mMzzzzzzzzMm',   // basin water
+      'mMzzzzzzzzMm',
+      'mMzzzzzzzzMm',
+      'mMMMMMMMMMMm',   // basin body
+      '.M........M.',   // legs
+    ];
+    S.plate = ['.WWWWWW.', 'WWeeeeWW', 'WeeeeeeW', 'WWeeeeWW', '.WWWWWW.'];
+    S.bowl = ['W......W', 'WeeeeeeW', '.WeeeeW.', '.WWWWWW.'];
+    S.suds = ['.ee.', 'eeee', 'eeee', '.ee.'];
+    S.shine = ['..e..', '..e..', 'eeeee', '..e..', '..e..'];
+    // ---- 清洁工 (cleaner): a bigger broom (handle + fanned bristles), dust, pan ----
+    S.broom = [
+      '..hh..',
+      '..hh..',
+      '..hh..',
+      '..hh..',
+      '..hh..',
+      '.xxxx.',   // binding
+      'xxxxxx',
+      'xxxxxx',
+      'xxxxxx',
+      'x.xx.x',   // fanned bristle tips
+    ];
+    S.dust = ['.sss.', 'sssss', 'sssss', '.sss.'];
+    S.pan = ['s......s', 'sMMMMMMs', 'sMMMMMMs', '.ssssss.'];
+    S.trash = ['.k.k.', 'k.k.k'];
+    // ---- 便利店店员 (clerk): a counter + register/scanner, items, receipt ----
+    S.counter = ['mmmmmmmmmmmm', 'MMMMMMMMMMMM', '.M........M.', '.M........M.'];
+    S.scanner = ['.aaaaaa.', 'aiiiiiia', 'aaaaaaaa', '.avvvva.', '.aaaaaa.'];   // register: display + scanner
+    S.scanON = ['.aaaaaa.', 'aiiiiiia', 'aaaaaaaa', '.vvvvvv.', '.aaaaaa.'];    // laser flash on scan
+    S.itemA = ['.rr.', 'rNNr', 'rNNr', 'rNNr', '.rr.'];     // a red can
+    S.itemB = ['.uu.', '.uu.', 'uuuu', 'uuuu', 'uuuu'];     // a blue bottle
+    S.itemC = ['xxxx', 'xXXx', 'xxxx'];                     // a small box
+    S.receipt = ['WWW', 'WKW', 'WWW', 'WKW', 'WWW', 'WKW', 'WWW'];
+    // ---- 快递员 (courier): bigger parcels with a tape cross + a label ----
+    S.boxS = ['xxxxxx', 'xxXXxx', 'XXXXXX', 'xxXXxx', 'xWWxxx'];
+    S.boxL = ['xxxxxxxx', 'xxxXXxxx', 'xxxXXxxx', 'XXXXXXXX', 'xxxXXxxx', 'xWWxXxxx', 'xxxxxxxx'];
+    // ---- 程序员 (programmer): a bigger screen on a stand (code drawn live) ----
+    S.screen = [
+      'aaaaaaaaaaaa',
+      'akkkkkkkkkka',
+      'akkkkkkkkkka',
+      'akkkkkkkkkka',
+      'akkkkkkkkkka',
+      'akkkkkkkkkka',
+      'aaaaaaaaaaaa',
+      '....aaaa....',   // neck
+      '...aaaaaa...',   // stand base
+    ];
     this._scn = S;
     return S;
   }
@@ -884,6 +949,24 @@ export default class App extends React.Component {
         this._hatOn = true;
       } else if (job && job.name === '发传单') {
         this._scene = { type: 'flyer', walkers: [], spawn: 0, took: 0, blow: null };
+      } else if (job && job.name === '洗碗') {
+        this._scene = { type: 'dish', suds: [], shine: 0 };
+        this._gear = 'dish';
+      } else if (job && job.name === '清洁工') {
+        this._scene = { type: 'clean', dust: [] };
+        this._gear = 'clean';
+      } else if (job && job.name === '便利店店员') {
+        this._scene = { type: 'store', itemX: 0, scanFlash: 0, receipt: 0, item: 0 };
+        this._gear = 'store';
+      } else if (job && job.name === '快递员') {
+        this._scene = { type: 'courier' };
+        this._gear = 'courier';
+      } else if (job && job.name === '程序员') {
+        this._scene = { type: 'coder', scroll: 0, bulb: 0 };
+        this._gear = 'coder';
+      } else if (job && job.name === '老师') {
+        this._scene = { type: 'teach' };
+        this._gear = 'teacher';
       }
       // other jobs keep no special scene (briefcase prop handles them)
     }
@@ -894,6 +977,7 @@ export default class App extends React.Component {
     this._scene = null;
     this._faceOverride = null;
     this._hatOn = false;
+    this._gear = null;
     clearTimeout(this._faceArcT);
     if (this.ensureSceneCtx()) this._sctx.clearRect(0, 0, this.SCENE_W, this.SCENE_H);
   }
@@ -932,6 +1016,39 @@ export default class App extends React.Component {
       this.drawSprite(ctx, chalk, PAL, bx + (G.board[0].length * P - cw) / 2, by + (G.board.length * P - ch) / 2, P);
       // Desk across the pet's lower body.
       this.drawSprite(ctx, G.desk, PAL, cx - 60, GND - 24, P);
+      // Subject-specific prop up-right so each course is recognisable + animated.
+      const PB = P + 1;
+      if (sc.chalk === 'chalk_sc') {
+        // 科学 — a bubbling flask; bubbles rise and a spark flickers.
+        const fx = cx + 40, fy = GND - 56;
+        this.drawSprite(ctx, G.flask, PAL, fx, fy, PB);
+        if (!sc.fb) sc.fb = [];
+        if (Math.random() < 0.16 && sc.fb.length < 8) sc.fb.push({ x: fx + 6 + Math.random() * 8, y: fy + 12, vy: -(0.4 + Math.random() * 0.5) });
+        ctx.fillStyle = '#7fc8ff';
+        sc.fb.forEach((b) => { b.y += b.vy; ctx.fillRect(b.x, b.y, 4, 4); });
+        sc.fb = sc.fb.filter((b) => b.y > fy - 18);
+        if (Math.floor(t / 240) % 5 === 0) { ctx.fillStyle = '#ffe27a'; ctx.fillRect(fx + 14, fy - 4, 4, 4); }
+      } else if (sc.chalk === 'chalk_ma') {
+        // 数学 — an abacus; a counting bead slides back and forth.
+        const ax = cx + 36, ay = GND - 44;
+        this.drawSprite(ctx, G.abacus, PAL, ax, ay, PB);
+        ctx.fillStyle = '#ffd23d';
+        ctx.fillRect(ax + 6 + (Math.floor(t / 500) % 4) * 6, ay - 6, 5, 5); // a bead being counted up
+      } else if (sc.chalk === 'chalk_cn') {
+        // 语文 — a calligraphy brush dips into the ink and writes (bobs).
+        const bxp = cx + 44, byp = GND - 50 + Math.abs(Math.sin(t / 260)) * 8;
+        this.drawSprite(ctx, G.inkpot, PAL, cx + 38, GND - 18, PB);
+        this.drawSprite(ctx, G.brush, PAL, bxp, byp, PB);
+      } else {
+        // 英语 — an open book; little chalk letters float up as it "reads aloud".
+        const kx = cx + 40, ky = GND - 50;
+        this.drawSprite(ctx, G.book, PAL, kx, ky, PB);
+        if (!sc.fb) sc.fb = [];
+        if (Math.random() < 0.04 && sc.fb.length < 4) sc.fb.push({ x: kx + 6 + Math.random() * 14, y: ky - 2, vy: -0.5 });
+        ctx.fillStyle = '#f4f6ef';
+        sc.fb.forEach((b) => { b.y += b.vy; ctx.fillRect(b.x, b.y, 4, 6); });
+        sc.fb = sc.fb.filter((b) => b.y > ky - 22);
+      }
       // Pixel lightbulb pops above the head on the aha beat.
       if (sc.bulb) {
         const by2 = 2 + Math.sin(t / 160) * 2;
@@ -992,6 +1109,175 @@ export default class App extends React.Component {
       if (Math.random() < 0.03) sc.drops.push({ x: cx + (Math.random() * 30 - 15), y: 24, vy: 1 });
       sc.drops.forEach((d) => { d.y += d.vy; d.vy += 0.08; this.drawSprite(ctx, G.drop, PAL, d.x, d.y, 3); });
       sc.drops = sc.drops.filter((d) => d.y < GND);
+      return;
+    }
+
+    if (sc.type === 'dish') {
+      // The pet (in its apron) stands at a sink on its facing side and scrubs a
+      // plate; suds rise and a "squeaky clean" shine pops when one is finished.
+      // The scene canvas sits BEHIND the pet, so the sink goes beside the body.
+      const PB = P + 1;                                  // bigger hero props (more detail reads)
+      const right = this.p.facing > 0;
+      const sinkW = G.sink[0].length * PB;
+      const sinkX = right ? cx + 22 : cx - 22 - sinkW, sinkY = GND - G.sink.length * PB + 8;
+      this.drawSprite(ctx, G.sink, PAL, sinkX, sinkY, PB);
+      const basinTop = sinkY + 3 * PB, mid = sinkX + sinkW / 2;
+      // Plate/bowl scrubbed back-and-forth inside the basin (variant rotates).
+      const scrub = Math.sin(t / 110) * 6;
+      const variant = Math.floor(t / 3600) % 2;
+      const dishG = variant ? G.bowl : G.plate;
+      const dishX = mid - dishG[0].length * PB / 2 + scrub, dishY = basinTop - 4 + Math.sin(t / 80) * 1.5;
+      this.drawSprite(ctx, dishG, PAL, dishX, dishY, PB);
+      // Suds bubble up out of the sink.
+      if (Math.random() < 0.18 && sc.suds.length < 14) {
+        sc.suds.push({ x: sinkX + 10 + Math.random() * (sinkW - 20), y: basinTop, vy: -(0.4 + Math.random() * 0.7), px: Math.random() < 0.5 ? 3 : 4 });
+      }
+      sc.suds.forEach((b) => { b.y += b.vy; b.x += Math.sin((t + b.y * 8) / 200) * 0.4; this.drawSprite(ctx, G.suds, PAL, b.x, b.y, b.px); });
+      sc.suds = sc.suds.filter((b) => b.y > 2);
+      // A clean-shine sparkle over the plate now and then.
+      if (sc.shine > 0) {
+        sc.shine -= 1;
+        this.drawSprite(ctx, G.shine, PAL, dishX + 8, dishY - 12, 4);
+      } else if (Math.random() < 0.01) {
+        sc.shine = 24;
+      }
+      return;
+    }
+
+    if (sc.type === 'clean') {
+      // The pet (in its cap) holds a broom to its facing side and sweeps it
+      // back and forth; dust puffs kick off the bristles. A dustpan waits on
+      // the far side. The broom handle points back toward the pet's flipper.
+      const PB = P + 1;
+      const right = this.p.facing > 0;
+      const sweep = Math.sin(t / 280);                  // -1..1
+      const broomX = (right ? cx + 40 : cx - 64) + sweep * 9;
+      const broomY = GND - G.broom.length * PB + 6 + Math.sin(t / 140) * 2;
+      this.drawSprite(ctx, G.broom, PAL, broomX, broomY, PB);
+      const tip = broomX + G.broom[0].length * PB / 2;  // bristle tip x
+      // Dust puffs kick off the bristles mid-sweep (fastest part).
+      if (Math.abs(Math.cos(t / 280)) > 0.55 && Math.random() < 0.22 && sc.dust.length < 12) {
+        sc.dust.push({ x: tip + (Math.random() * 16 - 8), y: GND - 6, vy: -(0.3 + Math.random() * 0.5), life: 22 + Math.random() * 16, px: Math.random() < 0.5 ? 3 : 4 });
+      }
+      sc.dust.forEach((d) => { d.y += d.vy; d.life -= 1; this.drawSprite(ctx, G.dust, PAL, d.x, d.y, d.px); });
+      sc.dust = sc.dust.filter((d) => d.life > 0);
+      // A dustpan on the floor on the opposite side; trash bits by it (variant).
+      const panX = right ? cx - 92 : cx + 56, panY = GND - 4;
+      this.drawSprite(ctx, G.pan, PAL, panX, panY, PB);
+      if (Math.floor(t / 4000) % 2) this.drawSprite(ctx, G.trash, PAL, panX + 30, GND - 6, 4);
+      return;
+    }
+
+    if (sc.type === 'store') {
+      // The pet (in its visor + vest) works a counter: items slide along it past
+      // a scanner whose laser flashes on each scan, and a receipt prints out.
+      const PB = P + 1;
+      const right = this.p.facing > 0;
+      const cW = G.counter[0].length * PB;
+      const counterX = right ? cx + 20 : cx - 20 - cW, counterY = GND - G.counter.length * PB + 4;
+      this.drawSprite(ctx, G.counter, PAL, counterX, counterY, PB);
+      const scanX = counterX + cW - G.scanner[0].length * PB - 4, scanY = counterY - G.scanner.length * PB + 2;
+      // An item slides across the counter toward the register, then a new one.
+      sc.itemX += 1.1;
+      const span = cW - 24;
+      if (sc.itemX > span) { sc.itemX = 0; sc.item = (sc.item + 1) % 3; }
+      const itemG = sc.item === 0 ? G.itemA : (sc.item === 1 ? G.itemB : G.itemC);
+      const itX = counterX + cW - 20 - sc.itemX, itY = counterY - itemG.length * PB + 2;
+      this.drawSprite(ctx, itemG, PAL, itX, itY, PB);
+      // Scan when the item crosses the register: flash the laser + grow the receipt.
+      if (Math.abs(itX - scanX) < 8 && sc.scanFlash <= 0) { sc.scanFlash = 10; sc.receipt = Math.min(7, sc.receipt + 2); }
+      if (sc.scanFlash > 0) sc.scanFlash -= 1;
+      this.drawSprite(ctx, sc.scanFlash > 0 ? G.scanON : G.scanner, PAL, scanX, scanY, PB);
+      // A receipt prints downward from the register; tears off when long.
+      if (sc.receipt > 0) {
+        const r = G.receipt.slice(0, sc.receipt);
+        this.drawSprite(ctx, r, PAL, scanX + 4, counterY + 4, 4);
+        if (sc.receipt >= 7 && Math.random() < 0.02) sc.receipt = 0; // tear off
+      }
+      return;
+    }
+
+    if (sc.type === 'courier') {
+      // The pet (in its hi-viz cap + vest) carries a parcel that bobs as it jogs
+      // in place, with a stack of parcels waiting to the side.
+      const PB = P + 1;
+      const right = this.p.facing > 0;
+      // A waiting pile of parcels on one side.
+      const pileX = right ? cx - 96 : cx + 52;
+      this.drawSprite(ctx, G.boxL, PAL, pileX, GND - G.boxL.length * PB, PB);
+      this.drawSprite(ctx, G.boxS, PAL, pileX + 6, GND - G.boxL.length * PB - G.boxS.length * PB + 2, PB);
+      // The carried parcel (size rotates) held at the pet's side, bobbing.
+      const big = Math.floor(t / 3200) % 2 === 0;
+      const carriedG = big ? G.boxL : G.boxS;
+      const cyBob = Math.abs(Math.sin(t / 130)) * 4;     // jog bob
+      const cX = right ? cx + 28 : cx - 28 - carriedG[0].length * PB;
+      this.drawSprite(ctx, carriedG, PAL, cX, GND - 62 - cyBob, PB);
+      // Little speed/jog dashes behind it now and then.
+      if (Math.floor(t / 180) % 2) {
+        ctx.fillStyle = '#cfd8e6';
+        const dx = right ? cx + 20 : cx + 36;
+        ctx.fillRect(dx, GND - 44, 8, 3);
+        ctx.fillRect(dx - 5, GND - 34, 10, 3);
+      }
+      return;
+    }
+
+    if (sc.type === 'coder') {
+      // The pet (in headphones) types at a screen: code lines scroll with a
+      // blinking cursor, the odd error line goes red then green (bug fixed) and
+      // a pixel lightbulb pops over its head.
+      const PB = P + 1;
+      const right = this.p.facing > 0;
+      const sw2 = G.screen[0].length * PB;
+      const sx = right ? cx + 30 : cx - 30 - sw2, sy = GND - 64;
+      this.drawSprite(ctx, G.screen, PAL, sx, sy, PB);
+      const ix = sx + PB, iy = sy + PB;                   // screen interior origin
+      const lens = [16, 30, 10, 24, 36, 14, 22];
+      sc.scroll += 0.35;
+      const off = Math.floor(sc.scroll) % lens.length;
+      for (let i = 0; i < 5; i++) {
+        const k = (off + i) % lens.length;
+        const err = sc.bulb <= 0 && k === 2;              // an unfixed error line
+        ctx.fillStyle = err ? '#ff5a5f' : '#5ad0a0';
+        ctx.fillRect(ix + 3, iy + 2 + i * 8, lens[k], 4);
+      }
+      if (Math.floor(t / 300) % 2) { ctx.fillStyle = '#eef7ff'; ctx.fillRect(ix + 24, iy + 2 + 4 * 8, 4, 4); }
+      // Bug-fixed! a lightbulb pops beside the head (no room above a standing pet).
+      if (sc.bulb > 0) {
+        sc.bulb -= 1;
+        const bx = right ? cx - 48 : cx + 28, byy = 8 + Math.sin(t / 150) * 2;
+        ctx.fillStyle = 'rgba(255,226,122,.35)'; ctx.fillRect(bx - 8, byy - 4, 40, 40);
+        this.drawSprite(ctx, G.bulb, PAL, bx, byy, P + 1);
+      } else if (Math.random() < 0.006) {
+        sc.bulb = 32;
+      }
+      return;
+    }
+
+    if (sc.type === 'teach') {
+      // The pet (in glasses + bow tie) points a pointer at a chalkboard whose
+      // subject rotates; the pointer taps along the lines and chalk marks flash.
+      const right = this.p.facing > 0;
+      const bw = G.board[0].length * P, bh = G.board.length * P;
+      const boardX = right ? cx + 44 : cx - 44 - bw, boardY = 8;
+      this.drawSprite(ctx, G.board, PAL, boardX, boardY, P);
+      const subs = ['chalk_cn', 'chalk_en', 'chalk_ma', 'chalk_sc'];
+      const chalk = G[subs[Math.floor(t / 6000) % subs.length]];
+      const cw = chalk[0].length * P, chh = chalk.length * P;
+      this.drawSprite(ctx, chalk, PAL, boardX + (bw - cw) / 2, boardY + (bh - chh) / 2, P);
+      // The pointer runs from the pet's flipper to a tap point on the board.
+      const handX = right ? cx + 28 : cx - 28, handY = GND - 48;
+      const tapStep = Math.floor(t / 700) % 3;
+      const tapX = right ? boardX + 8 : boardX + bw - 8;
+      const tapY = boardY + 12 + tapStep * 9 + Math.sin(t / 120) * 1.5;
+      ctx.fillStyle = '#7a4a24';
+      const steps = 18;
+      for (let i = 0; i <= steps; i++) {
+        const u = i / steps;
+        ctx.fillRect(Math.round(handX + (tapX - handX) * u) - 2, Math.round(handY + (tapY - handY) * u) - 2, 4, 4);
+      }
+      // A chalk-tap mark flashes at the pointer tip.
+      if (Math.floor(t / 260) % 2) { ctx.fillStyle = '#f4f6ef'; ctx.fillRect(tapX - 2, Math.round(tapY) - 2, 4, 4); }
       return;
     }
   }
@@ -1195,20 +1481,22 @@ export default class App extends React.Component {
       // FORWARD — a real penguin-sitting silhouette (paired with a squash below).
       sit: sw(idle, [[8, '..DLLLLOOLLLLD..'], [14, '..DDLLLLLLLLDD..'], [15, '..OOOO....OOOO..']]),
     };
-    // Egg / baby stage: a head poking out of a cracked egg — shell cap on top,
-    // egg shell as the lower body, with a gender-coloured ribbon band (R).
+    // Egg / baby stage: a cute baby penguin (big sparkly eyes, tiny beak) sitting
+    // in a cracked egg shell with a zigzag rim and a gender-coloured ribbon (R).
     const egg = [
-      '.....KK.KK......', '...KKKKKKKKKK...', '..KKKKKKKKKKKK..', '...DDDDDDDDDD...',
-      '..DDDDDDDDDDDD..', '..DLLLLLLLLLLD..', '..DLLEELLEELLD..', '..DLCLLOOLLCLD..',
-      '..DLLLLLLLLLLD..', '..DDLLLLLLLLDD..', '.KKKKKKKKKKKKKK.', 'KKKKRRRRRRRRKKKK',
-      'KKKKKKKKKKKKKKKK', '.KKKKKKKKKKKKKK.', '..KKKKKKKKKKKK..', '...KKKKKKKKKK...',
+      '......DDDD......', '....DDDDDDDD....', '...DDDDDDDDDD...', '..DDDDDDDDDDDD..',
+      '..DDLLLLLLLLDD..', '..DLLLLLLLLLLD..', '..DLLELLLLLELD..', '..DLEELLLLEELD..',
+      '..DLLCLOOLCLLD..', '..DDLLLLLLLLDD..', '.K.KK.KK.KK.KK..', 'KKKKKKKKKKKKKKKK',
+      'KKKKRRRRRRRRKKKK', 'KKKKKKKKKKKKKKKK', '.KKKKKKKKKKKKKK.', '..KKKKKKKKKKKK..',
     ];
     this.EGG = egg;
-    this.EGG_BLINK = sw(egg, [[6, '..DLLLLLLLLLLD..']]); // eyes shut (squint)
+    this.EGG_BLINK = sw(egg, [[6, '..DLLLLLLLLLLD..'], [7, '..DLLEELLEELLD..']]); // eyes shut (squint)
   }
   pal() {
     const ribbon = GENDER_COLOR[this.state.gender] || SCARF;
-    return { '.': null, D: BODY, L: '#ffffff', O: BEAK, S: ribbon, E: '#1a1f3d', C: '#ff9bbb', T: '#5bc8ff', G: '#9c8a63', K: '#fde7c4', R: ribbon, H: '#e7b85c', J: '#f2cf7e' };
+    return { '.': null, D: BODY, L: '#ffffff', O: BEAK, S: ribbon, E: '#1a1f3d', C: '#ff9bbb', T: '#5bc8ff', G: '#9c8a63', K: '#fde7c4', R: ribbon, H: '#e7b85c', J: '#f2cf7e',
+      // ---- job attire colours (worn on the penguin during work scenes) ----
+      M: '#39507f', N: '#d23b4b', P: '#23262e', W: '#f4f7fc', Y: '#ffc62e', B: '#8a5a2b', I: '#aeb9c8', Q: '#16263f' };
   }
   swap(g, i, row) { const c = g.slice(); c[i] = row; return c; }
   withClosed(g) { return this.swap(g, 6, this.CLOSED); }
@@ -1238,6 +1526,46 @@ export default class App extends React.Component {
     c[1] = '.....JJJJJJ.....'; // crown
     c[2] = '...HHJJJJJJHH...'; // brim + crown
     c[3] = '..HHHRRRRRRHHH..'; // wide brim with a band
+    return c;
+  }
+  // Job attire worn on the penguin during a work scene (set via this._gear).
+  // Each overlay row-swaps the base grid (like withHat) so the pet visibly wears
+  // the outfit for its job. Authored + visually checked via the pixel-art skill.
+  withGear(g) {
+    const c = g.slice();
+    const sw = (reps) => { for (const r of reps) c[r[0]] = r[1]; };
+    switch (this._gear) {
+      case 'dish': // 洗碗 — a blue apron (bib + skirt) over the belly
+        sw([[8, '..DLLMMMMMMLLD..'], [9, '..DDMMMMMMMMDD..'],
+            [11, '..DDDMMMMMMDDD..'], [12, '..DDMMMMMMMMDD..'],
+            [13, '..DDMMMMMMMMDD..'], [14, '...DDMMMMMMDD...']]);
+        break;
+      case 'clean': // 清洁工 — a blue cap with a small steel brim
+        sw([[0, '......MMMM......'], [1, '....MMMMMMMM....'],
+            [2, '...MMMMMMMMMM...'], [3, '..MMMMMMMMMMMM..'],
+            [4, '.IIDDLLLLLLDDII.']]);
+        break;
+      case 'store': // 便利店店员 — red uniform cap + a small white name badge
+        sw([[0, '......NNNN......'], [1, '....NNNNNNNN....'],
+            [2, '...NNNNNNNNNN...'], [3, '..NNNNNNNNNNNN..'],
+            [4, '.IIDDLLLLLLDDII.'], [11, '..DDDWWLLLLDDD..']]);
+        break;
+      case 'courier': // 快递员 — yellow hi-viz cap + vest stripes
+        sw([[0, '......YYYY......'], [1, '....YYYYYYYY....'],
+            [2, '...YYYYYYYYYY...'], [3, '..YYYYYYYYYYYY..'],
+            [4, '.YYDDLLLLLLDDYY.'], [11, '..DDDYLLLLYDDD..'],
+            [12, '..DDDYLLLLYDDD..'], [13, '..DDDYLLLLYDDD..']]);
+        break;
+      case 'coder': // 程序员 — black headphones (band + ear cups)
+        sw([[2, '...PDDDDDDDDP...'], [3, '..PDDDDDDDDDDP..'],
+            [4, '..PDLLLLLLLLDP..'], [5, '..PLLLLLLLLLLP..']]);
+        break;
+      case 'teacher': // 老师 — black ring spectacles + a red bow tie
+        sw([[5, '..DLPPPLLPPPLD..'], [6, '..DLPEPLLPEPLD..'],
+            [10, '...SSNNNNSSSS...']]);
+        break;
+      default: break;
+    }
     return c;
   }
   ensureCtx() {
@@ -1360,6 +1688,7 @@ export default class App extends React.Component {
       if (p.blinkOn && this._faceOverride !== 'aha') grid = this.withClosed(grid);
       if (this.state.cleanliness <= 25) grid = this.withDirt(grid);
       if (this._hatOn) grid = this.withHat(grid);
+      if (this._gear) grid = this.withGear(grid);
       if (this.ensureCtx()) this.draw(grid);
       const jy = Math.sin(t / 300) * 3, tilt = this._faceOverride === 'think' ? -4 : 3;
       if (this.spriteRef.current) {
@@ -1399,6 +1728,7 @@ export default class App extends React.Component {
     if (p.blinkOn && face !== this.G.sleepy && face !== this.G.sad) grid = this.withClosed(grid);
     if (this.state.cleanliness <= 25) grid = this.withDirt(grid);
     if (this._hatOn) grid = this.withHat(grid); // straw hat for the 拔草 scene
+    if (this._gear) grid = this.withGear(grid); // job attire for the work scenes
     if (this.ensureCtx()) this.draw(grid);
 
     let jy = 0, rot = 0, tilt = 0, sy = 1;

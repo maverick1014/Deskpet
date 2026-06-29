@@ -9,6 +9,38 @@ is pre-release, so versions are milestone markers rather than published releases
 New lifelike animations being added one at a time.
 See `TODO.md` for the remaining activity-authentic focus animations.
 
+## [1.8.0] — 2026-06-27 — Every job is now a dressed-up, acted-out scene
+
+### Added
+- **All six remaining work jobs now play a real, attire-on, acted-out scene**
+  instead of the generic briefcase prop — the penguin **wears the job's outfit**
+  and **does the job**, each with rotating variants so a long shift stays fresh:
+  - **洗碗** — in a **blue apron**, stands at a metal **sink** scrubbing a
+    plate/bowl (rotates) with suds rising and a squeaky-clean shine.
+  - **清洁工** — in a **cap**, sweeps a **broom** back and forth with dust puffs
+    kicking up; a dustpan (with trash bits) waits to the side.
+  - **便利店店员** — in a **red uniform cap**, rings up items (can/bottle/box) at
+    a **counter** past a **scanner** whose laser flashes, printing a receipt.
+  - **快递员** — in a **hi-viz cap + vest**, carries a **parcel** (size rotates)
+    that bobs as it jogs, with a stack of parcels waiting.
+  - **程序员** — in **headphones**, debugs at a **screen** of scrolling code with
+    a blinking cursor; an error line turns green and a lightbulb pops (bug fixed).
+  - **老师** — in **glasses + a bow tie**, points a **pointer** at a **chalkboard**
+    whose subject rotates (语文/英语/数学/科学), tapping out chalk marks.
+- New **job-attire system** (`withGear`) draws the outfit on the penguin, the way
+  the 拔草 straw hat already did. All hand-drawn pixel art, authored + visually
+  self-checked at real scene scale via the `pixel-art` skill. No emoji.
+- **The four study courses now look distinct** — each shows its own animated prop
+  beside the desk: 语文 a calligraphy brush + ink, 英语 an open book with floating
+  letters, 数学 an abacus with a counting bead, 科学 a bubbling beaker.
+- **Redesigned the egg/baby penguin** into a cuter hatching chick — round head,
+  big sparkly eyes, tiny beak, in a cracked egg shell with a zigzag rim.
+
+### Changed
+- **Bigger, more detailed job tools** so the activity reads at a glance (sink with
+  a faucet, broom with a clear handle + fanned bristles, a proper register/scanner,
+  parcels with a tape cross + label, a larger code monitor).
+
 ## [1.7.3] — 2026-06-27 — 吹泡泡 now swings the wand like a 2D character
 
 ### Changed
