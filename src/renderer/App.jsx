@@ -883,6 +883,8 @@ export default class App extends React.Component {
     // ---- 快递员 (courier): parcels (two sizes) with tape ----
     S.boxS = ['xxxx', 'xXXx', 'xXXx', 'xxxx'];
     S.boxL = ['xxxxxx', 'xXXXXx', 'xXXXXx', 'xXXXXx', 'xxxxxx'];
+    // ---- 程序员 (programmer): a screen (code drawn live inside) ----
+    S.screen = ['aaaaaaaaa', 'akkkkkkka', 'akkkkkkka', 'akkkkkkka', 'akkkkkkka', 'aaaaaaaaa'];
     this._scn = S;
     return S;
   }
@@ -929,6 +931,9 @@ export default class App extends React.Component {
       } else if (job && job.name === '快递员') {
         this._scene = { type: 'courier' };
         this._gear = 'courier';
+      } else if (job && job.name === '程序员') {
+        this._scene = { type: 'coder', scroll: 0, bulb: 0 };
+        this._gear = 'coder';
       }
       // other jobs keep no special scene (briefcase prop handles them)
     }
@@ -1141,6 +1146,38 @@ export default class App extends React.Component {
         const dx = right ? cx + 22 : cx + 36;
         ctx.fillRect(dx, GND - 40, 6, 2);
         ctx.fillRect(dx - 4, GND - 32, 8, 2);
+      }
+      return;
+    }
+
+    if (sc.type === 'coder') {
+      // The pet (in headphones) types at a screen: code lines scroll with a
+      // blinking cursor, the odd error line goes red then green (bug fixed) and
+      // a pixel lightbulb pops over its head.
+      const right = this.p.facing > 0;
+      const sx = right ? cx + 40 : cx - 76, sy = GND - 52;
+      this.drawSprite(ctx, G.screen, PAL, sx, sy, P);
+      const ix = sx + P, iy = sy + P;                     // screen interior origin
+      const lens = [10, 20, 6, 16, 24, 9, 14];
+      sc.scroll += 0.35;
+      const off = Math.floor(sc.scroll) % lens.length;
+      for (let i = 0; i < 4; i++) {
+        const k = (off + i) % lens.length;
+        const err = sc.bulb <= 0 && k === 0;              // an unfixed error line
+        ctx.fillStyle = err ? '#ff5a5f' : '#5ad0a0';
+        ctx.fillRect(ix + 2, iy + 1 + i * 7, lens[k], 4);
+      }
+      if (Math.floor(t / 300) % 2) { ctx.fillStyle = '#eef7ff'; ctx.fillRect(ix + 16, iy + 1 + 3 * 7, 3, 4); }
+      // keyboard slab under the screen.
+      ctx.fillStyle = '#5f7286'; ctx.fillRect(sx + 2, sy + G.screen.length * P + 1, 28, 4);
+      // Bug-fixed! a lightbulb pops beside the head (no room above a standing pet).
+      if (sc.bulb > 0) {
+        sc.bulb -= 1;
+        const bx = right ? cx - 46 : cx + 26, byy = 10 + Math.sin(t / 150) * 2;
+        ctx.fillStyle = 'rgba(255,226,122,.35)'; ctx.fillRect(bx - 6, byy - 2, 32, 32);
+        this.drawSprite(ctx, G.bulb, PAL, bx, byy, P);
+      } else if (Math.random() < 0.006) {
+        sc.bulb = 32;
       }
       return;
     }
