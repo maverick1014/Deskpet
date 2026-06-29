@@ -854,37 +854,61 @@ export default class App extends React.Component {
     ];
     // A small sweat drop (bright blue) for the 拔草 heat.
     S.drop = ['.u.', 'uuu', 'uuu', '.u.'];
-    // ---- 洗碗 (dishwashing): a metal sink, plates/bowls, suds, a clean shine ----
+    // ---- 洗碗 (dishwashing): a metal sink with a faucet, plates, suds, a shine ----
     S.sink = [
-      'mmmmmmmmmmmmmmmm',
-      'mMMMMMMMMMMMMMMm',
-      'mMzzzzzzzzzzzzMm',
-      'mMzzzzzzzzzzzzMm',
-      'mMMMMMMMMMMMMMMm',
-      '.M............M.',
+      '...ssss.....',   // faucet pipe + spout arm
+      '...s..s.....',
+      '......s.....',   // spout
+      'mmmmmmmmmmmm',   // rim
+      'mMzzzzzzzzMm',   // basin water
+      'mMzzzzzzzzMm',
+      'mMzzzzzzzzMm',
+      'mMMMMMMMMMMm',   // basin body
+      '.M........M.',   // legs
     ];
-    S.plate = ['.WWWW.', 'WeeeeW', 'WeeeeW', '.WWWW.'];
-    S.bowl = ['W....W', 'WeeeeW', '.WeeW.', '.WWWW.'];
+    S.plate = ['.WWWWWW.', 'WWeeeeWW', 'WeeeeeeW', 'WWeeeeWW', '.WWWWWW.'];
+    S.bowl = ['W......W', 'WeeeeeeW', '.WeeeeW.', '.WWWWWW.'];
     S.suds = ['.ee.', 'eeee', 'eeee', '.ee.'];
     S.shine = ['..e..', '..e..', 'eeeee', '..e..', '..e..'];
-    // ---- 清洁工 (cleaner): a broom (leaning two ways for the sweep), dust, pan ----
-    S.broom = ['..h..', '..h..', '..h..', '..h..', '.xxx.', 'xxxxx', 'xxxxx', '.xxx.'];
-    S.dust = ['.ss.', 'ssss', '.ss.'];
-    S.pan = ['m....m', 'mMMMMm', '.mmmm.'];
-    S.trash = ['.k.', 'k.k'];
-    // ---- 便利店店员 (clerk): a counter, a scanner with a laser, items, receipt ----
-    S.counter = ['mmmmmmmmmm', 'MMMMMMMMMM', '.M......M.'];
-    S.scanner = ['.aaaa.', 'avvvva', '.aaaa.'];
-    S.scanON = ['.aaaa.', 'vvvvvv', '.aaaa.'];   // laser flash when an item scans
-    S.itemA = ['rr', 'rr', 'rr'];                 // a red can
-    S.itemB = ['.u', 'uu', 'uu'];                 // a blue bottle
-    S.itemC = ['xx', 'xx'];                       // a cardboard box
-    S.receipt = ['WW', 'KK', 'WW', 'KK', 'WW', 'KK'];
-    // ---- 快递员 (courier): parcels (two sizes) with tape ----
-    S.boxS = ['xxxx', 'xXXx', 'xXXx', 'xxxx'];
-    S.boxL = ['xxxxxx', 'xXXXXx', 'xXXXXx', 'xXXXXx', 'xxxxxx'];
-    // ---- 程序员 (programmer): a screen (code drawn live inside) ----
-    S.screen = ['aaaaaaaaa', 'akkkkkkka', 'akkkkkkka', 'akkkkkkka', 'akkkkkkka', 'aaaaaaaaa'];
+    // ---- 清洁工 (cleaner): a bigger broom (handle + fanned bristles), dust, pan ----
+    S.broom = [
+      '..hh..',
+      '..hh..',
+      '..hh..',
+      '..hh..',
+      '..hh..',
+      '.xxxx.',   // binding
+      'xxxxxx',
+      'xxxxxx',
+      'xxxxxx',
+      'x.xx.x',   // fanned bristle tips
+    ];
+    S.dust = ['.sss.', 'sssss', 'sssss', '.sss.'];
+    S.pan = ['s......s', 'sMMMMMMs', 'sMMMMMMs', '.ssssss.'];
+    S.trash = ['.k.k.', 'k.k.k'];
+    // ---- 便利店店员 (clerk): a counter + register/scanner, items, receipt ----
+    S.counter = ['mmmmmmmmmmmm', 'MMMMMMMMMMMM', '.M........M.', '.M........M.'];
+    S.scanner = ['.aaaaaa.', 'aiiiiiia', 'aaaaaaaa', '.avvvva.', '.aaaaaa.'];   // register: display + scanner
+    S.scanON = ['.aaaaaa.', 'aiiiiiia', 'aaaaaaaa', '.vvvvvv.', '.aaaaaa.'];    // laser flash on scan
+    S.itemA = ['.rr.', 'rNNr', 'rNNr', 'rNNr', '.rr.'];     // a red can
+    S.itemB = ['.uu.', '.uu.', 'uuuu', 'uuuu', 'uuuu'];     // a blue bottle
+    S.itemC = ['xxxx', 'xXXx', 'xxxx'];                     // a small box
+    S.receipt = ['WWW', 'WKW', 'WWW', 'WKW', 'WWW', 'WKW', 'WWW'];
+    // ---- 快递员 (courier): bigger parcels with a tape cross + a label ----
+    S.boxS = ['xxxxxx', 'xxXXxx', 'XXXXXX', 'xxXXxx', 'xWWxxx'];
+    S.boxL = ['xxxxxxxx', 'xxxXXxxx', 'xxxXXxxx', 'XXXXXXXX', 'xxxXXxxx', 'xWWxXxxx', 'xxxxxxxx'];
+    // ---- 程序员 (programmer): a bigger screen on a stand (code drawn live) ----
+    S.screen = [
+      'aaaaaaaaaaaa',
+      'akkkkkkkkkka',
+      'akkkkkkkkkka',
+      'akkkkkkkkkka',
+      'akkkkkkkkkka',
+      'akkkkkkkkkka',
+      'aaaaaaaaaaaa',
+      '....aaaa....',   // neck
+      '...aaaaaa...',   // stand base
+    ];
     this._scn = S;
     return S;
   }
@@ -1053,26 +1077,28 @@ export default class App extends React.Component {
       // The pet (in its apron) stands at a sink on its facing side and scrubs a
       // plate; suds rise and a "squeaky clean" shine pops when one is finished.
       // The scene canvas sits BEHIND the pet, so the sink goes beside the body.
+      const PB = P + 1;                                  // bigger hero props (more detail reads)
       const right = this.p.facing > 0;
-      const sinkX = right ? cx + 30 : cx - 94, sinkY = GND - 22;
-      this.drawSprite(ctx, G.sink, PAL, sinkX, sinkY, P);
-      const mid = sinkX + 24;
+      const sinkW = G.sink[0].length * PB;
+      const sinkX = right ? cx + 22 : cx - 22 - sinkW, sinkY = GND - G.sink.length * PB + 8;
+      this.drawSprite(ctx, G.sink, PAL, sinkX, sinkY, PB);
+      const basinTop = sinkY + 3 * PB, mid = sinkX + sinkW / 2;
       // Plate/bowl scrubbed back-and-forth inside the basin (variant rotates).
       const scrub = Math.sin(t / 110) * 6;
       const variant = Math.floor(t / 3600) % 2;
       const dishG = variant ? G.bowl : G.plate;
-      const dishX = mid - 12 + scrub, dishY = sinkY - 2 + Math.sin(t / 80) * 1.5;
-      this.drawSprite(ctx, dishG, PAL, dishX, dishY, P);
+      const dishX = mid - dishG[0].length * PB / 2 + scrub, dishY = basinTop - 4 + Math.sin(t / 80) * 1.5;
+      this.drawSprite(ctx, dishG, PAL, dishX, dishY, PB);
       // Suds bubble up out of the sink.
       if (Math.random() < 0.18 && sc.suds.length < 14) {
-        sc.suds.push({ x: sinkX + 8 + Math.random() * 48, y: sinkY, vy: -(0.4 + Math.random() * 0.7), px: Math.random() < 0.5 ? 2 : 3 });
+        sc.suds.push({ x: sinkX + 10 + Math.random() * (sinkW - 20), y: basinTop, vy: -(0.4 + Math.random() * 0.7), px: Math.random() < 0.5 ? 3 : 4 });
       }
       sc.suds.forEach((b) => { b.y += b.vy; b.x += Math.sin((t + b.y * 8) / 200) * 0.4; this.drawSprite(ctx, G.suds, PAL, b.x, b.y, b.px); });
       sc.suds = sc.suds.filter((b) => b.y > 2);
       // A clean-shine sparkle over the plate now and then.
       if (sc.shine > 0) {
         sc.shine -= 1;
-        this.drawSprite(ctx, G.shine, PAL, dishX + 6, dishY - 10, 3);
+        this.drawSprite(ctx, G.shine, PAL, dishX + 8, dishY - 12, 4);
       } else if (Math.random() < 0.01) {
         sc.shine = 24;
       }
@@ -1083,48 +1109,51 @@ export default class App extends React.Component {
       // The pet (in its cap) holds a broom to its facing side and sweeps it
       // back and forth; dust puffs kick off the bristles. A dustpan waits on
       // the far side. The broom handle points back toward the pet's flipper.
+      const PB = P + 1;
       const right = this.p.facing > 0;
       const sweep = Math.sin(t / 280);                  // -1..1
-      const broomX = (right ? cx + 42 : cx - 62) + sweep * 9;
-      const broomY = GND - 30 + Math.sin(t / 140) * 2;  // little bristle bounce
-      this.drawSprite(ctx, G.broom, PAL, broomX, broomY, P);
-      const tip = broomX + 10;                          // bristle tip x
+      const broomX = (right ? cx + 40 : cx - 64) + sweep * 9;
+      const broomY = GND - G.broom.length * PB + 6 + Math.sin(t / 140) * 2;
+      this.drawSprite(ctx, G.broom, PAL, broomX, broomY, PB);
+      const tip = broomX + G.broom[0].length * PB / 2;  // bristle tip x
       // Dust puffs kick off the bristles mid-sweep (fastest part).
       if (Math.abs(Math.cos(t / 280)) > 0.55 && Math.random() < 0.22 && sc.dust.length < 12) {
-        sc.dust.push({ x: tip + (Math.random() * 16 - 8), y: GND - 4, vy: -(0.3 + Math.random() * 0.5), life: 22 + Math.random() * 16, px: Math.random() < 0.5 ? 2 : 3 });
+        sc.dust.push({ x: tip + (Math.random() * 16 - 8), y: GND - 6, vy: -(0.3 + Math.random() * 0.5), life: 22 + Math.random() * 16, px: Math.random() < 0.5 ? 3 : 4 });
       }
       sc.dust.forEach((d) => { d.y += d.vy; d.life -= 1; this.drawSprite(ctx, G.dust, PAL, d.x, d.y, d.px); });
       sc.dust = sc.dust.filter((d) => d.life > 0);
       // A dustpan on the floor on the opposite side; trash bits by it (variant).
-      const panX = right ? cx - 86 : cx + 56, panY = GND - 8;
-      this.drawSprite(ctx, G.pan, PAL, panX, panY, P);
-      if (Math.floor(t / 4000) % 2) this.drawSprite(ctx, G.trash, PAL, panX + 26, GND - 6, 3);
+      const panX = right ? cx - 92 : cx + 56, panY = GND - 4;
+      this.drawSprite(ctx, G.pan, PAL, panX, panY, PB);
+      if (Math.floor(t / 4000) % 2) this.drawSprite(ctx, G.trash, PAL, panX + 30, GND - 6, 4);
       return;
     }
 
     if (sc.type === 'store') {
       // The pet (in its visor + vest) works a counter: items slide along it past
       // a scanner whose laser flashes on each scan, and a receipt prints out.
+      const PB = P + 1;
       const right = this.p.facing > 0;
-      const counterX = right ? cx + 18 : cx - 58, counterY = GND - 14;
-      this.drawSprite(ctx, G.counter, PAL, counterX, counterY, P);
-      const scanX = counterX + 26, scanY = counterY - 8;       // scanner near the inner end
-      // An item slides across the counter toward the scanner, then a new one.
-      sc.itemX += 0.9;
-      const span = 44;
+      const cW = G.counter[0].length * PB;
+      const counterX = right ? cx + 20 : cx - 20 - cW, counterY = GND - G.counter.length * PB + 4;
+      this.drawSprite(ctx, G.counter, PAL, counterX, counterY, PB);
+      const scanX = counterX + cW - G.scanner[0].length * PB - 4, scanY = counterY - G.scanner.length * PB + 2;
+      // An item slides across the counter toward the register, then a new one.
+      sc.itemX += 1.1;
+      const span = cW - 24;
       if (sc.itemX > span) { sc.itemX = 0; sc.item = (sc.item + 1) % 3; }
       const itemG = sc.item === 0 ? G.itemA : (sc.item === 1 ? G.itemB : G.itemC);
-      const itX = counterX + 40 - sc.itemX, itY = counterY - 8;
-      this.drawSprite(ctx, itemG, PAL, itX, itY, P);
-      // Scan when the item crosses the scanner: flash the laser + grow the receipt.
-      if (Math.abs(itX - scanX) < 6 && sc.scanFlash <= 0) { sc.scanFlash = 10; sc.receipt = Math.min(6, sc.receipt + 2); }
+      const itX = counterX + cW - 20 - sc.itemX, itY = counterY - itemG.length * PB + 2;
+      this.drawSprite(ctx, itemG, PAL, itX, itY, PB);
+      // Scan when the item crosses the register: flash the laser + grow the receipt.
+      if (Math.abs(itX - scanX) < 8 && sc.scanFlash <= 0) { sc.scanFlash = 10; sc.receipt = Math.min(7, sc.receipt + 2); }
       if (sc.scanFlash > 0) sc.scanFlash -= 1;
-      this.drawSprite(ctx, sc.scanFlash > 0 ? G.scanON : G.scanner, PAL, scanX, scanY, P);
-      // A receipt prints downward from the counter edge; tears off when long.
+      this.drawSprite(ctx, sc.scanFlash > 0 ? G.scanON : G.scanner, PAL, scanX, scanY, PB);
+      // A receipt prints downward from the register; tears off when long.
       if (sc.receipt > 0) {
         const r = G.receipt.slice(0, sc.receipt);
-        this.drawSprite(ctx, r, PAL, scanX + 2, counterY + 6, 3);
-        if (sc.receipt >= 6 && Math.random() < 0.02) sc.receipt = 0; // tear off
+        this.drawSprite(ctx, r, PAL, scanX + 4, counterY + 4, 4);
+        if (sc.receipt >= 7 && Math.random() < 0.02) sc.receipt = 0; // tear off
       }
       return;
     }
@@ -1132,23 +1161,24 @@ export default class App extends React.Component {
     if (sc.type === 'courier') {
       // The pet (in its hi-viz cap + vest) carries a parcel that bobs as it jogs
       // in place, with a stack of parcels waiting to the side.
+      const PB = P + 1;
       const right = this.p.facing > 0;
       // A waiting pile of parcels on one side.
-      const pileX = right ? cx - 90 : cx + 58;
-      this.drawSprite(ctx, G.boxL, PAL, pileX, GND - 20, P);
-      this.drawSprite(ctx, G.boxS, PAL, pileX + 6, GND - 36, P);
+      const pileX = right ? cx - 96 : cx + 52;
+      this.drawSprite(ctx, G.boxL, PAL, pileX, GND - G.boxL.length * PB, PB);
+      this.drawSprite(ctx, G.boxS, PAL, pileX + 6, GND - G.boxL.length * PB - G.boxS.length * PB + 2, PB);
       // The carried parcel (size rotates) held at the pet's side, bobbing.
       const big = Math.floor(t / 3200) % 2 === 0;
       const carriedG = big ? G.boxL : G.boxS;
       const cyBob = Math.abs(Math.sin(t / 130)) * 4;     // jog bob
-      const cX = right ? cx + 30 : cx - 54;
-      this.drawSprite(ctx, carriedG, PAL, cX, GND - 58 - cyBob, P);
+      const cX = right ? cx + 28 : cx - 28 - carriedG[0].length * PB;
+      this.drawSprite(ctx, carriedG, PAL, cX, GND - 62 - cyBob, PB);
       // Little speed/jog dashes behind it now and then.
       if (Math.floor(t / 180) % 2) {
         ctx.fillStyle = '#cfd8e6';
-        const dx = right ? cx + 22 : cx + 36;
-        ctx.fillRect(dx, GND - 40, 6, 2);
-        ctx.fillRect(dx - 4, GND - 32, 8, 2);
+        const dx = right ? cx + 20 : cx + 36;
+        ctx.fillRect(dx, GND - 44, 8, 3);
+        ctx.fillRect(dx - 5, GND - 34, 10, 3);
       }
       return;
     }
@@ -1157,28 +1187,28 @@ export default class App extends React.Component {
       // The pet (in headphones) types at a screen: code lines scroll with a
       // blinking cursor, the odd error line goes red then green (bug fixed) and
       // a pixel lightbulb pops over its head.
+      const PB = P + 1;
       const right = this.p.facing > 0;
-      const sx = right ? cx + 40 : cx - 76, sy = GND - 52;
-      this.drawSprite(ctx, G.screen, PAL, sx, sy, P);
-      const ix = sx + P, iy = sy + P;                     // screen interior origin
-      const lens = [10, 20, 6, 16, 24, 9, 14];
+      const sw2 = G.screen[0].length * PB;
+      const sx = right ? cx + 30 : cx - 30 - sw2, sy = GND - 64;
+      this.drawSprite(ctx, G.screen, PAL, sx, sy, PB);
+      const ix = sx + PB, iy = sy + PB;                   // screen interior origin
+      const lens = [16, 30, 10, 24, 36, 14, 22];
       sc.scroll += 0.35;
       const off = Math.floor(sc.scroll) % lens.length;
-      for (let i = 0; i < 4; i++) {
+      for (let i = 0; i < 5; i++) {
         const k = (off + i) % lens.length;
-        const err = sc.bulb <= 0 && k === 0;              // an unfixed error line
+        const err = sc.bulb <= 0 && k === 2;              // an unfixed error line
         ctx.fillStyle = err ? '#ff5a5f' : '#5ad0a0';
-        ctx.fillRect(ix + 2, iy + 1 + i * 7, lens[k], 4);
+        ctx.fillRect(ix + 3, iy + 2 + i * 8, lens[k], 4);
       }
-      if (Math.floor(t / 300) % 2) { ctx.fillStyle = '#eef7ff'; ctx.fillRect(ix + 16, iy + 1 + 3 * 7, 3, 4); }
-      // keyboard slab under the screen.
-      ctx.fillStyle = '#5f7286'; ctx.fillRect(sx + 2, sy + G.screen.length * P + 1, 28, 4);
+      if (Math.floor(t / 300) % 2) { ctx.fillStyle = '#eef7ff'; ctx.fillRect(ix + 24, iy + 2 + 4 * 8, 4, 4); }
       // Bug-fixed! a lightbulb pops beside the head (no room above a standing pet).
       if (sc.bulb > 0) {
         sc.bulb -= 1;
-        const bx = right ? cx - 46 : cx + 26, byy = 10 + Math.sin(t / 150) * 2;
-        ctx.fillStyle = 'rgba(255,226,122,.35)'; ctx.fillRect(bx - 6, byy - 2, 32, 32);
-        this.drawSprite(ctx, G.bulb, PAL, bx, byy, P);
+        const bx = right ? cx - 48 : cx + 28, byy = 8 + Math.sin(t / 150) * 2;
+        ctx.fillStyle = 'rgba(255,226,122,.35)'; ctx.fillRect(bx - 8, byy - 4, 40, 40);
+        this.drawSprite(ctx, G.bulb, PAL, bx, byy, P + 1);
       } else if (Math.random() < 0.006) {
         sc.bulb = 32;
       }
@@ -1202,10 +1232,10 @@ export default class App extends React.Component {
       const tapX = right ? boardX + 8 : boardX + bw - 8;
       const tapY = boardY + 12 + tapStep * 9 + Math.sin(t / 120) * 1.5;
       ctx.fillStyle = '#7a4a24';
-      const steps = 16;
+      const steps = 18;
       for (let i = 0; i <= steps; i++) {
         const u = i / steps;
-        ctx.fillRect(Math.round(handX + (tapX - handX) * u) - 1, Math.round(handY + (tapY - handY) * u) - 1, 3, 3);
+        ctx.fillRect(Math.round(handX + (tapX - handX) * u) - 2, Math.round(handY + (tapY - handY) * u) - 2, 4, 4);
       }
       // A chalk-tap mark flashes at the pointer tip.
       if (Math.floor(t / 260) % 2) { ctx.fillStyle = '#f4f6ef'; ctx.fillRect(tapX - 2, Math.round(tapY) - 2, 4, 4); }
