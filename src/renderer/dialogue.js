@@ -37,6 +37,60 @@ export const DIA = {
   miss: ['主人在忙吧，我乖乖等~', '想你了，不过没关系，我等你~', '我会做个乖孩子等你的', '等你忙完一起玩呀~', '我在这儿等你哦~'],
 };
 
+// Things the pet LEARNS in each course. It says these out loud while studying
+// the subject, and once it has studied a subject it mixes the facts into its
+// idle chatter — so studying visibly makes it smarter. (Kept emoji-free.)
+export const KNOWLEDGE = {
+  ma: [
+    '1 + 1 = 2，这个我会！',
+    '三角形有三条边哦~',
+    '一个圆是 360 度！',
+    '10 - 7 = 3，算对啦！',
+    '偶数都能被 2 整除~',
+    '正方形四条边一样长！',
+    '0 乘任何数都等于 0！',
+  ],
+  cn: [
+    '“床前明月光，疑是地上霜。”',
+    '“水”字是三点水旁~',
+    '“画蛇添足”就是多此一举！',
+    '写字要横平竖直才好看~',
+    '“春眠不觉晓，处处闻啼鸟。”',
+    '“一寸光阴一寸金”，要珍惜时间！',
+  ],
+  sc: [
+    '光合作用把阳光变成养分！',
+    '光会折射，筷子在水里看着是弯的~',
+    '声音要靠空气来传播哦！',
+    '水受热会蒸发，变成水蒸气~',
+    '彩虹是阳光被雨滴折射出来的！',
+    '植物吸进二氧化碳，放出氧气~',
+    '磁铁同极相斥、异极相吸！',
+  ],
+  en: [
+    'Hello! Nice to meet you!',
+    'How are you? I am fine, thank you!',
+    'Apple, banana, and a cat!',
+    'The sky is blue and very big!',
+    'I love learning English!',
+    'One, two, three, let us count!',
+    'Good morning! Have a nice day!',
+  ],
+};
+
+// Lines the pet says while studying a given subject (learning out loud).
+export function studyLine(subjectKey) {
+  const k = KNOWLEDGE[subjectKey];
+  return k ? k[Math.floor(Math.random() * k.length)] : null;
+}
+
+// Pool of facts from every subject the pet has studied (for idle show-off).
+export function knowledgePool(subjectKeys) {
+  const lines = [];
+  for (const k of subjectKeys || []) if (KNOWLEDGE[k]) lines.push(...KNOWLEDGE[k]);
+  return lines;
+}
+
 export function pick(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }

@@ -8,7 +8,7 @@ import {
   loadState, saveState, getStage, moveWindow, onStageUpdate, setInteractive, quitApp, onRecenter,
 } from './store.js';
 import { genPersonality, normPersonality, traitLabel } from './personality.js';
-import { DIA, pick, greetingPool } from './dialogue.js';
+import { DIA, pick, greetingPool, studyLine, knowledgePool } from './dialogue.js';
 import { cloudEnabled, currentUser, currentSession, onAuth, signIn, signUp, signOut, pullCloud, pushCloud } from './cloud.js';
 
 const BODY = '#222a55';
@@ -822,6 +822,10 @@ export default class App extends React.Component {
       'cccccccc',
       '.cccccc.',
     ];
+    // ---- 上课 lively beats: a raised flipper (举手), a thrown chalk, a sleepy Z ----
+    S.handUp = ['.KK.', '.KK.', '.KK.', 'KKKK', '.KK.'];   // a navy flipper raised to answer (K = navy in scenePal)
+    S.chalkpiece = ['cc', 'cc'];                            // a flying piece of chalk
+    S.zz = ['cccc', '...c', '..c.', '.c..', 'cccc'];        // a little "Z" while dozing
     // ---- 上课 subject props (drawn upper-right of the pet so each course reads) ----
     S.flask = ['.cc.', '.cc.', '.cc.', 'czzc', 'czzc', 'czzc', 'cccc'];   // 科学 beaker + liquid
     S.abacus = ['wwwwww', 'wruruw', 'wururw', 'wruruw', 'wwwwww'];        // 数学 abacus
@@ -960,8 +964,10 @@ export default class App extends React.Component {
     if (!session) return;
     if (session.kind === 'study') {
       const sub = { cn: 'chalk_cn', en: 'chalk_en', ma: 'chalk_ma', sc: 'chalk_sc' };
-      this._scene = { type: 'class', chalk: sub[session.subjectKey] || 'chalk_cn', t0: performance.now() };
+      this._scene = { type: 'class', subj: session.subjectKey, chalk: sub[session.subjectKey] || 'chalk_cn', t0: performance.now(), beat: 'listen', chalkThrow: null };
       this._faceOverride = 'confused';
+      // 英语 class — the pet dresses up as a dapper little gentleman.
+      if (session.subjectKey === 'en') this._gear = 'english';
     } else if (session.kind === 'work') {
       const job = JOBS[session.jobIdx];
       if (job && job.name === '拔草') {
@@ -1007,20 +1013,66 @@ export default class App extends React.Component {
     if (this.ensureSceneCtx()) this._sctx.clearRect(0, 0, this.SCENE_W, this.SCENE_H);
   }
 
-  // Drive the class expression arc 疑惑 to 思考 to 恍然大悟 on a loop, popping a pixel
-  // bulb at the "aha" beat. Re-arms itself for the whole session.
+  // Drive a lively "real student" loop of class BEATS rather than one stiff arc:
+  // listen → 疑惑/think → 恍然大悟(灯泡) → 举手回答 → 打瞌睡 → 被粉笔砸醒. Each beat sets
+  // the face + a scene flag drawScene() reads. Re-arms itself for the whole session.
   classFaceArc() {
-    const seq = [['confused', 2200], ['think', 2400], ['aha', 1800]];
+    const seq = [
+      ['listen', 'idle', 2200],
+      ['think', 'think', 2200],
+      ['aha', 'aha', 1700],
+      ['raise', 'happy', 2000],
+      ['doze', 'sleepy', 2600],
+      ['wake', 'aha', 1100],
+    ];
     let i = 0;
     const step = () => {
       if (!this._scene || this._scene.type !== 'class') return;
-      const [face, ms] = seq[i % seq.length];
+      const [beat, face, ms] = seq[i % seq.length];
+      this._scene.beat = beat;
       this._faceOverride = face;
-      this._scene.bulb = face === 'aha';
+      this._scene.bulb = beat === 'aha';
+      // 被粉笔砸醒: launch a chalk from the teacher's (board) side toward the pet.
+      this._scene.chalkThrow = beat === 'wake' ? { x: 8, y: 20 } : null;
+      if (beat === 'wake') { this.spawn('play'); this.speak('哇！醒了醒了~', 1600, true); }
+      // 举手回答: blurt out the answer (a fact it's learning for this subject).
+      if (beat === 'raise') { const line = studyLine(this._scene.subj); if (line) this.speak(line, 2400, true); }
       i++;
       this._faceArcT = setTimeout(step, ms);
     };
     step();
+  }
+
+  // Draw the subject-specific "what am I learning" prop up-right of the pet —
+  // 科学 a bubbling flask, 数学 an abacus, 语文 a brush + ink, 英语 an open book.
+  drawClassSubject(ctx, PAL, G, t, cx, GND, PB, sc) {
+    if (sc.chalk === 'chalk_sc') {
+      const fx = cx + 40, fy = GND - 56;
+      this.drawSprite(ctx, G.flask, PAL, fx, fy, PB);
+      if (!sc.fb) sc.fb = [];
+      if (Math.random() < 0.16 && sc.fb.length < 8) sc.fb.push({ x: fx + 6 + Math.random() * 8, y: fy + 12, vy: -(0.4 + Math.random() * 0.5) });
+      ctx.fillStyle = '#7fc8ff';
+      sc.fb.forEach((b) => { b.y += b.vy; ctx.fillRect(b.x, b.y, 4, 4); });
+      sc.fb = sc.fb.filter((b) => b.y > fy - 18);
+      if (Math.floor(t / 240) % 5 === 0) { ctx.fillStyle = '#ffe27a'; ctx.fillRect(fx + 14, fy - 4, 4, 4); }
+    } else if (sc.chalk === 'chalk_ma') {
+      const ax = cx + 36, ay = GND - 44;
+      this.drawSprite(ctx, G.abacus, PAL, ax, ay, PB);
+      ctx.fillStyle = '#ffd23d';
+      ctx.fillRect(ax + 6 + (Math.floor(t / 500) % 4) * 6, ay - 6, 5, 5);
+    } else if (sc.chalk === 'chalk_cn') {
+      const bxp = cx + 44, byp = GND - 50 + Math.abs(Math.sin(t / 260)) * 8;
+      this.drawSprite(ctx, G.inkpot, PAL, cx + 38, GND - 18, PB);
+      this.drawSprite(ctx, G.brush, PAL, bxp, byp, PB);
+    } else {
+      const kx = cx + 40, ky = GND - 50;
+      this.drawSprite(ctx, G.book, PAL, kx, ky, PB);
+      if (!sc.fb) sc.fb = [];
+      if (Math.random() < 0.04 && sc.fb.length < 4) sc.fb.push({ x: kx + 6 + Math.random() * 14, y: ky - 2, vy: -0.5 });
+      ctx.fillStyle = '#f4f6ef';
+      sc.fb.forEach((b) => { b.y += b.vy; ctx.fillRect(b.x, b.y, 4, 6); });
+      sc.fb = sc.fb.filter((b) => b.y > ky - 22);
+    }
   }
 
   // Per-frame scene render (called from the loop). Pure pixel fillRect, no glyphs.
@@ -1033,54 +1085,46 @@ export default class App extends React.Component {
     const cx = OX + 56; // penguin centre column on the scene canvas
 
     if (sc.type === 'class') {
-      // Blackboard up-left behind the pet, then the desk in front of its belly.
-      const bx = cx - 120, by = 6;
-      this.drawSprite(ctx, G.board, PAL, bx, by, P);
-      const chalk = G[sc.chalk];
-      const cw = chalk[0].length * P, ch = chalk.length * P;
-      this.drawSprite(ctx, chalk, PAL, bx + (G.board[0].length * P - cw) / 2, by + (G.board.length * P - ch) / 2, P);
-      // Desk across the pet's lower body.
-      this.drawSprite(ctx, G.desk, PAL, cx - 60, GND - 24, P);
-      // Subject-specific prop up-right so each course is recognisable + animated.
+      // A lively class, not a static desk: the board is de-emphasised (shown only
+      // when the pet is paying attention), and the beat drives what it's doing.
       const PB = P + 1;
-      if (sc.chalk === 'chalk_sc') {
-        // 科学 — a bubbling flask; bubbles rise and a spark flickers.
-        const fx = cx + 40, fy = GND - 56;
-        this.drawSprite(ctx, G.flask, PAL, fx, fy, PB);
-        if (!sc.fb) sc.fb = [];
-        if (Math.random() < 0.16 && sc.fb.length < 8) sc.fb.push({ x: fx + 6 + Math.random() * 8, y: fy + 12, vy: -(0.4 + Math.random() * 0.5) });
-        ctx.fillStyle = '#7fc8ff';
-        sc.fb.forEach((b) => { b.y += b.vy; ctx.fillRect(b.x, b.y, 4, 4); });
-        sc.fb = sc.fb.filter((b) => b.y > fy - 18);
-        if (Math.floor(t / 240) % 5 === 0) { ctx.fillStyle = '#ffe27a'; ctx.fillRect(fx + 14, fy - 4, 4, 4); }
-      } else if (sc.chalk === 'chalk_ma') {
-        // 数学 — an abacus; a counting bead slides back and forth.
-        const ax = cx + 36, ay = GND - 44;
-        this.drawSprite(ctx, G.abacus, PAL, ax, ay, PB);
-        ctx.fillStyle = '#ffd23d';
-        ctx.fillRect(ax + 6 + (Math.floor(t / 500) % 4) * 6, ay - 6, 5, 5); // a bead being counted up
-      } else if (sc.chalk === 'chalk_cn') {
-        // 语文 — a calligraphy brush dips into the ink and writes (bobs).
-        const bxp = cx + 44, byp = GND - 50 + Math.abs(Math.sin(t / 260)) * 8;
-        this.drawSprite(ctx, G.inkpot, PAL, cx + 38, GND - 18, PB);
-        this.drawSprite(ctx, G.brush, PAL, bxp, byp, PB);
-      } else {
-        // 英语 — an open book; little chalk letters float up as it "reads aloud".
-        const kx = cx + 40, ky = GND - 50;
-        this.drawSprite(ctx, G.book, PAL, kx, ky, PB);
-        if (!sc.fb) sc.fb = [];
-        if (Math.random() < 0.04 && sc.fb.length < 4) sc.fb.push({ x: kx + 6 + Math.random() * 14, y: ky - 2, vy: -0.5 });
-        ctx.fillStyle = '#f4f6ef';
-        sc.fb.forEach((b) => { b.y += b.vy; ctx.fillRect(b.x, b.y, 4, 6); });
-        sc.fb = sc.fb.filter((b) => b.y > ky - 22);
+      const beat = sc.beat || 'listen';
+      if (beat === 'listen' || beat === 'think') {
+        const bx = cx - 120, by = 6;
+        this.drawSprite(ctx, G.board, PAL, bx, by, P);
+        const chalk = G[sc.chalk];
+        const cw = chalk[0].length * P, ch = chalk.length * P;
+        this.drawSprite(ctx, chalk, PAL, bx + (G.board[0].length * P - cw) / 2, by + (G.board.length * P - ch) / 2, P);
       }
-      // Pixel lightbulb pops above the head on the aha beat.
+      this.drawSprite(ctx, G.desk, PAL, cx - 60, GND - 24, P); // desk (always)
+      // The subject prop (the knowledge focus) shows on the learning beats.
+      if (beat === 'listen' || beat === 'think' || beat === 'aha' || beat === 'raise') {
+        this.drawClassSubject(ctx, PAL, G, t, cx, GND, PB, sc);
+      }
+      // Beat flourishes — what the little student is actually doing. These sit in
+      // the clear right/left margins (the scene canvas is behind the wide body).
+      if (beat === 'raise') {
+        // 举手回答: a raised flipper bobs eagerly beside it with a chalk "!".
+        const hx = cx + 46, hy = GND - 72 - Math.abs(Math.sin(t / 150)) * 6;
+        this.drawSprite(ctx, G.handUp, PAL, hx, hy, PB);
+        ctx.fillStyle = '#ffe27a';
+        ctx.fillRect(hx + 6, hy - 18, 4, 10); ctx.fillRect(hx + 6, hy - 5, 4, 4);
+      } else if (beat === 'doze') {
+        // 打瞌睡: Z's drift up the right margin from the dozing head.
+        if (!sc.zz) sc.zz = [];
+        if (Math.random() < 0.07 && sc.zz.length < 3) sc.zz.push({ x: cx + 44, y: GND - 78 });
+        sc.zz.forEach((z) => { z.y -= 0.5; z.x += 0.25; this.drawSprite(ctx, G.zz, PAL, z.x, z.y, z.y < 30 ? 4 : 3); });
+        sc.zz = sc.zz.filter((z) => z.y > 6);
+      } else if (beat === 'wake' && sc.chalkThrow) {
+        // 被粉笔砸醒: a chalk flies in from the teacher's (board) side toward the head.
+        const ct = sc.chalkThrow; ct.x += 7; ct.y += 1.2;
+        this.drawSprite(ctx, G.chalkpiece, PAL, ct.x, ct.y, 4);
+      }
+      // 恍然大悟 bulb beside the head (no room above a standing pet).
       if (sc.bulb) {
-        const by2 = 2 + Math.sin(t / 160) * 2;
-        // soft glow ring
-        ctx.fillStyle = 'rgba(255,226,122,.35)';
-        ctx.fillRect(cx - 16, by2 + 2, 32, 32);
-        this.drawSprite(ctx, G.bulb, PAL, cx - 10, by2, P);
+        const bx2 = cx - 46, byy = 8 + Math.sin(t / 150) * 2;
+        ctx.fillStyle = 'rgba(255,226,122,.35)'; ctx.fillRect(bx2 - 6, byy - 2, 36, 36);
+        this.drawSprite(ctx, G.bulb, PAL, bx2, byy, PB);
       }
       return;
     }
@@ -1589,6 +1633,11 @@ export default class App extends React.Component {
         sw([[5, '..DLPPPLLPPPLD..'], [6, '..DLPEPLLPEPLD..'],
             [10, '...SSNNNNSSSS...']]);
         break;
+      case 'english': // 英语 — a dapper black top hat + bow tie (a spirited gentleman)
+        sw([[0, '......PPPP......'], [1, '......PPPP......'],
+            [2, '.....PPPPPP.....'], [3, '....PPPPPPPP....'],
+            [4, '..PPPPPPPPPPPP..'], [10, '...SSSSPPSSSS...']]);
+        break;
       default: break;
     }
     return c;
@@ -1715,10 +1764,16 @@ export default class App extends React.Component {
       if (this._hatOn) grid = this.withHat(grid);
       if (this._gear) grid = this.withGear(grid);
       if (this.ensureCtx()) this.draw(grid);
-      const jy = Math.sin(t / 300) * 3, tilt = this._faceOverride === 'think' ? -4 : 3;
+      // The body moves with the class beat — droops while dozing, jolts on waking,
+      // sits up eagerly to answer — so studying reads as a lively little student.
+      const beat = this._scene && this._scene.beat;
+      let jy = Math.sin(t / 300) * 3, tilt = this._faceOverride === 'think' ? -4 : 3, sy = 1;
+      if (beat === 'doze') { tilt = 15 * p.facing; jy = -7 + Math.sin(t / 600) * 1.5; sy = 0.94; }
+      else if (beat === 'wake') { tilt = -8 + Math.sin(t / 40) * 4; jy = 7; } // startled jolt + shake
+      else if (beat === 'raise') { jy = 4 + Math.abs(Math.sin(t / 150)) * 3; tilt = -2; }
       if (this.spriteRef.current) {
         this.spriteRef.current.style.transform =
-          `translateY(${(-jy).toFixed(1)}px) rotate(${tilt}deg) scaleX(${p.facing}) scaleY(1)`;
+          `translateY(${(-jy).toFixed(1)}px) rotate(${tilt}deg) scaleX(${p.facing}) scaleY(${sy})`;
         this.spriteRef.current.style.filter = 'none';
         this.spriteRef.current.style.opacity = '1';
       }
@@ -1959,6 +2014,18 @@ export default class App extends React.Component {
     this.maybeChatter();
     if (this.p.action === 'weak' && Math.random() < 0.14) this.speak(pick(DIA.weak));
 
+    // While studying, the pet "learns out loud" — speaks a fact for the subject
+    // (English class is spoken in English). Non-intrusive: just a bubble.
+    const ses = this.state.session;
+    if (ses && ses.kind === 'study' && !this.state.say) {
+      this._studyCtr = (this._studyCtr || 0) + 1;
+      if (this._studyCtr >= 11 && Math.random() < 0.5) {
+        this._studyCtr = 0;
+        const line = studyLine(ses.subjectKey);
+        if (line) this.speak(line, 3000, true);
+      }
+    }
+
     // Death: total neglect drains health to 0 (you'll have seen the 🤒 warnings).
     if (this.state.health <= 0 && !this.state.dead) this.die();
 
@@ -1993,10 +2060,26 @@ export default class App extends React.Component {
     else if (s.cleanliness <= 25) pool = DIA.dirty;
     else if (s.energy < 30) pool = DIA.sleepy;
     else if (!this.isGrown()) pool = DIA.baby; // a baby still babbles
-    if (!pool) return;                          // content & grown → stay quiet, do its own thing
+    if (!pool) {
+      // Content & grown: every so often show off something it learned in class.
+      const learned = this.learnedSubjects();
+      if (learned.length && Math.random() < (0.05 + this.personality.liveliness / 2200)) {
+        const facts = knowledgePool(learned);
+        if (facts.length) this.speak(pick(facts), 3200);
+      }
+      return;
+    }
     const chance = 0.08 + this.personality.liveliness / 1400;
     if (Math.random() > chance) return;
     this.speak(pick(pool));
+  }
+
+  // Subjects the pet has studied (and can now talk about): everything once it has
+  // graduated a level, plus any subject it has started at the current level.
+  learnedSubjects() {
+    const done = this.state.classDone || {};
+    if ((this.state.schoolLevel || 0) > 0) return SUBJECTS.map((s) => s.key);
+    return SUBJECTS.filter((s) => (done[s.key] || 0) > 0).map((s) => s.key);
   }
 
   // ---- behaviors -----------------------------------------------------------
