@@ -867,6 +867,11 @@ export default class App extends React.Component {
     S.bowl = ['W....W', 'WeeeeW', '.WeeW.', '.WWWW.'];
     S.suds = ['.ee.', 'eeee', 'eeee', '.ee.'];
     S.shine = ['..e..', '..e..', 'eeeee', '..e..', '..e..'];
+    // ---- 清洁工 (cleaner): a broom (leaning two ways for the sweep), dust, pan ----
+    S.broom = ['..h..', '..h..', '..h..', '..h..', '.xxx.', 'xxxxx', 'xxxxx', '.xxx.'];
+    S.dust = ['.ss.', 'ssss', '.ss.'];
+    S.pan = ['m....m', 'mMMMMm', '.mmmm.'];
+    S.trash = ['.k.', 'k.k'];
     this._scn = S;
     return S;
   }
@@ -904,6 +909,9 @@ export default class App extends React.Component {
       } else if (job && job.name === '洗碗') {
         this._scene = { type: 'dish', suds: [], shine: 0 };
         this._gear = 'dish';
+      } else if (job && job.name === '清洁工') {
+        this._scene = { type: 'clean', dust: [] };
+        this._gear = 'clean';
       }
       // other jobs keep no special scene (briefcase prop handles them)
     }
@@ -1043,6 +1051,29 @@ export default class App extends React.Component {
       } else if (Math.random() < 0.01) {
         sc.shine = 24;
       }
+      return;
+    }
+
+    if (sc.type === 'clean') {
+      // The pet (in its cap) holds a broom to its facing side and sweeps it
+      // back and forth; dust puffs kick off the bristles. A dustpan waits on
+      // the far side. The broom handle points back toward the pet's flipper.
+      const right = this.p.facing > 0;
+      const sweep = Math.sin(t / 280);                  // -1..1
+      const broomX = (right ? cx + 42 : cx - 62) + sweep * 9;
+      const broomY = GND - 30 + Math.sin(t / 140) * 2;  // little bristle bounce
+      this.drawSprite(ctx, G.broom, PAL, broomX, broomY, P);
+      const tip = broomX + 10;                          // bristle tip x
+      // Dust puffs kick off the bristles mid-sweep (fastest part).
+      if (Math.abs(Math.cos(t / 280)) > 0.55 && Math.random() < 0.22 && sc.dust.length < 12) {
+        sc.dust.push({ x: tip + (Math.random() * 16 - 8), y: GND - 4, vy: -(0.3 + Math.random() * 0.5), life: 22 + Math.random() * 16, px: Math.random() < 0.5 ? 2 : 3 });
+      }
+      sc.dust.forEach((d) => { d.y += d.vy; d.life -= 1; this.drawSprite(ctx, G.dust, PAL, d.x, d.y, d.px); });
+      sc.dust = sc.dust.filter((d) => d.life > 0);
+      // A dustpan on the floor on the opposite side; trash bits by it (variant).
+      const panX = right ? cx - 86 : cx + 56, panY = GND - 8;
+      this.drawSprite(ctx, G.pan, PAL, panX, panY, P);
+      if (Math.floor(t / 4000) % 2) this.drawSprite(ctx, G.trash, PAL, panX + 26, GND - 6, 3);
       return;
     }
   }
