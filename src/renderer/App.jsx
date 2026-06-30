@@ -9,6 +9,7 @@ import {
 } from './store.js';
 import { genPersonality, normPersonality, traitLabel } from './personality.js';
 import { DIA, pick, greetingPool, studyLine, knowledgePool } from './dialogue.js';
+import { t, defaultLang, LANGS } from './i18n.js';
 import { cloudEnabled, currentUser, currentSession, onAuth, signIn, signUp, signOut, pullCloud, pushCloud } from './cloud.js';
 
 const BODY = '#222a55';
@@ -78,6 +79,7 @@ export default class App extends React.Component {
     // the session is resolved; `online` tracks connectivity for auto-resync.
     authChecked: false, online: (typeof navigator !== 'undefined' ? navigator.onLine : true), authMode: 'in',
     confirmBreak: false, // a "中断专注？" confirm guards focus from stray clicks
+    lang: defaultLang(), // 'zh' | 'en' — picked at the login screen, saved with the pet
   };
 
   // Penguin box inside the (larger) window. The penguin is centered, so the
@@ -217,7 +219,7 @@ export default class App extends React.Component {
     }, 1050);
     // Greet once the entrance lands, by time of day.
     this._greetT = setTimeout(() => {
-      if (this._mounted) this.speak(pick(greetingPool(new Date().getHours())), 2800, true);
+      if (this._mounted) this.speak(pick(greetingPool(new Date().getHours(), this.state.lang)), 2800, true);
     }, 1250);
   }
 
@@ -378,13 +380,13 @@ export default class App extends React.Component {
   // 上课 / 上班 now open a picker instead of doing an instant action.
   studyAct = () => {
     this.closeMenu();
-    if (this.state.session) { this.speak('正在专注中哦~', 1800, true); return; }
+    if (this.state.session) { this.speak(t(this.state.lang, 'focus.busy'), 1800, true); return; }
     if (this.state.dead || this.state.onboard) return;
     this.setState({ schoolMenu: true, workMenu: false, hover: false, shopCat: null });
   };
   workAct = () => {
     this.closeMenu();
-    if (this.state.session) { this.speak('正在专注中哦~', 1800, true); return; }
+    if (this.state.session) { this.speak(t(this.state.lang, 'focus.busy'), 1800, true); return; }
     if (this.state.dead || this.state.onboard) return;
     this.setState({ workMenu: true, schoolMenu: false, hover: false, shopCat: null });
   };
@@ -433,8 +435,9 @@ export default class App extends React.Component {
     else if (this._scene && this._scene.type === 'weed') this.weedBeats();
     else if (!this._scene) this.briefcaseProp(0); // jobs without a scene keep the briefcase (0 = persist)
     this.setState({ session, sessionLeft: Math.max(0, Math.ceil((session.endTs - Date.now()) / 1000)) });
-    if (resume) this.speak(session.kind === 'study' ? '继续上课~ 还差一点点📚' : '继续干活~ 💼', 2600, true);
-    else this.speak(session.kind === 'study' ? '开始专注上课啦~ 要加油📚' : '开始认真工作~ 💼', 2600, true);
+    const L = this.state.lang;
+    if (resume) this.speak(t(L, session.kind === 'study' ? 'focus.resumeClass' : 'focus.resumeWork'), 2600, true);
+    else this.speak(t(L, session.kind === 'study' ? 'focus.startClass' : 'focus.startWork'), 2600, true);
   }
 
   clearFocus() {
@@ -456,7 +459,7 @@ export default class App extends React.Component {
   breakFocus = () => {
     if (!this.state.session) return false;
     this.clearFocus();
-    this.speak('分心了…这次要从头来过 😣', 3000, true);
+    this.speak(t(this.state.lang, 'focus.distracted'), 3000, true);
     this.save();
     return true;
   };
@@ -548,7 +551,7 @@ export default class App extends React.Component {
     this.p.busy = true; this.p.action = 'wait';
     this.p.aStart = performance.now(); this.p.aDur = 6000;
     this.heartProp();
-    if (Math.random() < 0.6) this.speak(pick(DIA.miss), 3200, true);
+    if (Math.random() < 0.6) this.speak(pick(DIA.miss[this.state.lang]), 3200, true);
     clearTimeout(this._heartT);
     this._heartT = setTimeout(() => { if (this.p.action === 'wait') this.heartProp(); }, 3200);
     setTimeout(() => { if (this.p.action === 'wait') { this.p.action = 'idle'; this.p.busy = false; } }, 6000);
@@ -1063,7 +1066,7 @@ export default class App extends React.Component {
       this._scene.beat = beat;
       this._faceOverride = face;
       this._scene.bulb = beat === 'aha';
-      if (beat === 'raise') { const line = studyLine(this._scene.subj); if (line) this.speak(line, 2400, true); }
+      if (beat === 'raise') { const line = studyLine(this._scene.subj, this.state.lang); if (line) this.speak(line, 2400, true); }
       this._faceArcT = setTimeout(() => {
         if (!guard()) return;
         if (beat === 'doze') {
@@ -1673,12 +1676,12 @@ export default class App extends React.Component {
   // is: Lv1 宝宝 → Lv2 幼年 → Lv3 成年 (adult). Lv3 == isGrown() (the 2h threshold),
   // so the existing job/behaviour gating is unchanged.
   levelInfo() {
-    const pt = this.state.playTime || 0;
+    const pt = this.state.playTime || 0, lang = this.state.lang;
     const T1 = GROW_SECONDS * 0.25; // 30 min → Lv2
     const T2 = GROW_SECONDS;        // 2 h    → Lv3 (adult)
-    if (pt < T1) return { level: 1, name: '宝宝', pct: Math.round((pt / T1) * 100) };
-    if (pt < T2) return { level: 2, name: '幼年', pct: Math.round(((pt - T1) / (T2 - T1)) * 100) };
-    return { level: 3, name: '成年', pct: 100 };
+    if (pt < T1) return { level: 1, name: t(lang, 'lv.baby'), pct: Math.round((pt / T1) * 100) };
+    if (pt < T2) return { level: 2, name: t(lang, 'lv.child'), pct: Math.round(((pt - T1) / (T2 - T1)) * 100) };
+    return { level: 3, name: t(lang, 'lv.adult'), pct: 100 };
   }
   // Smudge a few belly pixels with grime when the pet is dirty (low cleanliness).
   withDirt(g) {
@@ -2078,7 +2081,7 @@ export default class App extends React.Component {
         this._sickCtr = 0;
         if (this.state.health < 50 && !this.p.busy) {
           const chance = clamp((50 - this.state.health) / 100, 0, 0.4);
-          if (Math.random() < chance) { this.setState({ sick: 'mild' }); this.speak(pick(DIA.sick), 2600, true); }
+          if (Math.random() < chance) { this.setState({ sick: 'mild' }); this.speak(pick(DIA.sick[this.state.lang]), 2600, true); }
         }
       }
     }
@@ -2129,7 +2132,7 @@ export default class App extends React.Component {
     }
 
     this.maybeChatter();
-    if (this.p.action === 'weak' && Math.random() < 0.14) this.speak(pick(DIA.weak));
+    if (this.p.action === 'weak' && Math.random() < 0.14) this.speak(pick(DIA.weak[this.state.lang]));
 
     // While studying, the pet "learns out loud" — speaks a fact for the subject
     // (English class is spoken in English). Non-intrusive: just a bubble.
@@ -2138,7 +2141,7 @@ export default class App extends React.Component {
       this._studyCtr = (this._studyCtr || 0) + 1;
       if (this._studyCtr >= 11 && Math.random() < 0.5) {
         this._studyCtr = 0;
-        const line = studyLine(ses.subjectKey);
+        const line = studyLine(ses.subjectKey, this.state.lang);
         if (line) this.speak(line, 3000, true);
       }
     }
@@ -2172,16 +2175,16 @@ export default class App extends React.Component {
     // It's an idle companion that mostly keeps to itself, so it only speaks up for
     // a real need (hungry / dirty / tired / sick) — no needy "where'd you go?".
     let pool = null;
-    if (s.sick) pool = DIA.sick;
-    else if (s.fullness < 30) pool = DIA.hungry;
-    else if (s.cleanliness <= 25) pool = DIA.dirty;
-    else if (s.energy < 30) pool = DIA.sleepy;
-    else if (!this.isGrown()) pool = DIA.baby; // a baby still babbles
+    if (s.sick) pool = DIA.sick[s.lang];
+    else if (s.fullness < 30) pool = DIA.hungry[s.lang];
+    else if (s.cleanliness <= 25) pool = DIA.dirty[s.lang];
+    else if (s.energy < 30) pool = DIA.sleepy[s.lang];
+    else if (!this.isGrown()) pool = DIA.baby[s.lang]; // a baby still babbles
     if (!pool) {
       // Content & grown: every so often show off something it learned in class.
       const learned = this.learnedSubjects();
       if (learned.length && Math.random() < (0.05 + this.personality.liveliness / 2200)) {
-        const facts = knowledgePool(learned);
+        const facts = knowledgePool(learned, s.lang);
         if (facts.length) this.speak(pick(facts), 3200);
       }
       return;
@@ -2231,7 +2234,7 @@ export default class App extends React.Component {
     setTimeout(() => {
       this.applyDeltas(fx || { full: 42, happy: 4 });
       this.p.action = 'idle'; this.p.busy = false; this.recompute(); this.save();
-      this.speak(pick(DIA.fed), 2200, true);
+      this.speak(pick(DIA.fed[this.state.lang]), 2200, true);
     }, 1500);
   };
   playAct = (fx) => {
@@ -2244,7 +2247,7 @@ export default class App extends React.Component {
     setTimeout(() => {
       this.applyDeltas(fx || { energy: -20, clean: -8, happy: 26 });
       this.p.action = 'idle'; this.p.busy = false; this.recompute(); this.save();
-      this.speak(pick(DIA.played), 2200, true);
+      this.speak(pick(DIA.played[this.state.lang]), 2200, true);
     }, this.p.aDur);
   };
   dance = (fx) => {
@@ -2267,7 +2270,7 @@ export default class App extends React.Component {
     setTimeout(() => {
       this.setState({ energy: 80 });
       this.p.action = 'idle'; this.p.busy = false; this.recompute(); this.save();
-      this.speak(pick(DIA.slept), 2200, true);
+      this.speak(pick(DIA.slept[this.state.lang]), 2200, true);
     }, 6000);
   };
   // Sit down for a short rest (recovers a little energy). Interruptible.
@@ -2275,7 +2278,7 @@ export default class App extends React.Component {
     if (this.p.busy) return;
     this.touch(); this.closeMenu();
     this.p.busy = true; this.p.action = 'sit';
-    this.sfx('chirp'); this.speak(pick(DIA.sit), 2400, true);
+    this.sfx('chirp'); this.speak(pick(DIA.sit[this.state.lang]), 2400, true);
     clearTimeout(this._sitT);
     this._sitT = setTimeout(() => {
       this.setState((s) => ({ energy: Math.min(100, s.energy + 12) }));
@@ -2290,7 +2293,7 @@ export default class App extends React.Component {
     this.p.aStart = performance.now(); this.p.aDur = 2400 / (this.state.speed || 1);
     this.p.playfulUntil = Date.now() + 8000;
     this.sfx('play'); this.prop('ball', this.p.aDur);
-    this.speak(pick(DIA.ball), 2000, true);
+    this.speak(pick(DIA.ball[this.state.lang]), 2000, true);
     setTimeout(() => {
       this.applyDeltas(fx || { energy: -14, clean: -10, happy: 24 });
       this.p.action = 'idle'; this.p.busy = false; this.recompute(); this.save();
@@ -2303,7 +2306,7 @@ export default class App extends React.Component {
     this.p.aStart = performance.now(); this.p.aDur = 2600 / (this.state.speed || 1);
     this.p.playfulUntil = Date.now() + 8000;
     this.sfx('play'); this.prop('shuttle', this.p.aDur);
-    this.speak(pick(DIA.badminton), 2000, true);
+    this.speak(pick(DIA.badminton[this.state.lang]), 2000, true);
     setTimeout(() => {
       this.applyDeltas(fx || { energy: -16, clean: -12, happy: 28 });
       this.p.action = 'idle'; this.p.busy = false; this.recompute(); this.save();
@@ -2319,7 +2322,7 @@ export default class App extends React.Component {
     this.p.busy = true; this.p.action = 'bath';
     this.p.aStart = performance.now(); this.p.aDur = 1900 / (this.state.speed || 1);
     this.sfx('bath'); this.bubbles();
-    this.speak(pick(DIA.bath), 2000, true);
+    this.speak(pick(DIA.bath[this.state.lang]), 2000, true);
     clearInterval(this._bathBub);
     this._bathBub = setInterval(() => this.bubbles(), 480);
     setTimeout(() => {
@@ -2377,11 +2380,11 @@ export default class App extends React.Component {
     this.stand();
     if (this.p.action === 'walk' || this.p.action === 'slide') this.p.action = 'idle';
     // Too hungry to perk up — just plead for food (the care panel shows on hover).
-    if (this.p.action === 'weak' || this.state.fullness < 20) { this.speak(pick(DIA.weak), 2200, true); return; }
+    if (this.p.action === 'weak' || this.state.fullness < 20) { this.speak(pick(DIA.weak[this.state.lang]), 2200, true); return; }
     // A happy, grown pet adores being petted → heart-eyes instead of a line.
     if (this.isGrown() && this.state.happiness >= 60 && Math.random() < 0.5) { this.loveReact(); return; }
     const P = this.personality;
-    const pool = P.liveliness > 65 ? DIA.clickLively : (P.courage < 35 ? DIA.clickShy : DIA.click);
+    const pool = (P.liveliness > 65 ? DIA.clickLively : (P.courage < 35 ? DIA.clickShy : DIA.click))[this.state.lang];
     this.speak(pick(pool), 2000, true);
   }
 
@@ -2472,7 +2475,7 @@ export default class App extends React.Component {
     this.personality = normPersonality(d && d.personality);
     if (!d) { this.setState({ loaded: true }); return { gender: null, dead: false }; } // brand-new pet → onboarding (boot)
     const st = {};
-    ['fullness', 'energy', 'cleanliness', 'happiness', 'health', 'sick', 'dead', 'education', 'study', 'gender', 'playTime', 'money', 'mood', 'name', 'volume', 'speed', 'opacity', 'schoolLevel'].forEach((k) => {
+    ['fullness', 'energy', 'cleanliness', 'happiness', 'health', 'sick', 'dead', 'education', 'study', 'gender', 'playTime', 'money', 'mood', 'name', 'volume', 'speed', 'opacity', 'schoolLevel', 'lang'].forEach((k) => {
       if (d[k] != null) st[k] = d[k];
     });
     st.classDone = (d.classDone && typeof d.classDone === 'object') ? { ...FRESH_CLASSES, ...d.classDone } : { ...FRESH_CLASSES };
@@ -2515,7 +2518,7 @@ export default class App extends React.Component {
       health: s.health, sick: s.sick, dead: s.dead, education: s.education, study: s.study,
       schoolLevel: s.schoolLevel, classDone: s.classDone,
       session: s.session, // an in-progress class/shift survives a restart (resumes / auto-completes)
-      gender: s.gender, playTime: s.playTime, money: s.money, mood: s.mood,
+      gender: s.gender, playTime: s.playTime, money: s.money, mood: s.mood, lang: s.lang,
       name: s.name, volume: s.volume, speed: s.speed, opacity: s.opacity,
       personality: this.personality,
       x: this.p.x, y: this.p.y, ts: Date.now(),
@@ -2587,7 +2590,7 @@ export default class App extends React.Component {
     if (!d) return;
     this.personality = normPersonality(d.personality);
     const st = {};
-    ['fullness', 'energy', 'cleanliness', 'happiness', 'health', 'sick', 'dead', 'education', 'study', 'gender', 'playTime', 'money', 'mood', 'name', 'volume', 'speed', 'opacity', 'schoolLevel'].forEach((k) => {
+    ['fullness', 'energy', 'cleanliness', 'happiness', 'health', 'sick', 'dead', 'education', 'study', 'gender', 'playTime', 'money', 'mood', 'name', 'volume', 'speed', 'opacity', 'schoolLevel', 'lang'].forEach((k) => {
       if (d[k] != null) st[k] = d[k];
     });
     if (d.classDone && typeof d.classDone === 'object') st.classDone = { ...FRESH_CLASSES, ...d.classDone };
@@ -2602,6 +2605,7 @@ export default class App extends React.Component {
     this.setState(st, () => { this.recompute(); this.save(); });
   }
 
+  setLang = (lang) => { this.setState({ lang }); if (this.state.loaded) this.save(); };
   setAuthEmail = (e) => this.setState({ authEmail: e.target.value });
   setAuthPw = (e) => this.setState({ authPw: e.target.value });
 
@@ -2655,7 +2659,7 @@ export default class App extends React.Component {
           <span>{ses.label}</span>
           <span style={{ fontFamily: 'monospace', fontSize: 13, color: '#ffe27a' }}>{fmtClock(this.state.sessionLeft)}</span>
         </div>
-        <div style={{ background: 'rgba(34,42,85,.82)', color: '#cdd3ee', padding: '2px 9px', borderRadius: 999, fontSize: 9, fontWeight: 800, whiteSpace: 'nowrap' }}>专注中 · 只能喂食/洗澡，玩耍或退出会清零</div>
+        <div style={{ background: 'rgba(34,42,85,.82)', color: '#cdd3ee', padding: '2px 9px', borderRadius: 999, fontSize: 9, fontWeight: 800, whiteSpace: 'nowrap' }}>{t(this.state.lang, 'focus.note')}</div>
       </div>
     );
   }
@@ -2858,7 +2862,7 @@ export default class App extends React.Component {
               arrowShift={shiftPanel}
               centered={shopOpen}
               fullness={fullness} cleanliness={cleanliness} happiness={happiness} health={health}
-              level={this.levelInfo()} petName={s.name}
+              level={this.levelInfo()} petName={s.name} lang={s.lang}
               onStat={this.setHoverStat} onLeave={this.clearHoverStat}
               onOpenCat={this.openCat} onBuy={this.buyItem} onBack={this.backShop} onPlay={this.playFree}
             />
@@ -2869,7 +2873,7 @@ export default class App extends React.Component {
         {s.menu && (
           <ContextMenu
             x={s.menu.x} y={s.menu.y}
-            sick={s.sick}
+            sick={s.sick} lang={s.lang}
             onClose={this.closeMenu}
             onFeed={() => { this.closeMenu(); this.openCat('food'); }}
             onBath={() => { this.closeMenu(); this.openCat('bath'); }}
@@ -2886,24 +2890,33 @@ export default class App extends React.Component {
         {gateUp && (
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 95, background: 'rgba(207,224,255,.96)' }}>
             <div onPointerDown={this.stopDown} style={{ width: 212, background: '#fff', border: '3px solid #222a55', borderRadius: 18, padding: 16, textAlign: 'center', boxShadow: '0 8px 0 rgba(34,42,85,.25)', animation: 'popIn .2s ease-out' }}>
-              <div style={{ fontWeight: 900, fontSize: 15, color: '#222a55', marginBottom: 2 }}>{s.authMode === 'up' ? '注册账号' : '登录'}</div>
-              <div style={{ fontSize: 10, fontWeight: 700, color: '#8a93c2', marginBottom: 12, lineHeight: 1.4 }}>
-                登录后存档会自动云端同步，换设备或重装都不丢失。
+              {/* language picker — make it a multi-nation pet */}
+              <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginBottom: 11 }}>
+                {LANGS.map((L) => (
+                  <div key={L.key} onClick={() => this.setLang(L.key)}
+                    style={{ fontSize: 10.5, fontWeight: 900, padding: '3px 11px', borderRadius: 999, cursor: 'pointer',
+                      background: s.lang === L.key ? '#222a55' : '#eef1f8', color: s.lang === L.key ? '#fff' : '#8a93c2',
+                      border: '2px solid ' + (s.lang === L.key ? '#222a55' : 'transparent') }}>{L.label}</div>
+                ))}
               </div>
-              <input type="email" autoFocus placeholder="邮箱" value={s.authEmail} onChange={this.setAuthEmail}
+              <div style={{ fontWeight: 900, fontSize: 15, color: '#222a55', marginBottom: 2 }}>{t(s.lang, s.authMode === 'up' ? 'login.signup' : 'login.login')}</div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#8a93c2', marginBottom: 12, lineHeight: 1.4 }}>
+                {t(s.lang, 'login.blurb')}
+              </div>
+              <input type="email" autoFocus placeholder={t(s.lang, 'login.email')} value={s.authEmail} onChange={this.setAuthEmail}
                 style={{ width: '100%', boxSizing: 'border-box', border: '2px solid #222a55', borderRadius: 9, padding: '8px 10px', fontFamily: "'Nunito'", fontWeight: 800, fontSize: 13, color: '#222a55', outline: 'none', marginBottom: 8 }} />
-              <input type="password" placeholder="密码（至少 6 位）" value={s.authPw} onChange={this.setAuthPw}
+              <input type="password" placeholder={t(s.lang, 'login.password')} value={s.authPw} onChange={this.setAuthPw}
                 onKeyDown={(e) => { if (e.key === 'Enter') this.doAuth(s.authMode === 'up' ? 'up' : 'in'); }}
                 style={{ width: '100%', boxSizing: 'border-box', border: '2px solid #222a55', borderRadius: 9, padding: '8px 10px', fontFamily: "'Nunito'", fontWeight: 800, fontSize: 13, color: '#222a55', outline: 'none', marginBottom: 10 }} />
               {s.authMsg && <div style={{ fontSize: 10, fontWeight: 800, color: '#e85c93', marginBottom: 8 }}>{s.authMsg}</div>}
-              {!s.online && <div style={{ fontSize: 10, fontWeight: 800, color: '#e09a3c', marginBottom: 8 }}>当前离线 · 首次登录/注册需要联网</div>}
+              {!s.online && <div style={{ fontSize: 10, fontWeight: 800, color: '#e09a3c', marginBottom: 8 }}>{t(s.lang, 'login.offline')}</div>}
               <div onClick={() => !s.authBusy && this.doAuth(s.authMode === 'up' ? 'up' : 'in')}
                 style={{ background: s.authBusy ? '#cfd4e6' : '#222a55', color: '#fff', padding: 9, borderRadius: 11, fontWeight: 900, fontSize: 13, cursor: s.authBusy ? 'default' : 'pointer', boxShadow: '0 4px 0 rgba(34,42,85,.3)' }}>
-                {s.authBusy ? '请稍候…' : (s.authMode === 'up' ? '注册并开始' : '登录')}
+                {s.authBusy ? t(s.lang, 'login.busy') : t(s.lang, s.authMode === 'up' ? 'login.doSignup' : 'login.doLogin')}
               </div>
               <div onClick={() => this.setState({ authMode: s.authMode === 'up' ? 'in' : 'up', authMsg: '' })}
                 style={{ fontSize: 10.5, fontWeight: 800, color: '#5b6bd0', cursor: 'pointer', marginTop: 11 }}>
-                {s.authMode === 'up' ? '已有账号？去登录' : '没有账号？注册一个'}
+                {t(s.lang, s.authMode === 'up' ? 'login.toLogin' : 'login.toSignup')}
               </div>
             </div>
           </div>
@@ -2914,18 +2927,18 @@ export default class App extends React.Component {
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 96 }}>
             <div onPointerDown={this.stopDown} style={{ width: 200, background: '#fff', border: '3px solid #222a55', borderRadius: 18, padding: 16, textAlign: 'center', boxShadow: '0 8px 0 rgba(34,42,85,.25)', animation: 'popIn .2s ease-out' }}>
               <div style={{ fontWeight: 900, fontSize: 14, color: '#222a55', marginBottom: 4 }}>
-                中断{s.session && s.session.kind === 'work' ? '上班' : '上课'}？
+                {t(s.lang, 'focus.breakTitle', t(s.lang, s.session && s.session.kind === 'work' ? 'focus.breakWork' : 'focus.breakClass'))}
               </div>
               <div style={{ fontSize: 10.5, fontWeight: 700, color: '#8a93c2', marginBottom: 13, lineHeight: 1.4 }}>
-                这次的专注进度会清零哦，确定要中断吗？
+                {t(s.lang, 'focus.breakBody')}
               </div>
               <div onClick={() => this.setState({ confirmBreak: false })}
                 style={{ background: '#36c98f', color: '#fff', padding: 9, borderRadius: 11, fontWeight: 900, fontSize: 13, cursor: 'pointer', marginBottom: 8, boxShadow: '0 4px 0 rgba(34,42,85,.2)' }}>
-                继续专注
+                {t(s.lang, 'focus.keep')}
               </div>
               <div onClick={() => { this.setState({ confirmBreak: false }); this.breakFocus(); }}
                 style={{ background: '#fff', color: '#e85c93', border: '2px solid #e85c93', padding: 8, borderRadius: 11, fontWeight: 900, fontSize: 12, cursor: 'pointer' }}>
-                确定中断
+                {t(s.lang, 'focus.stop')}
               </div>
             </div>
           </div>
@@ -2937,10 +2950,10 @@ export default class App extends React.Component {
             <div onPointerDown={this.stopDown} style={{ width: 212, background: '#fff', border: '3px solid #222a55', borderRadius: 18, padding: 16, textAlign: 'center', boxShadow: '0 8px 0 rgba(34,42,85,.25)', animation: 'popIn .2s ease-out' }}>
               {s.onboard === 'gender' ? (
                 <>
-                  <div style={{ fontWeight: 900, fontSize: 14, color: '#222a55', marginBottom: 3 }}>选择你的小伙伴</div>
-                  <div style={{ fontSize: 10.5, fontWeight: 700, color: '#8a93c2', marginBottom: 15 }}>挑一颗蛋，开始养成 🥚</div>
+                  <div style={{ fontWeight: 900, fontSize: 14, color: '#222a55', marginBottom: 3 }}>{t(s.lang, 'ob.pickTitle')}</div>
+                  <div style={{ fontSize: 10.5, fontWeight: 700, color: '#8a93c2', marginBottom: 15 }}>{t(s.lang, 'ob.pickSub')} 🥚</div>
                   <div style={{ display: 'flex', justifyContent: 'center', gap: 24 }}>
-                    {[['boy', '男孩', GENDER_COLOR.boy], ['girl', '女孩', GENDER_COLOR.girl]].map(([g, label, color]) => (
+                    {[['boy', t(s.lang, 'ob.boy'), GENDER_COLOR.boy], ['girl', t(s.lang, 'ob.girl'), GENDER_COLOR.girl]].map(([g, label, color]) => (
                       <div key={g} className="egg-pick" onClick={() => this.chooseGender(g)} style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                         <div style={{ position: 'relative', width: 56, height: 72 }}>
                           <div style={{ width: '100%', height: '100%', background: 'linear-gradient(#fff7e6,#fde7c4)', border: '3px solid #e0b074', borderRadius: '50% 50% 50% 50% / 60% 60% 42% 42%', boxShadow: '0 4px 0 rgba(180,140,80,.25)' }} />
@@ -2955,11 +2968,11 @@ export default class App extends React.Component {
               ) : (
                 <>
                   <div style={{ fontSize: 30, lineHeight: 1 }}>🥚</div>
-                  <div style={{ fontWeight: 900, fontSize: 14, color: '#222a55', margin: '8px 0 10px' }}>给{s.gender === 'girl' ? '她' : '他'}取个名字</div>
+                  <div style={{ fontWeight: 900, fontSize: 14, color: '#222a55', margin: '8px 0 10px' }}>{t(s.lang, 'ob.nameTitle', t(s.lang, s.gender === 'girl' ? 'ob.her' : 'ob.him'))}</div>
                   <input autoFocus value={s.name} onChange={this.setName} maxLength={12}
                     onKeyDown={(e) => { if (e.key === 'Enter') this.finishOnboard(); }}
                     style={{ width: '100%', border: '2px solid #222a55', borderRadius: 9, padding: '8px 10px', fontFamily: "'Nunito'", fontWeight: 800, fontSize: 14, color: '#222a55', textAlign: 'center', outline: 'none', marginBottom: 12 }} />
-                  <div onClick={this.finishOnboard} style={{ background: '#222a55', color: '#fff', padding: 9, borderRadius: 11, fontWeight: 900, fontSize: 13, cursor: 'pointer', boxShadow: '0 4px 0 rgba(34,42,85,.3)' }}>就叫这个名字！🐣</div>
+                  <div onClick={this.finishOnboard} style={{ background: '#222a55', color: '#fff', padding: 9, borderRadius: 11, fontWeight: 900, fontSize: 13, cursor: 'pointer', boxShadow: '0 4px 0 rgba(34,42,85,.3)' }}>{t(s.lang, 'ob.nameGo')} 🐣</div>
                 </>
               )}
             </div>
@@ -3007,7 +3020,7 @@ export default class App extends React.Component {
             <span style={{ background: '#222a55', color: '#fff', fontWeight: 900, fontSize: 11, padding: '3px 9px', borderRadius: 999, boxShadow: '0 2px 0 rgba(34,42,85,.3)' }}>
               {(GAME_LIST.find((g) => g.key === s.playGame) || {}).name} · {s.gameScore}
             </span>
-            <span onClick={this.stopGame} style={{ background: '#fff', color: '#222a55', border: '2px solid #222a55', fontWeight: 900, fontSize: 11, padding: '2px 9px', borderRadius: 999, cursor: 'pointer', pointerEvents: 'auto' }}>结束</span>
+            <span onClick={this.stopGame} style={{ background: '#fff', color: '#222a55', border: '2px solid #222a55', fontWeight: 900, fontSize: 11, padding: '2px 9px', borderRadius: 999, cursor: 'pointer', pointerEvents: 'auto' }}>{t(s.lang, 'game.end')}</span>
           </div>
         )}
       </div>
