@@ -50,8 +50,10 @@ function emit(kind, extra) {
 function classifyTool() {
   const name = data.tool_name || '';
   const inp = data.tool_input || {};
-  const resp = data.tool_response;
-  const out = typeof resp === 'string' ? resp : JSON.stringify(resp || '');
+  // Claude Code provides PostToolUse output as tool_result ({type,text}); keep
+  // tool_response as a fallback for older builds.
+  const resp = data.tool_result !== undefined ? data.tool_result : data.tool_response;
+  const out = typeof resp === 'string' ? resp : (resp && typeof resp.text === 'string' ? resp.text : JSON.stringify(resp || ''));
   const cmd = inp.command || '';
   // A real failure: a POSITIVE fail/error count, or a strong error signal. We
   // deliberately don't match the bare word "failed" (so "0 failed" is a pass) or
@@ -92,7 +94,12 @@ function classifyStop() {
 switch (hint) {
   case 'session_start': emit('session_start'); break;
   case 'prompt': emit('prompt'); break;
-  case 'notify': emit('needs_input'); break;
+  case 'notify': {
+    // Notifications cover several types; only the attention-worthy ones.
+    const ty = String(data.type || '');
+    if (!ty || /permission|idle|elicitation/i.test(ty)) emit('needs_input');
+    break;
+  }
   case 'session_end': emit('session_end'); break;
   case 'stop': classifyStop(); break;
   case 'tool': classifyTool(); break;
@@ -118,7 +125,13 @@ function install() {
 
   const s = readJSON(SETTINGS);
   s.hooks = s.hooks || {};
-  const cmd = (hint) => 'node ' + JSON.stringify(HOOK) + ' ' + hint;
+  // Run the helper through Deskpet's OWN bundled Node (Electron supports
+  // ELECTRON_RUN_AS_NODE=1 to behave as plain node). This avoids the very common
+  // failure where a bare `node` isn't on the hook shell's PATH (nvm/Homebrew),
+  // which makes every hook silently do nothing. execPath is the installed app
+  // binary, always present while Deskpet is installed.
+  const NODE = process.execPath;
+  const cmd = (hint) => 'ELECTRON_RUN_AS_NODE=1 ' + JSON.stringify(NODE) + ' ' + JSON.stringify(HOOK) + ' ' + hint;
   const ensure = (event, hint, matcher) => {
     const arr = Array.isArray(s.hooks[event]) ? s.hooks[event] : [];
     const kept = arr.filter((g) => !hasOurs(g)); // drop any stale deskpet entry
@@ -127,12 +140,13 @@ function install() {
     kept.push(entry);
     s.hooks[event] = kept;
   };
-  ensure('SessionStart', 'session_start');
+  // Events that take a matcher use "*" (match all); Stop/UserPromptSubmit take none.
+  ensure('SessionStart', 'session_start', '*');
   ensure('UserPromptSubmit', 'prompt');
   ensure('PostToolUse', 'tool', '*');
-  ensure('Notification', 'notify');
+  ensure('Notification', 'notify', '*');
   ensure('Stop', 'stop');
-  ensure('SessionEnd', 'session_end');
+  ensure('SessionEnd', 'session_end', '*');
   fs.writeFileSync(SETTINGS, JSON.stringify(s, null, 2) + '\n');
   return true;
 }
@@ -158,4 +172,28 @@ function isInstalled() {
   return Object.values(h).some((arr) => Array.isArray(arr) && arr.some(hasOurs));
 }
 
-module.exports = { install, remove, isInstalled, paths: { dir: DIR, events: EVENTS, hook: HOOK, settings: SETTINGS } };
+// True if our hooks are installed but in an OLD format (e.g. the pre-fix `node …`
+// command that fails on a minimal hook PATH). Used to auto-heal on app update.
+function needsUpgrade() {
+  const s = readJSON(SETTINGS);
+  const h = (s && s.hooks) || {};
+  let ours = false, stale = false;
+  for (const arr of Object.values(h)) {
+    if (!Array.isArray(arr)) continue;
+    for (const g of arr) {
+      for (const x of (g && g.hooks) || []) {
+        const c = String(x.command || '');
+        if (c.includes(TAG)) { ours = true; if (!c.includes('ELECTRON_RUN_AS_NODE')) stale = true; }
+      }
+    }
+  }
+  return ours && stale;
+}
+
+// Re-write our hooks if they're stale (keeps the user connected, just upgrades
+// the command + refreshes the helper script). No-op if not installed.
+function upgradeIfNeeded() {
+  try { if (isInstalled() && needsUpgrade()) install(); } catch (e) { /* ignore */ }
+}
+
+module.exports = { install, remove, isInstalled, needsUpgrade, upgradeIfNeeded, paths: { dir: DIR, events: EVENTS, hook: HOOK, settings: SETTINGS } };

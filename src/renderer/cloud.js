@@ -58,14 +58,14 @@ export function onAuth(cb) {
 }
 
 export async function signUp(email, password) {
-  if (!supa) throw new Error('云同步不可用');
+  if (!supa) throw new Error('Cloud sync unavailable · 云同步不可用');
   const { data, error } = await supa.auth.signUp({ email, password });
   if (error) throw error;
   return data; // data.session is null when email confirmation is required
 }
 
 export async function signIn(email, password) {
-  if (!supa) throw new Error('云同步不可用');
+  if (!supa) throw new Error('Cloud sync unavailable · 云同步不可用');
   const { data, error } = await supa.auth.signInWithPassword({ email, password });
   if (error) throw error;
   return data;

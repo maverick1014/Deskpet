@@ -20,6 +20,7 @@ const DEFAULTS = {
   money: 200,     // earned by working (gated by education)
   gender: null,   // 'boy' | 'girl', chosen at onboarding (null → show onboarding)
   playTime: 0,    // total online seconds; ≥ 2 days → egg hatches into a penguin
+  bonusXp: 0,     // experience earned from actions (feed/play/class/shift) → level
   mood: 'happy',
   name: 'Pengu',
   volume: 60,
