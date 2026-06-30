@@ -6,9 +6,10 @@ import GamePicker from './components/MiniGames.jsx';
 import { GameEngine, GAME_LIST } from './games.js';
 import {
   loadState, saveState, getStage, moveWindow, onStageUpdate, setInteractive, quitApp, onRecenter,
+  buddyStatus, buddyConnect, buddyDisconnect, onBuddyEvent,
 } from './store.js';
 import { genPersonality, normPersonality, traitLabel } from './personality.js';
-import { DIA, pick, greetingPool, studyLine, knowledgePool } from './dialogue.js';
+import { DIA, BUDDY, pick, greetingPool, studyLine, knowledgePool } from './dialogue.js';
 import { t, defaultLang, LANGS } from './i18n.js';
 import { cloudEnabled, currentUser, currentSession, onAuth, signIn, signUp, signOut, pullCloud, pushCloud } from './cloud.js';
 
@@ -139,6 +140,10 @@ export default class App extends React.Component {
     window.addEventListener('offline', this._onOffline);
     this._offStage = onStageUpdate((st) => this.applyStage(st));
     this._offRecenter = onRecenter(() => this.recenter());
+    // Code Buddy: react to the developer's Claude Code session, and load whether
+    // we're currently connected (hooks installed) for the Settings switch.
+    this._offBuddy = onBuddyEvent((evt) => this.onBuddyEvent(evt));
+    buddyStatus().then((r) => { if (this._mounted) this.setState({ buddyOn: !!(r && r.connected) }); }).catch(() => {});
 
     this._hintTimer = setTimeout(() => { if (this._mounted) this.setState({ hint: false }); }, 7000);
     this.refreshInteractive();
@@ -171,6 +176,9 @@ export default class App extends React.Component {
     if (this._offStage) this._offStage();
     if (this._offRecenter) this._offRecenter();
     if (this._offAuth) this._offAuth();
+    if (this._offBuddy) this._offBuddy();
+    this._buddyReact = null;
+    clearTimeout(this._buddyEncT);
     clearTimeout(this._cloudT);
   }
 
@@ -1649,6 +1657,16 @@ export default class App extends React.Component {
       // 坐下: a content smile, a settled wider bottom, and flat feet stuck out
       // FORWARD — a real penguin-sitting silhouette (paired with a squash below).
       sit: sw(idle, [[8, '..DLLLLOOLLLLD..'], [14, '..DDLLLLLLLLDD..'], [15, '..OOOO....OOOO..']]),
+      // ---- Code Buddy reactions (transient; the pet returns to idle after) ----
+      // panic: worried slanted brows + big startled eyes (paired with a runtime
+      // shake + a sweat-drop overlay). Fires on a Claude Code error / test fail.
+      panic: sw(idle, [[5, '..DLDLLLLLLDLD..'], [6, '..DLEELLLLEELD..']]),
+      // cheer: sparkly eyes + wide open smile (paired with a runtime hop). Fires
+      // when Claude finishes a turn or tests pass.
+      cheer: sw(idle, [[6, '..DLELELLELELD..'], [7, '..DLCLLEELLCLD..'], [8, '..DLLLOOOOLLLD..']]),
+      // notice: raised alert eyes + open beak. Fires to get the dev's attention
+      // (session start / needs permission / a fresh prompt).
+      notice: sw(idle, [[5, '..DLEELLEELLLD..'], [6, '..DLEELLEELLLD..'], [7, '..DLCLLOOLLCLD..'], [8, '..DLLLOOOOLLLD..']]),
     };
     // Egg / baby stage: a cute baby penguin (big sparkly eyes, tiny beak) sitting
     // in a cracked egg shell with a zigzag rim and a gender-coloured ribbon (R).
@@ -1809,7 +1827,7 @@ export default class App extends React.Component {
     // Idle FPS throttle: only redraw at ~18fps when nothing is animating, full
     // rate while walking/playing/blinking/dragging. Saves CPU on an always-on app.
     const lowKey = p.action === 'idle' || p.action === 'weak' || p.action === 'sit' || p.action === 'dead' || p.action === 'wait';
-    const animating = !lowKey || p.blinkOn || p.dragging || !!this.state.playGame;
+    const animating = !lowKey || p.blinkOn || p.dragging || !!this.state.playGame || !!this._buddyReact;
     if (animating || t - (this._lastDraw || 0) >= 55) {
       this._lastDraw = t;
       this.render2d(t, sp);
@@ -1847,6 +1865,39 @@ export default class App extends React.Component {
       }
       if (this.shadowRef.current) { this.shadowRef.current.style.transform = 'scaleX(1)'; this.shadowRef.current.style.opacity = '0.34'; }
       return;
+    }
+
+    // ---- Code Buddy reaction: a transient pose+motion over normal pet life ----
+    // Driven by Claude Code events (see onBuddyEvent). It briefly overrides the
+    // face + body, plays a short motion (hop/shake/tap), then clears back to idle.
+    if (this._buddyReact) {
+      const b = this._buddyReact;
+      if (t >= b.t0 + b.dur) { this._buddyReact = null; }
+      else {
+        let grid = this.G[b.face] || this.G.idle;
+        if (p.blinkOn && b.face !== 'panic') grid = this.withClosed(grid);
+        if (this.state.cleanliness <= 25) grid = this.withDirt(grid);
+        if (this.ensureCtx()) this.draw(grid);
+        const el = t - b.t0;
+        let jy = 0, rot = 0, sy = 1;
+        if (b.motion === 'hop') { jy = Math.abs(Math.sin(el / 130)) * 22; sy = 1 + Math.sin(el / 130) * 0.05; }       // bounce for joy
+        else if (b.motion === 'celebrate') {                                                                          // big win: spin + tall hops + flap
+          jy = Math.abs(Math.sin(el / 105)) * 34;
+          rot = Math.sin(el / 95) * 24 * p.facing;
+          sy = 1 + Math.sin(el / 70) * 0.1;
+        }
+        else if (b.motion === 'shake') { rot = Math.sin(el / 38) * 8; jy = Math.sin(el / 70) * 2; }                    // worried jitter
+        else if (b.motion === 'tap') { rot = Math.sin(el / 90) * 6 * p.facing; jy = Math.abs(Math.sin(el / 180)) * 4; } // lean-tap for attention
+        else if (b.motion === 'wave') { rot = Math.sin(el / 150) * 13; jy = Math.abs(Math.sin(el / 300)) * 4; }        // gentle friendly sway
+        else { jy = Math.sin(el / 300) * 3; }
+        if (this.spriteRef.current) {
+          this.spriteRef.current.style.transform = `translateY(${(-jy).toFixed(1)}px) rotate(${rot.toFixed(1)}deg) scaleX(${p.facing}) scaleY(${sy.toFixed(3)})`;
+          this.spriteRef.current.style.filter = 'none';
+          this.spriteRef.current.style.opacity = '1';
+        }
+        if (this.shadowRef.current) { this.shadowRef.current.style.transform = 'scaleX(1)'; this.shadowRef.current.style.opacity = '0.34'; }
+        return;
+      }
     }
 
     // A mini-game can briefly drive the pet's face (happy on a milestone, sad on
@@ -2606,6 +2657,82 @@ export default class App extends React.Component {
   }
 
   setLang = (lang) => { this.setState({ lang }); if (this.state.loaded) this.save(); };
+
+  // ---- Code Buddy: react to the developer's Claude Code activity --------------
+  // Fire a transient pose+motion (returning to normal pet life after `dur`), and
+  // optionally speak a line. `say` (Claude's own remark) overrides the pool line.
+  buddyReact(face, motion, line, dur = 2600) {
+    this._buddyReact = { face, motion, t0: performance.now(), dur };
+    if (line) this.speak(line, Math.min(dur + 400, 3600), true);
+  }
+  // Occasionally cheer the owner on after a win (a second beat of encouragement).
+  buddyEncore(dur) {
+    const lang = this.state.lang;
+    if (this._buddyEncT) clearTimeout(this._buddyEncT);
+    this._buddyEncT = setTimeout(() => {
+      if (!this._mounted || this.state.session || this.state.playGame) return;
+      this.buddyReact('cheer', 'hop', pick(BUDDY.encourage[lang] || BUDDY.encourage.zh), 2600);
+    }, dur + 300);
+  }
+  onBuddyEvent(evt) {
+    if (!evt || !this._mounted) return;
+    if (!this.isGrown()) return;                 // egg stage stays out of it
+    if (this.state.session || this.state.playGame || this.state.dead) return; // don't break focus/games
+    const lang = this.state.lang;
+    const L = (key) => evt.say || pick(BUDDY[key][lang] || BUDDY[key].zh);
+
+    // ---- gentle wellness reminder after a long continuous work stretch -------
+    // Track one "work stretch": a >12min gap counts as a break and resets it.
+    // After ~50min non-stop, softly nudge the owner to walk / rest / grab a
+    // coffee (cute, in-character), then re-nudge at most every ~25min.
+    const now = Date.now();
+    if (this._buddyLastEvt && now - this._buddyLastEvt > 12 * 60 * 1000) { this._buddyActiveSince = now; this._buddyLastRemind = 0; }
+    if (!this._buddyActiveSince) this._buddyActiveSince = now;
+    this._buddyLastEvt = now;
+    const activeMs = now - this._buddyActiveSince;
+    const REMIND_AFTER = 50 * 60 * 1000, REMIND_GAP = 25 * 60 * 1000;
+    if (activeMs > REMIND_AFTER && (!this._buddyLastRemind || now - this._buddyLastRemind > REMIND_GAP)
+        && evt.kind !== 'tool_error' && evt.kind !== 'tests_fail' && evt.kind !== 'needs_input') {
+      this._buddyLastRemind = now;
+      this.buddyReact('notice', 'wave', pick(BUDDY.restReminder[lang] || BUDDY.restReminder.zh), 3400);
+      return; // the caring nudge takes this beat; normal reactions resume next event
+    }
+
+    switch (evt.kind) {
+      case 'session_start': this.buddyReact('notice', 'tap', L('sessionStart'), 2200); break;
+      case 'prompt': {
+        // Every few prompts, swap the plain ack for a word of encouragement.
+        this._buddyPrompts = (this._buddyPrompts || 0) + 1;
+        const enc = this._buddyPrompts % 3 === 0;
+        this.buddyReact(enc ? 'cheer' : 'notice', enc ? 'hop' : 'tap',
+          enc ? pick(BUDDY.encourage[lang] || BUDDY.encourage.zh) : L('prompt'), enc ? 2400 : 1600);
+        break;
+      }
+      case 'tool_error': this.buddyReact('panic', 'shake', L('error'), 2800); break;
+      case 'tests_fail': this.buddyReact('panic', 'shake', L('testsFail'), 2800); break;
+      case 'tests_pass': this.buddyReact('cheer', 'celebrate', evt.say || pick(BUDDY.congrats[lang] || BUDDY.congrats.zh), 3000); this.buddyEncore(3000); break;
+      case 'big_diff': this.buddyReact('cheer', 'hop', L('bigDiff'), 2200); break;
+      case 'git_commit': this.buddyReact('cheer', 'celebrate', evt.say || pick(BUDDY.congrats[lang] || BUDDY.congrats.zh), 2800); this.buddyEncore(2800); break;
+      case 'needs_input': this.buddyReact('notice', 'tap', L('needInput'), 3000); break;
+      case 'finish': this.buddyReact('cheer', 'celebrate', L('finish'), 2800); break;
+      case 'session_end': this.buddyReact('notice', 'tap', L('sessionEnd'), 2200); break;
+      default: break;
+    }
+  }
+  // Settings switch: connect/disconnect Deskpet to Claude Code (installs/removes
+  // the local hooks in ~/.claude/settings.json).
+  toggleBuddy = async () => {
+    const lang = this.state.lang;
+    try {
+      if (this.state.buddyOn) { await buddyDisconnect(); this.setState({ buddyOn: false }); }
+      else {
+        const r = await buddyConnect();
+        const ok = !!(r && r.connected);
+        this.setState({ buddyOn: ok });
+        if (ok && this.isGrown()) this.buddyReact('cheer', 'hop', pick(BUDDY.sessionStart[lang] || BUDDY.sessionStart.zh), 2400);
+      }
+    } catch (e) { /* ignore */ }
+  };
   setAuthEmail = (e) => this.setState({ authEmail: e.target.value });
   setAuthPw = (e) => this.setState({ authPw: e.target.value });
 
@@ -3004,6 +3131,7 @@ export default class App extends React.Component {
             onAuthEmail={this.setAuthEmail} onAuthPw={this.setAuthPw}
             onSignIn={() => this.doAuth('in')} onSignUp={() => this.doAuth('up')}
             onSignOut={this.doSignOut} onSyncNow={this.syncNow}
+            lang={s.lang} buddyOn={s.buddyOn} onToggleBuddy={this.toggleBuddy}
           />
         )}
 

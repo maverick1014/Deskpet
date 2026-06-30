@@ -9,6 +9,7 @@ const path = require('path');
 const { WINDOW } = require('./src/main/constants');
 const db = require('./src/main/database');
 const ipc = require('./src/main/ipcHandlers');
+const buddy = require('./src/main/buddy');
 
 let win = null;
 let tray = null;
@@ -119,6 +120,9 @@ app.whenReady().then(() => {
   ipc.register(() => win);
   createWindow();
   buildTray();
+  // Code Buddy: watch the local event file and forward to the pet. Harmless when
+  // not connected (the file simply stays empty until the hooks are installed).
+  buddy.start(() => win);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

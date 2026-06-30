@@ -9,6 +9,35 @@ is pre-release, so versions are milestone markers rather than published releases
 New lifelike animations being added one at a time.
 See `TODO.md` for the remaining activity-authentic focus animations.
 
+## [1.12.0] — 2026-06-30 — Code Buddy: a Claude Code companion
+
+### Added
+- **Code Buddy mode** — connect Deskpet to your **Claude Code** (one tap in
+  Settings → "Connect Claude Code") and the penguin becomes a coding companion.
+  It stays your normal desktop pet — wandering, napping, chatting — and **only
+  pipes up when something happens** in your Claude Code session:
+  - **Cheers & celebrates** when Claude finishes a turn, tests pass, or you commit
+    (a happy spin-and-hop with congratulation words 🎉).
+  - **Worried panic** + a heads-up when a command errors or tests fail.
+  - **Taps the window** to get your attention when Claude needs your permission.
+  - **Encouraging words** to cheer you on between wins and every few prompts 💪.
+  - **Gentle wellness nudges** after a long non-stop stretch — reminds you, in the
+    penguin's soft cute voice, to get up and waddle, rest your eyes, or grab a
+    coffee ☕🐧.
+- New reaction poses (worried / cheer / alert) drawn in the pet's pixel style;
+  all reaction lines are **bilingual** (中文 / English) and follow your language.
+
+### Privacy
+- **100% local.** Buddy connects by adding its own clearly-tagged hooks to your
+  `~/.claude/settings.json` (and removing only those when you disconnect).
+  Nothing about your code, prompts, or output is ever uploaded — buddy events
+  flow through a local file on your machine only.
+
+### Notes
+- First pass: the penguin reacts to session start/end, prompts, errors, test
+  pass/fail, big edits, commits, "needs permission", and turn completion. If
+  Claude embeds its own `<!-- buddy: … -->` remark, the penguin speaks that.
+
 ## [1.11.0] — 2026-06-30 — English version & language picker (multi-nation pet)
 
 ### Added

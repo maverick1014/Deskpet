@@ -83,6 +83,11 @@ const STR = {
   'menu.settings': { zh: '设置', en: 'Settings' },
   'menu.quit': { zh: '退出', en: 'Quit' },
   'game.end': { zh: '结束', en: 'End' },
+  // ---- Code Buddy (Claude Code companion) settings ----
+  'buddy.title': { zh: '代码搭子', en: 'Code Buddy' },
+  'buddy.blurb': { zh: '连接 Claude Code，企鹅会陪你写代码、报错时提醒、完成时欢呼。全程本地，不上传代码。', en: 'Connect Claude Code — the penguin keeps you company, flags errors, and cheers when you finish. Fully local, your code is never uploaded.' },
+  'buddy.connect': { zh: '连接 Claude Code', en: 'Connect Claude Code' },
+  'buddy.connected': { zh: '已连接 · 点击断开', en: 'Connected · tap to disconnect' },
 };
 
 export function t(lang, key, ...args) {
