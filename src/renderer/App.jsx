@@ -196,6 +196,16 @@ export default class App extends React.Component {
     if (!gender) { this.setState({ onboard: 'gender', entering: false }); return; } // new pet → choose egg + name
     if (dead) { this.setState({ entering: false }); return; } // dead pets show the revive overlay, no entrance
 
+    // Was the pet mid-class/shift when it closed? Resume it (or auto-complete the
+    // class if its time already elapsed while away) instead of losing the progress.
+    if (this._savedSession) {
+      const ses = this._savedSession; this._savedSession = null;
+      this.setState({ entering: false });
+      if (Date.now() >= ses.endTs) this.finishFocus(ses);   // finished while away → credit the class
+      else this.beginFocus(ses, true);                       // still in progress → resume
+      return;
+    }
+
     // Entrance: the pet hops out of Doraemon's "Anywhere Door" on launch.
     this.setState({ entering: true });
     this.p.action = 'enter'; this.p.busy = true;
@@ -410,7 +420,7 @@ export default class App extends React.Component {
     this.setState({ workMenu: false });
   };
 
-  beginFocus(session) {
+  beginFocus(session, resume = false) {
     this.touch();
     if (this.state.playGame) this.stopGame();
     this.stand();
@@ -423,7 +433,8 @@ export default class App extends React.Component {
     else if (this._scene && this._scene.type === 'weed') this.weedBeats();
     else if (!this._scene) this.briefcaseProp(0); // jobs without a scene keep the briefcase (0 = persist)
     this.setState({ session, sessionLeft: Math.max(0, Math.ceil((session.endTs - Date.now()) / 1000)) });
-    this.speak(session.kind === 'study' ? '开始专注上课啦~ 要加油📚' : '开始认真工作~ 💼', 2600, true);
+    if (resume) this.speak(session.kind === 'study' ? '继续上课~ 还差一点点📚' : '继续干活~ 💼', 2600, true);
+    else this.speak(session.kind === 'study' ? '开始专注上课啦~ 要加油📚' : '开始认真工作~ 💼', 2600, true);
   }
 
   clearFocus() {
@@ -451,8 +462,7 @@ export default class App extends React.Component {
   };
 
   // Timer reached zero — grant the reward and play a happy "done" animation.
-  finishFocus() {
-    const ses = this.state.session;
+  finishFocus(ses = this.state.session) {
     if (!ses) return;
     this.clearFocus();
     if (ses.kind === 'study') {
@@ -2478,6 +2488,11 @@ export default class App extends React.Component {
     if (d.y != null && this.minY != null) { this.p.y = clamp(d.y, this.minY, this.maxY); this.ground = this.p.y; }
     this.pushWindow(true);
     st.loaded = true;
+    // A focus session that was running when the app closed: keep it so the pet
+    // either RESUMES the class/shift or AUTO-COMPLETES it if its time already
+    // passed while away (applied in maybeStartPet). Otherwise the study is lost.
+    const sv = d.session;
+    this._savedSession = (sv && (sv.kind === 'study' || sv.kind === 'work') && typeof sv.endTs === 'number') ? sv : null;
     this.setState(st, () => { this.recompute(); this.save(); });
     return { gender: st.gender, dead: !!st.dead };
   }
@@ -2488,6 +2503,7 @@ export default class App extends React.Component {
       fullness: s.fullness, energy: s.energy, cleanliness: s.cleanliness, happiness: s.happiness,
       health: s.health, sick: s.sick, dead: s.dead, education: s.education, study: s.study,
       schoolLevel: s.schoolLevel, classDone: s.classDone,
+      session: s.session, // an in-progress class/shift survives a restart (resumes / auto-completes)
       gender: s.gender, playTime: s.playTime, money: s.money, mood: s.mood,
       name: s.name, volume: s.volume, speed: s.speed, opacity: s.opacity,
       personality: this.personality,
@@ -2566,6 +2582,11 @@ export default class App extends React.Component {
     if (d.classDone && typeof d.classDone === 'object') st.classDone = { ...FRESH_CLASSES, ...d.classDone };
     if (d.x != null && this.minX != null) { this.p.x = clamp(d.x, this.minX, this.maxX); this.p.tx = this.p.x; }
     if (d.y != null && this.minY != null) { this.p.y = clamp(d.y, this.minY, this.maxY); this.ground = this.p.y; }
+    // Before the pet starts, let a cloud save's in-progress session resume/finish too.
+    if (!this._petStarted) {
+      const sv = d.session;
+      this._savedSession = (sv && (sv.kind === 'study' || sv.kind === 'work') && typeof sv.endTs === 'number') ? sv : null;
+    }
     this.pushWindow(true);
     this.setState(st, () => { this.recompute(); this.save(); });
   }

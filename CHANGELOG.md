@@ -9,6 +9,15 @@ is pre-release, so versions are milestone markers rather than published releases
 New lifelike animations being added one at a time.
 See `TODO.md` for the remaining activity-authentic focus animations.
 
+## [1.10.3] — 2026-06-30 — Fix: study/work progress lost on restart
+
+### Fixed
+- **An in-progress class or shift is no longer lost when you close the app.** The
+  focus session is now saved, so on reopening the pet **resumes** the class/shift
+  where it left off — or, if its time already finished while you were away,
+  **auto-completes it and credits the class** (you were "at school" the whole
+  time). Previously the session vanished on restart and you had to study again.
+
 ## [1.10.2] — 2026-06-30 — Fix: couldn't focus the login fields
 
 ### Fixed
