@@ -9,6 +9,14 @@ is pre-release, so versions are milestone markers rather than published releases
 New lifelike animations being added one at a time.
 See `TODO.md` for the remaining activity-authentic focus animations.
 
+## [1.10.4] — 2026-06-30 — Growth level & experience bar
+
+### Added
+- **A growth level + experience bar** in the care panel, so you can see how grown
+  your pet is at a glance: **Lv1 宝宝 → Lv2 幼年 → Lv3 成年** (adult), with a
+  percentage bar showing progress to the next level. Reaching **Lv3 grows it into
+  an adult penguin** (the existing adulthood threshold).
+
 ## [1.10.3] — 2026-06-30 — Fix: study/work progress lost on restart
 
 ### Fixed
