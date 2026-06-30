@@ -6,19 +6,30 @@
 
 ## Goal
 
-Turn Deskpet into a **live coding companion for Claude Code**. Once the user
-"connects" their Claude Code (a one-time install from Deskpet's Settings), the
-penguin **automatically** reacts to whatever Claude Code is doing — it puts on
-its coder gear, sits with its laptop, panics at a failing test, cheers when a
-big change lands, and speaks a short remark when Claude finishes a turn.
+Make Deskpet a **companion + notifier for a developer using Claude Code**. Once
+the user "connects" their Claude Code (a one-time install from Deskpet's
+Settings), the penguin keeps living its **normal pet life** — walking, sitting,
+napping, chatting — and **only breaks from that when something special happens**
+in the Claude Code session: it perks up to notify you of an error, cheers when
+tests pass, taps the window when Claude needs your permission, speaks a short
+remark when Claude finishes — then **goes right back to being a normal pet.**
 
-This is the same idea as the community `claude-buddy` project, but instead of
-ASCII art in the terminal status line, the buddy is the **real pixel penguin in
-its own window** — which Deskpet already animates, and which already has a
-`程序员` (coder) scene with headphones/glasses attire and a laptop.
+The penguin is **NOT** a coder character. It does **not** wear developer gear and
+does **not** sit at a laptop pretending to write the code. It's a pet that sits
+*beside* the developer and reacts on their behalf — the same idea as the
+community `claude-buddy` project, but instead of ASCII art in the terminal, the
+buddy is the **real pixel penguin in its own window**, reacting in its own style.
 
 ## Principles
 
+- **Stays a pet, not a coder.** Default behaviour is unchanged — the normal
+  wandering/idle/sleep/chatter pet. No coder attire, no laptop scene, no
+  persistent "work mode". Buddy reactions are **transient interruptions** layered
+  over normal life: trigger → quick pose/notify/speak → return to normal.
+- **Reacts only on events.** Nothing happens during ordinary coding; the penguin
+  acts only when one of the defined criteria below is met (error, tests pass,
+  needs permission, turn finished, etc.). It should feel like a calm companion
+  that pipes up at the right moments, not a mascot constantly performing.
 - **Always-on once connected.** Installing the hooks IS the connection. Every
   Claude Code session then drives the penguin automatically — no per-session
   toggle. A single Settings switch connects / disconnects (installs / removes
@@ -83,33 +94,43 @@ parse, splice out our blocks (tagged so they're identifiable), and write back.
 
 ### Buddy comments (the `say` line)
 
-To get a *spoken* remark rather than just reactions, we register a minimal MCP
-server whose instructions ask Claude to end substantial turns with an invisible
+**CONFIRMED: the talking version is in scope.** We register a minimal MCP server
+whose instructions ask Claude to end substantial turns with an invisible
 `<!-- buddy: short friendly remark -->`. The `Stop` hook greps that out and puts
-it in the `say` field. If absent, the penguin just does a silent celebrate. This
-is optional polish layered on top of the reactions — reactions work without it.
+it in the `say` field, and the penguin speaks it. If a turn has no such note, the
+penguin just does a silent cheer.
 
 ## Reaction map (pixel art)
 
-Reuses the existing coder scene + attire; new poses are small row-swaps/overlays.
+The penguin is its **normal pet self**; each reaction is a brief interruption,
+then it returns to normal wandering/idle. **No coder gear, no laptop scene.**
+All rows confirmed wanted by the owner.
 
-| Event | Penguin reaction |
-|-------|------------------|
-| `session_start` | wakes, dons coder gear, opens laptop (existing 程序员 scene) |
-| `prompt` | perks up, "listening" lean toward the screen |
-| `tool_ok` / `big_diff` | types busily at the laptop; content/proud |
-| `tool_error` | **panic / worried** pose + small red `!` pixel above head |
-| `needs_input` | taps the window edge to get attention (reuse attention tap) |
-| `finish` | **cheer / thumbs-up**; if `say` present, speech bubble with it |
+| Code | Event | Penguin reaction (transient, then back to normal) |
+|------|-------|---------------------------------------------------|
+| A | `session_start` | notices you started — perks up / quick wave, then resumes |
+| B | `prompt` | brief look toward the screen ("I'm with you"), then resumes |
+| C | `tool_run` (slow) | curious `thinking` glance while a long command runs |
+| D | `tool_ok` | small content nod |
+| E | `tests_pass` | **victory** — both flippers up + a pixel ✔ |
+| F | `tool_error` / `tests_fail` | **worried/panic** pose, sweat-drop, red `!` — notifies you |
+| G | `big_diff` | excited bounce (a lot just changed) |
+| H | `git_commit` / `git_push` | **salute / thumbs-up** ("shipped it") |
+| I | `needs_input` | **taps the window edge** to get your attention |
+| J | `finish` | **cheer**; if a `say` note is present, speak it in a bubble |
+| K | `session_end` | stretches / waves bye, fully back to normal pet life |
 
 ### New pixel poses to author (via pixel-art skill)
 
-1. `panic` — flippers up, wide eyes, sweat-drop pixel.
-2. `cheer` — both flippers raised.
-3. `thumbsUp` — one flipper out with a thumbs-up pixel shape.
-4. `thinking` — one flipper to chin, small `…` pixels (used while a long tool runs).
+1. `panic` — flippers up, wide eyes, sweat-drop pixel (F).
+2. `cheer` — both flippers raised (J).
+3. `victory` — flippers up + a small pixel ✔ check mark (E).
+4. `salute` / `thumbsUp` — one flipper out with a thumbs-up/salute shape (H).
+5. `thinking` — one flipper to chin, small `…` pixels (C).
+6. `notice` / `wave` — perk-up + small wave (A / B / K).
 
-(`listening`/`typing` likely reuse existing coder-scene frames.)
+(`needs_input` reuses the existing attention-tap; "back to normal" reuses the
+pet's existing idle/walk frames — there is no persistent buddy scene.)
 
 ## Files this will add / touch
 
@@ -129,10 +150,12 @@ Reuses the existing coder scene + attire; new poses are small row-swaps/overlays
 - Windows hook command (bridge is ready; only the helper invocation differs — fast follow).
 - Streaming token-level reactions (we react at tool / turn granularity).
 
-## Open questions for review
+## Decisions (signed off by owner)
 
-1. OK to have the Settings switch **write into `~/.claude/settings.json`**? (It
-   only adds/removes clearly-tagged Deskpet entries and never touches the rest.)
-2. Want the spoken buddy comments (the MCP piece), or are silent reactions enough
-   for v1?
-3. Any reaction you specifically want (e.g. a special pose when tests pass)?
+1. ✅ The Settings switch **may write into `~/.claude/settings.json`** (only its
+   own clearly-tagged entries; everything else untouched; fully reversible).
+2. ✅ **Talking version** — spoken buddy comments via the MCP piece are in scope.
+3. ✅ **All reactions A–K wanted.**
+4. ✅ The penguin **keeps its normal pet behaviour** and is a companion/notifier —
+   **no coder gear, no laptop scene.** Reactions are transient, then it returns
+   to normal life.
