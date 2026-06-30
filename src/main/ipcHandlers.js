@@ -2,6 +2,7 @@
 const { ipcMain, app, screen } = require('electron');
 const { WINDOW } = require('./constants');
 const db = require('./database');
+const buddyInstall = require('./buddyInstall');
 
 function stageInfo() {
   return {
@@ -35,6 +36,17 @@ function register(getWin) {
   ipcMain.on('win:quit', () => {
     db.close();
     app.quit();
+  });
+
+  // ---- Code Buddy: connect/disconnect to Claude Code (manages ~/.claude hooks).
+  ipcMain.handle('buddy:status', () => {
+    try { return { connected: buddyInstall.isInstalled() }; } catch (e) { return { connected: false, error: String(e) }; }
+  });
+  ipcMain.handle('buddy:connect', () => {
+    try { buddyInstall.install(); return { connected: true }; } catch (e) { return { connected: false, error: String(e) }; }
+  });
+  ipcMain.handle('buddy:disconnect', () => {
+    try { buddyInstall.remove(); return { connected: false }; } catch (e) { return { connected: true, error: String(e) }; }
   });
 
   // Re-send screen bounds when the display changes (resolution, dock, monitor)

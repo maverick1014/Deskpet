@@ -25,4 +25,14 @@ contextBridge.exposeInMainWorld('pengu', {
     ipcRenderer.on('pet:recenter', handler);
     return () => ipcRenderer.removeListener('pet:recenter', handler);
   },
+
+  // ---- Code Buddy: connect to Claude Code + receive its activity events ----
+  buddyStatus: () => ipcRenderer.invoke('buddy:status'),
+  buddyConnect: () => ipcRenderer.invoke('buddy:connect'),
+  buddyDisconnect: () => ipcRenderer.invoke('buddy:disconnect'),
+  onBuddyEvent: (cb) => {
+    const handler = (_e, evt) => cb(evt);
+    ipcRenderer.on('buddy:event', handler);
+    return () => ipcRenderer.removeListener('buddy:event', handler);
+  },
 });

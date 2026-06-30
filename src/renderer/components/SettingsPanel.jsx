@@ -1,4 +1,5 @@
 import React from 'react';
+import { t } from '../i18n.js';
 
 const label = { display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 800, letterSpacing: '.3px', color: '#6b74a8', marginBottom: 4 };
 
@@ -18,6 +19,7 @@ export default function SettingsPanel({
   name, speed, opacity, onName, onSpeed, onOpacity, onClose,
   cloudOn, user, authEmail, authPw, authBusy, authMsg, syncedAt,
   onAuthEmail, onAuthPw, onSignIn, onSignUp, onSignOut, onSyncNow,
+  lang = 'zh', buddyOn, onToggleBuddy,
 }) {
   const field = { width: '100%', boxSizing: 'border-box', border: '2px solid #222a55', borderRadius: 9, padding: '6px 9px', fontFamily: "'Nunito'", fontWeight: 800, fontSize: 12, color: '#222a55', outline: 'none', marginBottom: 7 };
   const sbtn = (bg) => ({ flex: 1, textAlign: 'center', background: bg, color: '#fff', padding: '7px 0', borderRadius: 9, fontWeight: 900, fontSize: 12, cursor: authBusy ? 'default' : 'pointer', opacity: authBusy ? 0.6 : 1 });
@@ -66,6 +68,17 @@ export default function SettingsPanel({
                 </div>
               </>
             )}
+          </div>
+        )}
+
+        {/* ---- Code Buddy: connect to Claude Code ---------------------- */}
+        {onToggleBuddy && (
+          <div style={{ borderTop: '2px solid #eef0f7', paddingTop: 11, marginBottom: 12 }}>
+            <div style={{ ...label, marginBottom: 6 }}><span>🐧 {t(lang, 'buddy.title')}</span><span style={{ color: buddyOn ? '#36c98f' : '#9aa3cc' }}>{buddyOn ? '●' : '○'}</span></div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#9aa3cc', marginBottom: 8, lineHeight: 1.4 }}>{t(lang, 'buddy.blurb')}</div>
+            <div onClick={onToggleBuddy} style={{ textAlign: 'center', background: buddyOn ? '#36c98f' : '#5a6acf', color: '#fff', padding: '8px 0', borderRadius: 9, fontWeight: 900, fontSize: 12, cursor: 'pointer' }}>
+              {buddyOn ? t(lang, 'buddy.connected') : t(lang, 'buddy.connect')}
+            </div>
           </div>
         )}
 

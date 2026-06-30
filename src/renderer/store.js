@@ -51,3 +51,21 @@ export function onRecenter(cb) {
   if (api && api.onRecenter) return api.onRecenter(cb);
   return () => {};
 }
+
+// ---- Code Buddy (Claude Code companion) ------------------------------------
+export async function buddyStatus() {
+  if (api && api.buddyStatus) return api.buddyStatus();
+  return { connected: false };
+}
+export async function buddyConnect() {
+  if (api && api.buddyConnect) return api.buddyConnect();
+  return { connected: false };
+}
+export async function buddyDisconnect() {
+  if (api && api.buddyDisconnect) return api.buddyDisconnect();
+  return { connected: false };
+}
+export function onBuddyEvent(cb) {
+  if (api && api.onBuddyEvent) return api.onBuddyEvent(cb);
+  return () => {};
+}

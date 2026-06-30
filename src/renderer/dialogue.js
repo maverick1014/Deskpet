@@ -35,6 +35,32 @@ export const DIA = {
   miss: { zh: ['主人在忙吧，我乖乖等~', '想你了，不过没关系，我等你~', '我会做个乖孩子等你的', '等你忙完一起玩呀~', '我在这儿等你哦~'], en: ["You're busy, I'll wait nicely~", "I miss you, but it's okay, I'll wait~", "I'll be good and wait for you", "Let's play when you're free~", "I'll be right here waiting~"] },
 };
 
+// Code Buddy reaction lines — what the pet says when it reacts to the developer's
+// Claude Code session. Bilingual. If Claude embedded its own <!-- buddy: … -->
+// remark, that is spoken instead of these.
+export const BUDDY = {
+  sessionStart: { zh: ['开始写代码啦！我陪你~ 💻', '一起加油！', '我在旁边看着哦~'], en: ["Let's code! I'm with you 💻", "Let's do this!", "I'm right here watching~"] },
+  prompt: { zh: ['嗯嗯，在听~', '让我看看…', '收到！'], en: ['Mm, listening~', "Let's see…", 'Got it!'] },
+  error: { zh: ['哎呀，出错了！😣', '报错了…要看看哦', '呜，红色的字…'], en: ['Uh oh, an error! 😣', 'Something broke… take a look', 'Eek, red text…'] },
+  testsFail: { zh: ['测试没过…再试试！', '有测试挂了 😖', '差一点，加油！'], en: ['Tests failed… try again!', 'A test went red 😖', 'So close, keep going!'] },
+  testsPass: { zh: ['测试全过啦！🎉', '绿了绿了！太棒了！', '全部通过~ 好厉害！'], en: ['All tests pass! 🎉', "It's green! Awesome!", 'Everything passed~ nice!'] },
+  bigDiff: { zh: ['哇，改了好多！', '一大波改动~ 💪', '大工程呀！'], en: ['Whoa, big change!', 'Lots of edits~ 💪', 'Big one!'] },
+  commit: { zh: ['提交成功，发车！🚀', '存好啦~ 棒！', '又一个 commit！'], en: ['Committed — shipped! 🚀', 'Saved~ nice!', 'Another commit!'] },
+  needInput: { zh: ['主人，需要你确认一下！👀', '这里要你点头哦~', '等你一下下~'], en: ['Hey, it needs your OK! 👀', 'Your call on this one~', 'Waiting on you~'] },
+  finish: { zh: ['搞定！😎', '这一轮完成啦~', '好啦，看看吧！'], en: ['Done! 😎', 'That round is done~', 'All set — take a look!'] },
+  sessionEnd: { zh: ['今天辛苦啦~ 👋', '收工！休息一下吧', '下次见~'], en: ['Nice work today~ 👋', 'Wrapping up! Take a break', 'See you next time~'] },
+  // Big-win celebration / congratulation words (tests pass, commit, finish).
+  congrats: { zh: ['太棒啦！恭喜你！🎉', '哇！成功了！👏', '你做到了！好厉害！🏆', '完美通过！为你骄傲！✨', '漂亮！这波超稳！🎊', '耶！我们成功了！🥳'],
+              en: ['Amazing! Congrats! 🎉', 'Woohoo! It works! 👏', 'You did it! Incredible! 🏆', 'Flawless! So proud of you! ✨', 'Beautiful — nailed it! 🎊', "Yay! We did it! 🥳"] },
+  // Encouragement to cheer the owner on (between wins / every few prompts).
+  encourage: { zh: ['你超棒的，继续加油！💪', '我相信你，一定可以！', '慢慢来，你做得很好！', '别灰心，你是最厉害的！', '加油加油，我陪着你！🐧', '一步一步来，你很棒！', '休息一下也没关系，我等你~'],
+               en: ["You've got this — keep going! 💪", 'I believe in you, you can do it!', "Take your time, you're doing great!", "Don't give up, you're the best!", "Go go go — I'm with you! 🐧", "One step at a time, you're awesome!", "It's okay to rest, I'll wait~"] },
+  // Gentle wellness nudges after a long continuous work stretch. Cute, soft,
+  // and in-character (the penguin cares about its owner). 🐧
+  restReminder: { zh: ['主人坐好久啦~ 起来像企鹅一样摇摇摆摆走两步嘛 🐧', '歇一歇眼睛，看看远方好不好~ 👀', '要不要来杯咖啡提提神？我陪你去~ ☕', '站起来伸个大懒腰吧，舒服~ 🐧', '记得喝口水哦，别太累啦 💧', '休息一下下，回来再战也不迟呀~ 😊', '拍拍肩膀，放松放松，你已经很努力啦 💙'],
+                  en: ["You've been sitting a while~ get up and waddle a bit like me 🐧", 'Rest your eyes — look far away for a moment~ 👀', 'How about a coffee to recharge? I\'ll tag along~ ☕', 'Stand up and have a big stretch, soo comfy~ 🐧', 'Remember to sip some water, don\'t tire yourself 💧', 'Take a little break — the code will wait for you~ 😊', "Shoulders down, relax~ you've worked so hard 💙"] },
+};
+
 // Per-course knowledge the pet learns and shows off. English stays English in
 // both languages (it IS the 英语 lesson); the others translate.
 export const KNOWLEDGE = {
