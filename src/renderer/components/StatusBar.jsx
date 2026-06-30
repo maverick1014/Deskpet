@@ -31,7 +31,7 @@ function Bar({ which, value }) {
 
 export default function StatusBar(props) {
   const { stat, shopCat, money = 0, placement, arrowShift = 0, centered = false, fullness, cleanliness, happiness, health = 100,
-    onStat, onLeave, onOpenCat, onBuy, onBack, onPlay } = props;
+    level, petName, onStat, onLeave, onOpenCat, onBuy, onBack, onPlay } = props;
   const vals = { fullness, clean: cleanliness, happy: happiness, health };
   const below = placement === 'below';
 
@@ -92,6 +92,16 @@ export default function StatusBar(props) {
   const m = stat ? META[stat] : null;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+      {/* growth level + experience bar — Lv1 宝宝 → Lv2 幼年 → Lv3 成年 (adult) */}
+      {level && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 9px', borderRadius: 999, background: 'rgba(255,255,255,.9)', border: '2px solid rgba(34,42,85,.14)', boxShadow: '0 2px 0 rgba(34,42,85,.1)' }}>
+          <span style={{ fontSize: 9.5, fontWeight: 900, color: '#222a55', whiteSpace: 'nowrap' }}>Lv{level.level} · {level.name}</span>
+          <div style={{ width: 56, height: 7, background: '#e7edf7', border: '1.5px solid #222a55', borderRadius: 5, overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: level.pct + '%', background: 'linear-gradient(90deg,#ffd23d,#ff9d3d)', borderRadius: 4, transition: 'width .3s' }} />
+          </div>
+          <span style={{ fontSize: 9, fontWeight: 900, color: '#9aa3cc' }}>{level.level >= 3 ? 'MAX' : level.pct + '%'}</span>
+        </div>
+      )}
       {/* compact stat readout (only while hovering a button) — language-bar sized */}
       {m && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '2px 8px', borderRadius: 999, background: 'rgba(255,255,255,.9)', border: '2px solid rgba(34,42,85,.12)', boxShadow: '0 2px 0 rgba(34,42,85,.1)' }}>

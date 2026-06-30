@@ -1669,6 +1669,17 @@ export default class App extends React.Component {
   withFeet(g, which) { return this.swap(g, 15, which ? this.FEET_A : this.FEET_B); }
   // Grown once enough online time has accrued; before that it's an egg/baby.
   isGrown() { return (this.state.playTime || 0) >= GROW_SECONDS; }
+  // Growth as a 3-level "experience" track so the owner can see how grown the pet
+  // is: Lv1 宝宝 → Lv2 幼年 → Lv3 成年 (adult). Lv3 == isGrown() (the 2h threshold),
+  // so the existing job/behaviour gating is unchanged.
+  levelInfo() {
+    const pt = this.state.playTime || 0;
+    const T1 = GROW_SECONDS * 0.25; // 30 min → Lv2
+    const T2 = GROW_SECONDS;        // 2 h    → Lv3 (adult)
+    if (pt < T1) return { level: 1, name: '宝宝', pct: Math.round((pt / T1) * 100) };
+    if (pt < T2) return { level: 2, name: '幼年', pct: Math.round(((pt - T1) / (T2 - T1)) * 100) };
+    return { level: 3, name: '成年', pct: 100 };
+  }
   // Smudge a few belly pixels with grime when the pet is dirty (low cleanliness).
   withDirt(g) {
     const c = g.slice();
@@ -2847,6 +2858,7 @@ export default class App extends React.Component {
               arrowShift={shiftPanel}
               centered={shopOpen}
               fullness={fullness} cleanliness={cleanliness} happiness={happiness} health={health}
+              level={this.levelInfo()} petName={s.name}
               onStat={this.setHoverStat} onLeave={this.clearHoverStat}
               onOpenCat={this.openCat} onBuy={this.buyItem} onBack={this.backShop} onPlay={this.playFree}
             />
