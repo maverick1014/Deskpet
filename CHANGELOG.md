@@ -9,6 +9,14 @@ is pre-release, so versions are milestone markers rather than published releases
 New lifelike animations being added one at a time.
 See `TODO.md` for the remaining activity-authentic focus animations.
 
+## [1.10.2] — 2026-06-30 — Fix: couldn't focus the login fields
+
+### Fixed
+- **The login / signup screen was click-through** — tapping a field passed the
+  click to whatever was behind the window instead of focusing the input, so you
+  couldn't type your email or password. The window is now marked interactive
+  while the login gate (and the "中断专注？" confirm) is showing.
+
 ## [1.10.1] — 2026-06-29 — Pacing & polish from play-testing
 
 ### Changed

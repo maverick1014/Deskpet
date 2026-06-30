@@ -1562,7 +1562,10 @@ export default class App extends React.Component {
   // ---- window click-through toggle (hit-test bypass) ----------------------
   refreshInteractive() {
     const s = this.state;
-    const v = !!(this._overPen || this.p.dragging || s.hover || s.shopCat || s.menu || s.settingsOpen || s.dead || s.onboard || s.schoolMenu || s.workMenu || s.playOpen || s.playGame);
+    // The login gate + confirm popup are full-window modals: the window MUST be
+    // interactive then, or clicks pass through and the inputs can't be focused.
+    const gateUp = cloudEnabled() && s.authChecked && !s.user;
+    const v = !!(this._overPen || this.p.dragging || s.hover || s.shopCat || s.menu || s.settingsOpen || s.dead || s.onboard || s.schoolMenu || s.workMenu || s.playOpen || s.playGame || gateUp || s.confirmBreak);
     if (v !== this._iv) { this._iv = v; setInteractive(v); }
   }
   // Show the care panel while the cursor is over the penguin OR the open panel
