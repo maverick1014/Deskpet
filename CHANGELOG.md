@@ -9,6 +9,25 @@ is pre-release, so versions are milestone markers rather than published releases
 New lifelike animations being added one at a time.
 See `TODO.md` for the remaining activity-authentic focus animations.
 
+## [1.11.0] — 2026-06-30 — English version & language picker (multi-nation pet)
+
+### Added
+- **A language picker on the login screen — 中文 / English.** Pick your language
+  when you sign up or log in, and the pet speaks it everywhere: the care panel,
+  right-click menu, level names (Baby / Child / Adult), the focus bar, the
+  break-confirmation popup, onboarding, and the pet's own speech bubbles.
+- **Bilingual dialogue & lessons.** Greetings, moods, play/feed/bath chatter, and
+  the per-subject knowledge the pet learns and shows off are all translated. The
+  英语 (English) lesson stays in English in both languages — because that *is* the
+  lesson the pet is practising.
+- Your chosen language is **saved with the rest of the pet's state** and synced to
+  the cloud, so it follows you across devices and reinstalls.
+
+### Notes
+- This is a first pass: the most-used surfaces are fully translated. A few deep
+  game-flavour lines and the Settings / school / work pickers still show Chinese
+  and will be translated in a follow-up.
+
 ## [1.10.4] — 2026-06-30 — Growth level & experience bar
 
 ### Added

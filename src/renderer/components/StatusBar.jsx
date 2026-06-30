@@ -1,5 +1,7 @@
 import React from 'react';
 import { SHOP } from '../shop.js';
+import { t } from '../i18n.js';
+const LABELKEY = { fullness: 'stat.fullness', clean: 'stat.clean', happy: 'stat.happy', health: 'stat.health' };
 
 // Hover care panel with two modes:
 //  • category view — a minimal, background-less row of 3 action buttons
@@ -15,12 +17,12 @@ const META = {
   health: { icon: '❤️', label: '健康', color: (v) => (v < 50 ? '#ff5a5f' : '#36c98f') },
 };
 
-function Bar({ which, value }) {
+function Bar({ which, value, lang = 'zh' }) {
   const m = META[which];
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 7, width: '100%' }}>
       <span style={{ fontSize: 13, width: 16, textAlign: 'center' }}>{m.icon}</span>
-      <span style={{ fontSize: 10, fontWeight: 800, color: '#6b74a8', width: 26 }}>{m.label}</span>
+      <span style={{ fontSize: 10, fontWeight: 800, color: '#6b74a8', width: lang === 'en' ? 40 : 26 }}>{t(lang, LABELKEY[which])}</span>
       <div style={{ flex: 1, height: 9, background: '#e7edf7', border: '2px solid #222a55', borderRadius: 6, overflow: 'hidden' }}>
         <div style={{ height: '100%', width: Math.round(value) + '%', background: m.color(value), borderRadius: 4, transition: 'width .3s, background .3s' }} />
       </div>
@@ -31,7 +33,7 @@ function Bar({ which, value }) {
 
 export default function StatusBar(props) {
   const { stat, shopCat, money = 0, placement, arrowShift = 0, centered = false, fullness, cleanliness, happiness, health = 100,
-    level, petName, onStat, onLeave, onOpenCat, onBuy, onBack, onPlay } = props;
+    level, petName, lang = 'zh', onStat, onLeave, onOpenCat, onBuy, onBack, onPlay } = props;
   const vals = { fullness, clean: cleanliness, happy: happiness, health };
   const below = placement === 'below';
 
@@ -51,10 +53,10 @@ export default function StatusBar(props) {
     return (
       <div style={{ position: 'relative', background: '#fff', border: '3px solid #222a55', borderRadius: 18, padding: '10px 12px 12px', boxShadow: '0 7px 0 rgba(34,42,85,.18)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 7 }}>
-          <span onClick={onBack} style={{ fontSize: 11, fontWeight: 900, color: '#6b74a8', cursor: 'pointer' }}>‹ 返回</span>
+          <span onClick={onBack} style={{ fontSize: 11, fontWeight: 900, color: '#6b74a8', cursor: 'pointer' }}>{t(lang, 'shop.back')}</span>
           <span style={{ fontSize: 12, fontWeight: 900, color: '#e8a01a' }}>💰 {money}</span>
         </div>
-        <div style={{ marginBottom: 8 }}><Bar which={cat.stat} value={vals[cat.stat]} /></div>
+        <div style={{ marginBottom: 8 }}><Bar which={cat.stat} value={vals[cat.stat]} lang={lang} /></div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 230, overflowY: 'auto', overflowX: 'hidden' }}>
           {cat.items.map((it) => {
             const afford = money >= it.cost;
@@ -114,9 +116,9 @@ export default function StatusBar(props) {
       )}
       {/* 喂食 / 洗澡 cost money (open shop); 玩耍 is a free mini-game with the owner */}
       <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-        {btn('🐟', '喂食', 'fullness', () => onOpenCat('food'))}
-        {btn('🛁', '洗澡', 'clean', () => onOpenCat('bath'))}
-        {btn('🎈', '玩耍', 'happy', onPlay)}
+        {btn('🐟', t(lang, 'act.feed'), 'fullness', () => onOpenCat('food'))}
+        {btn('🛁', t(lang, 'act.bath'), 'clean', () => onOpenCat('bath'))}
+        {btn('🎈', t(lang, 'act.play'), 'happy', onPlay)}
       </div>
     </div>
   );
