@@ -120,8 +120,10 @@ app.whenReady().then(() => {
   ipc.register(() => win);
   createWindow();
   buildTray();
-  // Code Buddy: watch the local event file and forward to the pet. Harmless when
-  // not connected (the file simply stays empty until the hooks are installed).
+  // Code Buddy: heal any old-format hooks from a previous version, then watch the
+  // local event file and forward to the pet. Harmless when not connected (the
+  // file simply stays empty until the hooks are installed).
+  require('./src/main/buddyInstall').upgradeIfNeeded();
   buddy.start(() => win);
 
   app.on('activate', () => {

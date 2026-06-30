@@ -13,6 +13,8 @@
 //   Games: bubble (吹泡泡·reference) · fish (接小鱼) · rps (猜拳)
 //          ball (接球) · simon (跟我拍)
 
+import { t } from './i18n.js';
+
 // ---- pixel palette shared by all game sprites (letter -> colour) -----------
 // Kept close to the pet's own pal(): navy outline 'K', whites, beak orange.
 export const GAME_PAL = {
@@ -116,13 +118,13 @@ export const SPR = {
   ],
 };
 
-// Game id -> short Chinese label (used by the compact picker in App).
+// Game id -> bilingual label (used by the compact picker in App).
 export const GAME_LIST = [
-  { key: 'bubble', name: '吹泡泡' },
-  { key: 'fish', name: '接小鱼' },
-  { key: 'rps', name: '猜拳' },
-  { key: 'ball', name: '接球' },
-  { key: 'simon', name: '跟我拍' },
+  { key: 'bubble', name: { zh: '吹泡泡', en: 'Bubbles' } },
+  { key: 'fish', name: { zh: '接小鱼', en: 'Catch fish' } },
+  { key: 'rps', name: { zh: '猜拳', en: 'Rock-paper-scissors' } },
+  { key: 'ball', name: { zh: '接球', en: 'Catch ball' } },
+  { key: 'simon', name: { zh: '跟我拍', en: 'Copy taps' } },
 ];
 
 const RPS_KINDS = ['rock', 'paper', 'scissors'];
@@ -136,6 +138,7 @@ export class GameEngine {
     this.ctx = ctx;
     this.geom = geom;
     this.host = host;
+    this.say = (key, ms) => { const lang = (host && host.state && host.state.lang) || 'zh'; host.speak && host.speak(t(lang, key), ms); };
     this.px = 4;            // sprite cell size on the game canvas
     this.game = null;       // active game id
     this.pieces = [];       // clickable sprites: { id,sprite,x,y,px,... }
@@ -256,7 +259,7 @@ export class GameEngine {
     this.state.pth = null;          // previous swing angle (for swing speed)
     this.state.act = 0;             // re-assert 'swing' body action periodically
     this.host.setAction && this.host.setAction('swing', 1200);
-    this.host.speak && this.host.speak('挥棒~吹泡泡！', 1500);
+    this.say('g.bubble', 1500);
   }
   _stepBubble(t, f) {
     const st = this.state, g = this.geom;
@@ -323,7 +326,7 @@ export class GameEngine {
   // ========================================================================
   _startFish() {
     this.state.spawn = 10;
-    this.host.speak && this.host.speak('小鱼飞起来啦！', 1500);
+    this.say('g.fish', 1500);
   }
   _stepFish(t, f) {
     const st = this.state, g = this.geom;
@@ -365,7 +368,7 @@ export class GameEngine {
   _startRps() {
     this.state.phase = 'pick';     // pick -> reveal
     this.state.pet = null; this.state.you = null; this.state.res = null;
-    this.host.speak && this.host.speak('石头剪刀布~', 1500);
+    this.say('g.rps', 1500);
   }
   _handRects() {
     // Three hands laid out below the pet on the ground line.
@@ -400,9 +403,9 @@ export class GameEngine {
         const result = rc.k === pet ? 'draw' : (RPS_BEATS[rc.k] === pet ? 'win' : 'lose');
         this.state.you = rc.k; this.state.pet = pet; this.state.res = result; this.state.phase = 'reveal';
         this.host.setAction && this.host.setAction('play', 600);
-        if (result === 'win') { this.host.reward(10, 3); this.host.setFace && this.host.setFace('happy', 1300); this.host.speak && this.host.speak('我赢啦！', 1400); }
-        else if (result === 'draw') { this.host.reward(3, 0); this.host.speak && this.host.speak('平局~', 1300); }
-        else { this.host.reward(1, 0); this.host.speak && this.host.speak('再来一局！', 1300); }
+        if (result === 'win') { this.host.reward(10, 3); this.host.setFace && this.host.setFace('happy', 1300); this.say('g.win', 1400); }
+        else if (result === 'draw') { this.host.reward(3, 0); this.say('g.draw', 1300); }
+        else { this.host.reward(1, 0); this.say('g.again', 1300); }
         // Auto-rematch so the game keeps going in-window.
         this.later(() => { if (this.game === 'rps') this._startRps(); }, 1500);
         return true;
@@ -419,7 +422,7 @@ export class GameEngine {
     const g = this.geom;
     this.state.ball = { x: g.cx, y: 30, vx: 2.2, vy: 1.6 };
     this.state.near = false;
-    this.host.speak && this.host.speak('接球喽！', 1400);
+    this.say('g.ball', 1400);
   }
   _stepBall(t, f) {
     const g = this.geom, bl = this.state.ball;
@@ -480,7 +483,7 @@ export class GameEngine {
     this.state.seq.push(Math.floor(Math.random() * 3));
     this.state.ui = 0;
     this.state.phase = 'show';
-    this.host.speak && this.host.speak('看我拍~', 1200);
+    this.say('g.watch', 1200);
     const seq = this.state.seq;
     seq.forEach((z, i) => {
       this.later(() => { this.state.lit = z; this.host.setAction && this.host.setAction('play', 320); }, 560 * i + 350);
@@ -514,7 +517,7 @@ export class GameEngine {
         if (this.state.seq.length >= 5) {
           this.host.reward(20, 4);
           this.host.setFace && this.host.setFace('happy', 1300);
-          this.host.speak && this.host.speak('全记住啦！', 1500);
+          this.say('g.remembered', 1500);
           this.state.seq = [];
           this.later(() => { if (this.game === 'simon') this._simonNext(); }, 900);
         } else {
@@ -526,7 +529,7 @@ export class GameEngine {
     } else {
       // Wrong: small consolation, restart the sequence.
       this.host.setFace && this.host.setFace('sad', 500);
-      this.host.speak && this.host.speak('哎呀，重来~', 1300);
+      this.say('g.oops', 1300);
       this.state.seq = [];
       this.state.phase = 'show';
       this.later(() => { if (this.game === 'simon') this._simonNext(); }, 900);

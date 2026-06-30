@@ -1,6 +1,6 @@
 import React from 'react';
 import { SHOP } from '../shop.js';
-import { t } from '../i18n.js';
+import { t, tn } from '../i18n.js';
 const LABELKEY = { fullness: 'stat.fullness', clean: 'stat.clean', happy: 'stat.happy', health: 'stat.health' };
 
 // Hover care panel with two modes:
@@ -61,10 +61,10 @@ export default function StatusBar(props) {
           {cat.items.map((it) => {
             const afford = money >= it.cost;
             return (
-              <div key={it.key} onClick={() => afford && onBuy(shopCat, it)} title={it.name}
+              <div key={it.key} onClick={() => afford && onBuy(shopCat, it)} title={tn(it.name, lang)}
                 style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 9px', borderRadius: 10, border: '2px solid ' + (afford ? '#222a55' : '#d6dae8'), background: afford ? '#fff' : '#f4f5fa', cursor: afford ? 'pointer' : 'not-allowed', opacity: afford ? 1 : 0.5 }}>
                 <span style={{ fontSize: 20, lineHeight: 1, width: 24, textAlign: 'center' }}>{it.icon}</span>
-                <span style={{ flex: 1, fontSize: 11, fontWeight: 800, color: '#222a55', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.name}</span>
+                <span style={{ flex: 1, fontSize: 11, fontWeight: 800, color: '#222a55', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tn(it.name, lang)}</span>
                 <span style={{ fontSize: 10, fontWeight: 900, color: tag }}>+{it.amt}</span>
                 <span style={{ fontSize: 10, fontWeight: 900, color: '#e8a01a', width: 38, textAlign: 'right' }}>💰{it.cost}</span>
               </div>
@@ -94,16 +94,7 @@ export default function StatusBar(props) {
   const m = stat ? META[stat] : null;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
-      {/* growth level + experience bar — Lv1 宝宝 → Lv2 幼年 → Lv3 成年 (adult) */}
-      {level && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 9px', borderRadius: 999, background: 'rgba(255,255,255,.9)', border: '2px solid rgba(34,42,85,.14)', boxShadow: '0 2px 0 rgba(34,42,85,.1)' }}>
-          <span style={{ fontSize: 9.5, fontWeight: 900, color: '#222a55', whiteSpace: 'nowrap' }}>Lv{level.level} · {level.name}</span>
-          <div style={{ width: 56, height: 7, background: '#e7edf7', border: '1.5px solid #222a55', borderRadius: 5, overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: level.pct + '%', background: 'linear-gradient(90deg,#ffd23d,#ff9d3d)', borderRadius: 4, transition: 'width .3s' }} />
-          </div>
-          <span style={{ fontSize: 9, fontWeight: 900, color: '#9aa3cc' }}>{level.level >= 3 ? 'MAX' : level.pct + '%'}</span>
-        </div>
-      )}
+      {/* the growth level + experience bar lives in Settings, not on hover */}
       {/* compact stat readout (only while hovering a button) — language-bar sized */}
       {m && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '2px 8px', borderRadius: 999, background: 'rgba(255,255,255,.9)', border: '2px solid rgba(34,42,85,.12)', boxShadow: '0 2px 0 rgba(34,42,85,.1)' }}>

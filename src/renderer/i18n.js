@@ -88,7 +88,96 @@ const STR = {
   'buddy.blurb': { zh: '连接 Claude Code，企鹅会陪你写代码、报错时提醒、完成时欢呼。全程本地，不上传代码。', en: 'Connect Claude Code — the penguin keeps you company, flags errors, and cheers when you finish. Fully local, your code is never uploaded.' },
   'buddy.connect': { zh: '连接 Claude Code', en: 'Connect Claude Code' },
   'buddy.connected': { zh: '已连接 · 点击断开', en: 'Connected · tap to disconnect' },
+  // ---- school (上课) picker ----
+  'school.title': { zh: '上课', en: 'Class' },
+  'school.gradA': { zh: '🎓 已从大学毕业！', en: '🎓 Graduated university!' },
+  'school.gradB': { zh: '全部课程完成啦~', en: 'All courses complete~' },
+  'school.rule': { zh: '每节课 {0} 分钟，每科上 {1} 节；四科全毕业即可升学。', en: '{0} min per class, {1} classes per subject. Finish all four to level up.' },
+  'school.graduated': { zh: '✓毕业', en: '✓ Done' },
+  'school.classBtn': { zh: '上课', en: 'Study' },
+  // ---- work (上班) picker ----
+  'work.title': { zh: '上班', en: 'Work' },
+  'work.locked': { zh: '先去上学解锁工作吧~ 📚', en: 'Go to school to unlock jobs~ 📚' },
+  'work.intro': { zh: '选择班次，专注到点即可领工资。玩耍或退出会清零。', en: 'Pick a shift — focus to the end to get paid. Playing or quitting resets it.' },
+  'work.rateUnit': { zh: '/分', en: '/min' },
+  'work.shift': { zh: '{0}分 · +{1}💰', en: '{0}m · +{1}💰' },
+  // ---- death screen ----
+  'dead.left': { zh: '{0} 离开了…', en: '{0} has left…' },
+  'dead.reason': { zh: '太久没人照顾了 💔', en: 'Left alone too long 💔' },
+  'dead.revive': { zh: '💊 复活丹 · ¥400', en: '💊 Revival pill · ¥400' },
+  'dead.restart': { zh: '🔄 重新养一只', en: '🔄 Raise a new one' },
+  // ---- play (玩耍) picker ----
+  'hint.controls': { zh: '单击 · 拖动 · 右键', en: 'Click · Drag · Right-click' },
+  'play.title': { zh: '玩耍', en: 'Play' },
+  'play.pick': { zh: '选一个，企鹅就在窗口里陪你玩~', en: 'Pick one — the penguin plays right in the window~' },
+  // ---- settings panel ----
+  'set.title': { zh: '设置', en: 'Settings' },
+  'set.level': { zh: '成长等级', en: 'Growth level' },
+  'set.name': { zh: '名字', en: 'Name' },
+  'set.speed': { zh: '动画速度', en: 'Anim speed' },
+  'set.opacity': { zh: '透明度', en: 'Opacity' },
+  'set.cloud': { zh: '云存档', en: 'Cloud save' },
+  'set.syncNow': { zh: '立即同步', en: 'Sync now' },
+  'set.signOut': { zh: '退出登录', en: 'Sign out' },
+  'set.signIn': { zh: '登录', en: 'Log in' },
+  'set.signUp': { zh: '注册', en: 'Sign up' },
+  'set.done': { zh: '完成', en: 'Done' },
+  'set.cloudBlurb': { zh: '登录后存档会自动备份到云端，换设备也不丢失。', en: 'Sign in to back up your save to the cloud — safe across devices.' },
+  'set.email': { zh: '邮箱', en: 'Email' },
+  'set.pw': { zh: '密码（至少6位）', en: 'Password (min 6)' },
+  'sync.never': { zh: '尚未同步', en: 'Not synced yet' },
+  'sync.justNow': { zh: '刚刚已同步', en: 'Synced just now' },
+  'sync.minsAgo': { zh: '{0} 分钟前同步', en: 'Synced {0} min ago' },
+  'sync.done': { zh: '已同步', en: 'Synced' },
+  // ---- pet speech (say.*) ----
+  'say.noMoney': { zh: '钱不够啦…💸', en: 'Not enough coins… 💸' },
+  'say.collapse': { zh: '呜…我撑不住了…💀', en: "Ugh… I can't hold on… 💀" },
+  'say.noRevive': { zh: '钱不够买复活丹…💸', en: 'Not enough for a revival pill… 💸' },
+  'say.revived': { zh: '我…我回来啦！✨', en: "I… I'm back! ✨" },
+  'say.newHello': { zh: '你好呀，我是新来的~ 🐧', en: "Hi, I'm new here~ 🐧" },
+  'say.hatchHello': { zh: '你好呀，我是{0}~ 🥚', en: "Hi, I'm {0}~ 🥚" },
+  'say.grewUp': { zh: '我长大啦！🎉🐧', en: 'I grew up! 🎉🐧' },
+  'say.notSick': { zh: '我没生病呀~ 😊', en: "I'm not sick~ 😊" },
+  'say.cured': { zh: '好多了，去休息一下~ 😴', en: 'Much better, time to rest~ 😴' },
+  'say.partCured': { zh: '感觉好一点了…还得再吃药 💊', en: 'A bit better… need more medicine 💊' },
+  'say.gradAll': { zh: '已经大学毕业啦！🎓', en: 'Already graduated university! 🎓' },
+  'say.sickSeeDoc': { zh: '生病了，先看医生吧…🤒', en: "I'm sick — see a doctor first… 🤒" },
+  'say.subjDone': { zh: '{0}已经学完啦~', en: '{0} is all done~' },
+  'say.sickNoWork': { zh: '生病了不能上班…🤒', en: 'Too sick to work… 🤒' },
+  'say.promote': { zh: '{0}毕业啦！🎓 升入{1}！', en: 'Graduated {0}! 🎓 On to {1}!' },
+  'say.gradUni': { zh: '大学毕业！🎓🎉 厉害啦！', en: 'Graduated university! 🎓🎉 Amazing!' },
+  'say.classDone': { zh: '{0} 上完一节课！({1}/{2}) 📚', en: 'Finished a {0} class! ({1}/{2}) 📚' },
+  'say.payday': { zh: '{0}下班！赚到 +{1}💰', en: 'Off work from {0}! Earned +{1}💰' },
+  'say.sneeze': { zh: '啊…啊嚏！🤧', en: 'Ah… achoo! 🤧' },
+  'say.wokeUp': { zh: '哇！醒了醒了~', en: 'Whoa! Awake now~' },
+  'say.weedNext': { zh: '这片拔完啦，去下一片~', en: 'This patch is done — on to the next~' },
+  'say.wipeSweat': { zh: '呼~ 擦擦汗', en: 'Phew~ *wipes sweat*' },
+  'say.manyWeeds': { zh: '哇，好多杂草！', en: 'Whoa, so many weeds!' },
+  'say.hatOn': { zh: '换上工作帽，开干！', en: "Work hat on — let's go!" },
+  'say.backAgain': { zh: '我回来啦~', en: "I'm back~" },
+  'say.worseSick': { zh: '好像更严重了…🤒', en: 'Feeling worse… 🤒' },
+  'say.cloudRestored': { zh: '已从云端恢复~', en: 'Restored from the cloud~' },
+  'say.levelUp': { zh: '升级啦！Lv{0}！🎉', en: 'Level up! Lv{0}! 🎉' },
+  // ---- mini-game speech (g.*) ----
+  'g.bubble': { zh: '挥棒~吹泡泡！', en: 'Swish~ bubbles!' },
+  'g.fish': { zh: '小鱼飞起来啦！', en: 'Fish are flying!' },
+  'g.rps': { zh: '石头剪刀布~', en: 'Rock, paper, scissors~' },
+  'g.win': { zh: '我赢啦！', en: 'I win!' },
+  'g.draw': { zh: '平局~', en: 'A tie~' },
+  'g.again': { zh: '再来一局！', en: 'One more!' },
+  'g.ball': { zh: '接球喽！', en: 'Catch!' },
+  'g.watch': { zh: '看我拍~', en: 'Watch me tap~' },
+  'g.remembered': { zh: '全记住啦！', en: 'Got them all!' },
+  'g.oops': { zh: '哎呀，重来~', en: 'Oops, again~' },
 };
+
+// Pick a bilingual name from a { zh, en } object (used for content arrays like
+// subjects / jobs / shop items / games).
+export function tn(obj, lang) {
+  if (!obj) return '';
+  if (typeof obj === 'string') return obj;
+  return obj[lang] || obj.zh || '';
+}
 
 export function t(lang, key, ...args) {
   const e = STR[key];

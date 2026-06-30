@@ -9,6 +9,36 @@ is pre-release, so versions are milestone markers rather than published releases
 New lifelike animations being added one at a time.
 See `TODO.md` for the remaining activity-authentic focus animations.
 
+## [1.13.0] — 2026-06-30 — Full English, unlimited levels & Code Buddy fix
+
+### Fixed
+- **Code Buddy now actually works.** The hooks invoked a bare `node`, which isn't
+  on the PATH Claude Code uses for hooks on macOS (nvm/Homebrew), so every hook
+  silently did nothing. They now run through Deskpet's **own bundled Node**
+  (`ELECTRON_RUN_AS_NODE`), with **zero PATH dependency**. Old broken hooks
+  **auto-heal** when you update — no need to reconnect. Also fixed event
+  classification reading the wrong field (`tool_result`), so test pass/fail and
+  errors are detected correctly.
+
+### Added
+- **Unlimited levels.** The growth bar no longer stops at Lv3 "MAX" — it's now a
+  proper **experience system** that keeps climbing forever. You earn XP from time
+  spent together **plus** actions: feeding, bathing, playing mini-games, and
+  finishing classes/shifts. Each level needs a bit more XP than the last, and the
+  pet **cheers when it levels up**. (Life-stage name still reads 宝宝 → 幼年 →
+  成年 / Baby → Child → Adult as it grows.) The level + progress bar now lives in
+  **Settings** (no longer on the hover care panel).
+
+### Changed
+- **Calmer Code Buddy.** The pet now always reacts to the two moments that matter
+  — **"paused for your input"** and **"task complete"** — and **no longer reports
+  errors** or chatters on every prompt. Wins (tests pass / commit) and
+  session start/end stay as occasional, low-key positive beats.
+- **Full English coverage.** Completed the localization first pass — the Settings
+  panel, school/work pickers, subject & job names, shop items, mini-game names,
+  the death screen, the startup hint, and **all of the pet's speech** are now
+  bilingual and follow your chosen language.
+
 ## [1.12.0] — 2026-06-30 — Code Buddy: a Claude Code companion
 
 ### Added

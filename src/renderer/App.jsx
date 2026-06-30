@@ -10,7 +10,7 @@ import {
 } from './store.js';
 import { genPersonality, normPersonality, traitLabel } from './personality.js';
 import { DIA, BUDDY, pick, greetingPool, studyLine, knowledgePool } from './dialogue.js';
-import { t, defaultLang, LANGS } from './i18n.js';
+import { t, tn, defaultLang, LANGS } from './i18n.js';
 import { cloudEnabled, currentUser, currentSession, onAuth, signIn, signUp, signOut, pullCloud, pushCloud } from './cloud.js';
 
 const BODY = '#222a55';
@@ -22,28 +22,29 @@ const SCARF = '#ff4d6d';
 // all 4 subjects promotes the pet to the next level. A class runs for `min`
 // REAL minutes of focused study (the pet keeps studying the whole time).
 const SUBJECTS = [
-  { key: 'cn', name: '语文', icon: '📖' },
-  { key: 'en', name: '英语', icon: '🔤' },
-  { key: 'ma', name: '数学', icon: '➗' },
-  { key: 'sc', name: '科学', icon: '🔬' },
+  { key: 'cn', name: { zh: '语文', en: 'Chinese' }, icon: '📖' },
+  { key: 'en', name: { zh: '英语', en: 'English' }, icon: '🔤' },
+  { key: 'ma', name: { zh: '数学', en: 'Math' }, icon: '➗' },
+  { key: 'sc', name: { zh: '科学', en: 'Science' }, icon: '🔬' },
 ];
 const SCHOOL = [
-  { name: '幼儿园', per: 2,  min: 15 },
-  { name: '小学',   per: 4,  min: 30 },
-  { name: '中学',   per: 8,  min: 60 },
-  { name: '大学',   per: 16, min: 120 },
+  { name: { zh: '幼儿园', en: 'Kindergarten' }, per: 2,  min: 15 },
+  { name: { zh: '小学',   en: 'Primary' },      per: 4,  min: 30 },
+  { name: { zh: '中学',   en: 'Secondary' },    per: 8,  min: 60 },
+  { name: { zh: '大学',   en: 'University' },    per: 16, min: 120 },
 ];
 // Jobs unlock by school level reached (lvl ≤ schoolLevel). Higher tiers pay
-// more. A shift is 30 or 60 real minutes; pay = rate × minutes.
+// more. A shift is 30 or 60 real minutes; pay = rate × minutes. `key` drives the
+// scene/attire (stable across languages); `name` is display-only.
 const JOBS = [
-  { name: '发传单',     lvl: 0, rate: 1.2, icon: '📰' },
-  { name: '拔草',       lvl: 0, rate: 1.6, icon: '🌿' },
-  { name: '洗碗',       lvl: 1, rate: 2.4, icon: '🍽️' },
-  { name: '清洁工',     lvl: 1, rate: 3.0, icon: '🧹' },
-  { name: '便利店店员', lvl: 2, rate: 3.8, icon: '🏪' },
-  { name: '快递员',     lvl: 2, rate: 4.4, icon: '📦' },
-  { name: '程序员',     lvl: 3, rate: 6.5, icon: '💻' },
-  { name: '老师',       lvl: 3, rate: 5.8, icon: '🧑‍🏫' },
+  { key: 'flyer',   name: { zh: '发传单',     en: 'Flyering' },     lvl: 0, rate: 1.2, icon: '📰' },
+  { key: 'weed',    name: { zh: '拔草',       en: 'Weeding' },      lvl: 0, rate: 1.6, icon: '🌿' },
+  { key: 'dish',    name: { zh: '洗碗',       en: 'Dishwashing' },  lvl: 1, rate: 2.4, icon: '🍽️' },
+  { key: 'clean',   name: { zh: '清洁工',     en: 'Cleaner' },      lvl: 1, rate: 3.0, icon: '🧹' },
+  { key: 'store',   name: { zh: '便利店店员', en: 'Store clerk' },  lvl: 2, rate: 3.8, icon: '🏪' },
+  { key: 'courier', name: { zh: '快递员',     en: 'Courier' },      lvl: 2, rate: 4.4, icon: '📦' },
+  { key: 'coder',   name: { zh: '程序员',     en: 'Programmer' },   lvl: 3, rate: 6.5, icon: '💻' },
+  { key: 'teacher', name: { zh: '老师',       en: 'Teacher' },      lvl: 3, rate: 5.8, icon: '🧑‍🏫' },
 ];
 const WORK_MINS = [30, 60];
 const FRESH_CLASSES = { cn: 0, en: 0, ma: 0, sc: 0 };
@@ -266,13 +267,13 @@ export default class App extends React.Component {
     if (cat === 'medicine') return this.useMedicine(item);
     if (this.busyBlocked()) return;            // mid-action: ignore (and don't charge)
     if (this.state.money < item.cost) {
-      this.speak('钱不够啦…💸', 1800, true);
+      this.speak(t(this.state.lang, 'say.noMoney'), 1800, true);
       this.setState({ shopCat: null });
       return;
     }
     this.setState((s) => ({ money: s.money - item.cost, shopCat: null, hover: false, hoverStat: null }), () => this.save());
-    if (cat === 'food') this.feed({ full: item.full, happy: item.happy || 0 });
-    else if (cat === 'bath') this.bathAct({ clean: item.clean, happy: item.happy || 0 });
+    if (cat === 'food') { this.feed({ full: item.full, happy: item.happy || 0 }); this.awardExp(40); }
+    else if (cat === 'bath') { this.bathAct({ clean: item.clean, happy: item.happy || 0 }); this.awardExp(25); }
   };
 
   // 玩耍 opens the mini-game picker (playing breaks focus if a session is on).
@@ -287,6 +288,7 @@ export default class App extends React.Component {
   gameReward = (happy, coins) => {
     this.touch();
     this.setState((s) => ({ happiness: clamp(s.happiness + (happy || 0), 0, 100), money: s.money + (coins || 0) }), () => this.save());
+    this.awardExp((happy || 0) * 2 + (coins || 0) * 3); // playing earns experience too
     // Milestone reaction is acted out by the pet itself (no emoji): a happy hop.
     if (happy >= 6 && !this.p.dragging) { this.p.action = 'play'; this.p.aStart = performance.now(); this.p.aDur = 700; }
   };
@@ -300,18 +302,18 @@ export default class App extends React.Component {
     this.p.action = 'dead'; this.p.busy = true;
     this.setState({ dead: true, sick: this.state.sick || 'severe', hover: false, hoverStat: null, shopCat: null, menu: null, session: null, sessionLeft: 0, schoolMenu: false, workMenu: false });
     this.sfx('sleep');
-    this.speak('呜…我撑不住了…💀', 4000, true);
+    this.speak(t(this.state.lang, 'say.collapse'), 4000, true);
     this.save();
   };
   revive = () => {
-    if (this.state.money < 400) { this.speak('钱不够买复活丹…💸', 2200, true); return; }
+    if (this.state.money < 400) { this.speak(t(this.state.lang, 'say.noRevive'), 2200, true); return; }
     this._weakUntil = performance.now() + 90000; // ~1 "day" of weakness (-30% work pay)
     this.setState((s) => ({
       money: s.money - 400, dead: false, sick: null, health: 60,
       fullness: Math.max(s.fullness, 45), cleanliness: Math.max(s.cleanliness, 45),
       happiness: Math.max(s.happiness, 45), energy: Math.max(s.energy, 55),
     }), () => this.save());
-    this.rebirth('我…我回来啦！✨');
+    this.rebirth(t(this.state.lang, 'say.revived'));
   };
   restart = () => {
     this.personality = genPersonality();
@@ -324,7 +326,7 @@ export default class App extends React.Component {
       schoolLevel: 0, classDone: { cn: 0, en: 0, ma: 0, sc: 0 }, session: null, sessionLeft: 0,
       traits: traitLabel(this.personality),
     }, () => this.save());
-    this.rebirth('你好呀，我是新来的~ 🐧');
+    this.rebirth(t(this.state.lang, 'say.newHello'));
   };
   // Shared "pop back to life" hop + greeting (reuses the Anywhere-Door entrance).
   rebirth(line) {
@@ -344,7 +346,7 @@ export default class App extends React.Component {
     const name = (this.state.name || '').trim() || 'Pengu';
     this._wasGrown = false;
     this.setState({ name, onboard: null, playTime: 0 }, () => this.save());
-    this.rebirth(`你好呀，我是${name}~ 🥚`); // the egg pops out of the Anywhere Door
+    this.rebirth(t(this.state.lang, 'say.hatchHello', name)); // the egg pops out of the Anywhere Door
   };
   hatch = () => {
     this.spawn('play'); this.sfx('play');
@@ -352,15 +354,15 @@ export default class App extends React.Component {
     this.p.aStart = performance.now(); this.p.aDur = 1000;
     clearTimeout(this._enterT);
     this._enterT = setTimeout(() => { if (this.p.action === 'enter') { this.p.action = 'idle'; this.p.busy = false; } }, 1050);
-    this.speak('我长大啦！🎉🐧', 3500, true);
+    this.speak(t(this.state.lang, 'say.grewUp'), 3500, true);
     this.save();
   };
 
   // ---- school / work / medicine -------------------------------------------
   openMedicine = () => { this.closeMenu(); this.setState({ shopCat: 'medicine', hover: true }); };
   useMedicine = (item) => {
-    if (!this.state.sick) { this.speak('我没生病呀~ 😊', 2000, true); this.setState({ shopCat: null }); return; }
-    if (this.state.money < item.cost) { this.speak('钱不够啦…💸', 1800, true); this.setState({ shopCat: null }); return; }
+    if (!this.state.sick) { this.speak(t(this.state.lang, 'say.notSick'), 2000, true); this.setState({ shopCat: null }); return; }
+    if (this.state.money < item.cost) { this.speak(t(this.state.lang, 'say.noMoney'), 1800, true); this.setState({ shopCat: null }); return; }
     // A medicine ≥ the illness tier cures outright; a weaker one still helps,
     // downgrading the illness one stage (so you're never hard-stuck).
     const cur = SICK_TIER[this.state.sick];
@@ -372,7 +374,7 @@ export default class App extends React.Component {
       shopCat: null, hover: false, hoverStat: null,
     }), () => this.save());
     this._sickDur = 0;
-    this.speak(cured ? '好多了，去休息一下~ 😴' : '感觉好一点了…还得再吃药 💊', 2600, true);
+    this.speak(cured ? t(this.state.lang, 'say.cured') : t(this.state.lang, 'say.partCured'), 2600, true);
     if (cured) {
       // 静养: a short rest after treatment that recovers a little more health.
       this.p.busy = true; this.p.action = 'sleep';
@@ -408,25 +410,27 @@ export default class App extends React.Component {
   // Start a class for one subject. Runs SCHOOL[level].min real minutes.
   startClass = (subjKey) => {
     if (this.state.session) return;
+    const L = this.state.lang;
     const lvl = this.state.schoolLevel;
-    if (lvl >= SCHOOL.length) { this.speak('已经大学毕业啦！🎓', 2200, true); return; }
-    if (this.state.sick) { this.speak('生病了，先看医生吧…🤒', 2200, true); return; }
+    if (lvl >= SCHOOL.length) { this.speak(t(L, 'say.gradAll'), 2200, true); return; }
+    if (this.state.sick) { this.speak(t(L, 'say.sickSeeDoc'), 2200, true); return; }
     const sc = SCHOOL[lvl];
     const subj = SUBJECTS.find((s) => s.key === subjKey);
-    if ((this.state.classDone[subjKey] || 0) >= sc.per) { this.speak(`${subj.name}已经学完啦~`, 2000, true); return; }
+    if ((this.state.classDone[subjKey] || 0) >= sc.per) { this.speak(t(L, 'say.subjDone', tn(subj.name, L)), 2000, true); return; }
     const endTs = Date.now() + sc.min * 60000;
-    this.beginFocus({ kind: 'study', subjectKey: subjKey, label: `${subj.name}·上课`, level: lvl, minutes: sc.min, endTs });
+    this.beginFocus({ kind: 'study', subjectKey: subjKey, label: `${tn(subj.name, L)}·${t(L, 'school.title')}`, level: lvl, minutes: sc.min, endTs });
     this.setState({ schoolMenu: false });
   };
 
   // Start a work shift of `minutes` (30 or 60) for JOBS[jobIdx].
   startWork = (jobIdx, minutes) => {
     if (this.state.session) return;
+    const L = this.state.lang;
     const job = JOBS[jobIdx];
     if (!job || job.lvl > this.state.schoolLevel) return;
-    if (this.state.sick) { this.speak('生病了不能上班…🤒', 2200, true); return; }
+    if (this.state.sick) { this.speak(t(L, 'say.sickNoWork'), 2200, true); return; }
     const endTs = Date.now() + minutes * 60000;
-    this.beginFocus({ kind: 'work', jobIdx, label: `${job.name}·上班`, minutes, endTs });
+    this.beginFocus({ kind: 'work', jobIdx, label: `${tn(job.name, L)}·${t(L, 'work.title')}`, minutes, endTs });
     this.setState({ workMenu: false });
   };
 
@@ -486,17 +490,21 @@ export default class App extends React.Component {
       if (graduated) { schoolLevel = Math.min(SCHOOL.length, ses.level + 1); classDone = { ...FRESH_CLASSES }; }
       this.setState((s) => ({ classDone, schoolLevel, happiness: Math.min(100, s.happiness + 5), energy: Math.max(0, s.energy - 10) }), () => this.save());
       this.doneAnim('study');
+      this.awardExp(graduated ? 1500 : 600); // finishing a class (or graduating) earns lots of XP
       const next = SCHOOL[schoolLevel];
+      const L = this.state.lang;
       this.speak(graduated
-        ? (next ? `${sc.name}毕业啦！🎓 升入${next.name}！` : '大学毕业！🎓🎉 厉害啦！')
-        : `${subj.name} 上完一节课！(${done[ses.subjectKey]}/${sc.per}) 📚`, 3400, true);
+        ? (next ? t(L, 'say.promote', tn(sc.name, L), tn(next.name, L)) : t(L, 'say.gradUni'))
+        : t(L, 'say.classDone', tn(subj.name, L), done[ses.subjectKey], sc.per), 3400, true);
     } else {
       const job = JOBS[ses.jobIdx];
+      const L = this.state.lang;
       const weak = this._weakUntil && performance.now() < this._weakUntil;
       const pay = Math.round(job.rate * ses.minutes * (weak ? 0.7 : 1));
       this.setState((s) => ({ money: s.money + pay, energy: Math.max(0, s.energy - 18), cleanliness: Math.max(0, s.cleanliness - 8), happiness: Math.min(100, s.happiness + 2) }), () => this.save());
       this.doneAnim('work');
-      this.speak(`${job.name}下班！赚到 +${pay}💰`, 3400, true);
+      this.awardExp(Math.round(ses.minutes * 12)); // a shift earns XP scaled by its length
+      this.speak(t(L, 'say.payday', tn(job.name, L), pay), 3400, true);
     }
   }
 
@@ -676,7 +684,7 @@ export default class App extends React.Component {
     this.p.busy = true; this.p.action = 'sneeze';
     this.p.aStart = performance.now(); this.p.aDur = 950;
     setTimeout(() => { if (this.p.action === 'sneeze') { this.sneezeProp(); this.sfx('chirp'); } }, 520); // achoo!
-    if (Math.random() < 0.4) this.speak('啊…啊嚏！🤧', 1700, true);
+    if (Math.random() < 0.4) this.speak(t(this.state.lang, 'say.sneeze'), 1700, true);
     setTimeout(() => { if (this.p.action === 'sneeze') { this.p.action = 'idle'; this.p.busy = false; } }, 950);
   };
   loveReact = () => {
@@ -1006,29 +1014,30 @@ export default class App extends React.Component {
       if (session.subjectKey === 'en') this._gear = 'english';
     } else if (session.kind === 'work') {
       const job = JOBS[session.jobIdx];
-      if (job && job.name === '拔草') {
+      const jk = job && job.key;
+      if (jk === 'weed') {
         // Beat-driven 拔草: arrive → change clothes → pull weeds L→R → rest/wipe →
         // move to a new patch → repeat. weedBeats() runs the sequence.
         this._scene = { type: 'weed', weeds: [], beat: 'arrive', pull: null, pullT: 0, drops: [], puffs: [] };
         this._hatOn = false; // puts the straw hat on after arriving (换装)
-      } else if (job && job.name === '发传单') {
+      } else if (jk === 'flyer') {
         this._scene = { type: 'flyer', walkers: [], spawn: 0, took: 0, blow: null };
-      } else if (job && job.name === '洗碗') {
+      } else if (jk === 'dish') {
         this._scene = { type: 'dish', suds: [], shine: 0 };
         this._gear = 'dish';
-      } else if (job && job.name === '清洁工') {
+      } else if (jk === 'clean') {
         this._scene = { type: 'clean', dust: [] };
         this._gear = 'clean';
-      } else if (job && job.name === '便利店店员') {
+      } else if (jk === 'store') {
         this._scene = { type: 'store', itemX: 0, scanFlash: 0, receipt: 0, item: 0 };
         this._gear = 'store';
-      } else if (job && job.name === '快递员') {
+      } else if (jk === 'courier') {
         this._scene = { type: 'courier' };
         this._gear = 'courier';
-      } else if (job && job.name === '程序员') {
+      } else if (jk === 'coder') {
         this._scene = { type: 'coder', scroll: 0, bulb: 0 };
         this._gear = 'coder';
-      } else if (job && job.name === '老师') {
+      } else if (jk === 'teacher') {
         this._scene = { type: 'teach' };
         this._gear = 'teacher';
       }
@@ -1081,7 +1090,7 @@ export default class App extends React.Component {
           // 被粉笔砸醒 — only ever right after actually dozing off.
           this._scene.beat = 'wake'; this._faceOverride = 'aha';
           this._scene.chalkThrow = { x: 8, y: 20 };
-          this.spawn('play'); this.speak('哇！醒了醒了~', 1600, true);
+          this.spawn('play'); this.speak(t(this.state.lang, 'say.wokeUp'), 1600, true);
           this._faceArcT = setTimeout(study, 1100);
         } else {
           study();
@@ -1108,7 +1117,7 @@ export default class App extends React.Component {
       const next = this._scene.weeds.find((w) => !w.gone);
       if (!next) { // patch cleared → walk to a fresh patch
         this._scene.beat = 'move';
-        this.speak('这片拔完啦，去下一片~', 1900, true);
+        this.speak(t(this.state.lang, 'say.weedNext'), 1900, true);
         this._faceArcT = setTimeout(() => { if (guard()) { fill(); weed(); } }, 2100);
         return;
       }
@@ -1120,7 +1129,7 @@ export default class App extends React.Component {
         this._scene.pull = null;
         if (Math.random() < 0.3) { // a breather + wipe the brow
           this._scene.beat = 'rest';
-          this.speak('呼~ 擦擦汗', 1600, true);
+          this.speak(t(this.state.lang, 'say.wipeSweat'), 1600, true);
           this._faceArcT = setTimeout(weed, 2300);
         } else {
           this._faceArcT = setTimeout(weed, 800);
@@ -1128,11 +1137,11 @@ export default class App extends React.Component {
       }, 1000);
     };
     this._scene.beat = 'arrive'; this._hatOn = false; fill();
-    this.speak('哇，好多杂草！', 1700, true);
+    this.speak(t(this.state.lang, 'say.manyWeeds'), 1700, true);
     this._faceArcT = setTimeout(() => {
       if (!guard()) return;
       this._scene.beat = 'dress'; this._hatOn = true; // 换上工作服 (straw hat)
-      this.speak('换上工作帽，开干！', 1800, true);
+      this.speak(t(this.state.lang, 'say.hatOn'), 1800, true);
       this._faceArcT = setTimeout(weed, 1500);
     }, 1800);
   }
@@ -1567,7 +1576,7 @@ export default class App extends React.Component {
     this._placed = true;
     this.pushWindow(true);
     this.save();
-    if (this._mounted) this.speak('我回来啦~', 1800, true);
+    if (this._mounted) this.speak(t(this.state.lang, 'say.backAgain'), 1800, true);
   }
 
   pushWindow(force) {
@@ -1690,16 +1699,44 @@ export default class App extends React.Component {
   withFeet(g, which) { return this.swap(g, 15, which ? this.FEET_A : this.FEET_B); }
   // Grown once enough online time has accrued; before that it's an egg/baby.
   isGrown() { return (this.state.playTime || 0) >= GROW_SECONDS; }
-  // Growth as a 3-level "experience" track so the owner can see how grown the pet
-  // is: Lv1 宝宝 → Lv2 幼年 → Lv3 成年 (adult). Lv3 == isGrown() (the 2h threshold),
-  // so the existing job/behaviour gating is unchanged.
+  // Total experience = online seconds + bonus XP earned from actions (feeding,
+  // playing, finishing classes/shifts). 1 bonus point ≈ 1 second of play.
+  totalExp() { return (this.state.playTime || 0) + (this.state.bonusXp || 0); }
+  // UNLIMITED levelling. Each level needs progressively more XP
+  // (need(L) = BASE·L^EXPO), so the bar keeps climbing forever — no cap.
+  levelFromExp(e) {
+    const BASE = 420, EXPO = 1.25;
+    let lvl = 1, acc = 0;
+    while (lvl < 9999) {
+      const need = Math.round(BASE * Math.pow(lvl, EXPO));
+      if (e < acc + need) return { level: lvl, into: e - acc, need };
+      acc += need; lvl++;
+    }
+    return { level: lvl, into: 0, need: 1 };
+  }
+  // Level + life-stage name + progress to next level. The number is unlimited;
+  // the NAME is the life stage (egg→宝宝/幼年 until it hatches, then 成年/adult).
   levelInfo() {
-    const pt = this.state.playTime || 0, lang = this.state.lang;
-    const T1 = GROW_SECONDS * 0.25; // 30 min → Lv2
-    const T2 = GROW_SECONDS;        // 2 h    → Lv3 (adult)
-    if (pt < T1) return { level: 1, name: t(lang, 'lv.baby'), pct: Math.round((pt / T1) * 100) };
-    if (pt < T2) return { level: 2, name: t(lang, 'lv.child'), pct: Math.round(((pt - T1) / (T2 - T1)) * 100) };
-    return { level: 3, name: t(lang, 'lv.adult'), pct: 100 };
+    const lang = this.state.lang;
+    const { level, into, need } = this.levelFromExp(this.totalExp());
+    const grown = this.isGrown();
+    const name = grown ? t(lang, 'lv.adult') : (level <= 2 ? t(lang, 'lv.baby') : t(lang, 'lv.child'));
+    return { level, name, pct: Math.max(0, Math.min(100, Math.round((into / need) * 100))) };
+  }
+  // Award bonus XP, then check for a level-up.
+  awardExp(n) {
+    if (!n || this.state.dead) return;
+    this.setState((s) => ({ bonusXp: (s.bonusXp || 0) + n }), () => this.checkLevelUp());
+  }
+  // Celebrate when the level number climbs (from actions or passive play). One
+  // guarded place so action XP and online time never double-announce.
+  checkLevelUp() {
+    const lvl = this.levelInfo().level;
+    if (this._lastLevel == null) { this._lastLevel = lvl; return; }
+    if (lvl > this._lastLevel && this.isGrown() && !this.state.session && !this.state.dead) {
+      this.speak(t(this.state.lang, 'say.levelUp', lvl), 2600, true);
+    }
+    this._lastLevel = lvl;
   }
   // Smudge a few belly pixels with grime when the pet is dirty (low cleanliness).
   withDirt(g) {
@@ -2087,7 +2124,7 @@ export default class App extends React.Component {
       const health = clamp(s.health + hd, 0, 100);
       const mood = this.calcMood({ fullness, energy, cleanliness, happiness });
       return { fullness, cleanliness, happiness, energy, health, mood, playTime: (s.playTime || 0) + 1, money: s.money + hourly };
-    });
+    }, () => this.checkLevelUp()); // online time also raises the level → celebrate crossings
     if (hourly) { this.save(); } // celebrate the hourly reward
 
     // Focus session countdown: update the displayed remaining time each second,
@@ -2123,7 +2160,7 @@ export default class App extends React.Component {
       if (this._sickDur >= 1800) { // untreated worsens slowly (~30 min per stage)
         this._sickDur = 0;
         const next = { mild: 'medium', medium: 'severe', severe: 'severe' }[this.state.sick];
-        if (next !== this.state.sick) { this.setState({ sick: next }); this.speak('好像更严重了…🤒', 2600, true); }
+        if (next !== this.state.sick) { this.setState({ sick: next }); this.speak(t(this.state.lang, 'say.worseSick'), 2600, true); }
       }
     } else {
       this._sickDur = 0;
@@ -2526,7 +2563,7 @@ export default class App extends React.Component {
     this.personality = normPersonality(d && d.personality);
     if (!d) { this.setState({ loaded: true }); return { gender: null, dead: false }; } // brand-new pet → onboarding (boot)
     const st = {};
-    ['fullness', 'energy', 'cleanliness', 'happiness', 'health', 'sick', 'dead', 'education', 'study', 'gender', 'playTime', 'money', 'mood', 'name', 'volume', 'speed', 'opacity', 'schoolLevel', 'lang'].forEach((k) => {
+    ['fullness', 'energy', 'cleanliness', 'happiness', 'health', 'sick', 'dead', 'education', 'study', 'gender', 'playTime', 'bonusXp', 'money', 'mood', 'name', 'volume', 'speed', 'opacity', 'schoolLevel', 'lang'].forEach((k) => {
       if (d[k] != null) st[k] = d[k];
     });
     st.classDone = (d.classDone && typeof d.classDone === 'object') ? { ...FRESH_CLASSES, ...d.classDone } : { ...FRESH_CLASSES };
@@ -2569,7 +2606,7 @@ export default class App extends React.Component {
       health: s.health, sick: s.sick, dead: s.dead, education: s.education, study: s.study,
       schoolLevel: s.schoolLevel, classDone: s.classDone,
       session: s.session, // an in-progress class/shift survives a restart (resumes / auto-completes)
-      gender: s.gender, playTime: s.playTime, money: s.money, mood: s.mood, lang: s.lang,
+      gender: s.gender, playTime: s.playTime, bonusXp: s.bonusXp, money: s.money, mood: s.mood, lang: s.lang,
       name: s.name, volume: s.volume, speed: s.speed, opacity: s.opacity,
       personality: this.personality,
       x: this.p.x, y: this.p.y, ts: Date.now(),
@@ -2628,7 +2665,7 @@ export default class App extends React.Component {
       const localTs = this._localTs || 0;
       if (cloud && (cloud.ts || 0) > localTs) {
         this.applyCloudSave(cloud);
-        if (this._mounted) this.speak('已从云端恢复~', 2200, true);
+        if (this._mounted) this.speak(t(this.state.lang, 'say.cloudRestored'), 2200, true);
       } else {
         await pushCloud(this.snapshot());
       }
@@ -2641,7 +2678,7 @@ export default class App extends React.Component {
     if (!d) return;
     this.personality = normPersonality(d.personality);
     const st = {};
-    ['fullness', 'energy', 'cleanliness', 'happiness', 'health', 'sick', 'dead', 'education', 'study', 'gender', 'playTime', 'money', 'mood', 'name', 'volume', 'speed', 'opacity', 'schoolLevel', 'lang'].forEach((k) => {
+    ['fullness', 'energy', 'cleanliness', 'happiness', 'health', 'sick', 'dead', 'education', 'study', 'gender', 'playTime', 'bonusXp', 'money', 'mood', 'name', 'volume', 'speed', 'opacity', 'schoolLevel', 'lang'].forEach((k) => {
       if (d[k] != null) st[k] = d[k];
     });
     if (d.classDone && typeof d.classDone === 'object') st.classDone = { ...FRESH_CLASSES, ...d.classDone };
@@ -2691,31 +2728,29 @@ export default class App extends React.Component {
     this._buddyLastEvt = now;
     const activeMs = now - this._buddyActiveSince;
     const REMIND_AFTER = 50 * 60 * 1000, REMIND_GAP = 25 * 60 * 1000;
+    // The two reactions the owner always wants (below) take priority over the
+    // reminder so they're never swallowed by it.
     if (activeMs > REMIND_AFTER && (!this._buddyLastRemind || now - this._buddyLastRemind > REMIND_GAP)
-        && evt.kind !== 'tool_error' && evt.kind !== 'tests_fail' && evt.kind !== 'needs_input') {
+        && evt.kind !== 'needs_input' && evt.kind !== 'finish') {
       this._buddyLastRemind = now;
       this.buddyReact('notice', 'wave', pick(BUDDY.restReminder[lang] || BUDDY.restReminder.zh), 3400);
       return; // the caring nudge takes this beat; normal reactions resume next event
     }
 
+    // Reaction policy (owner's call): the pet ALWAYS reacts to the two key
+    // moments — "paused for your input" and "task complete". Errors are
+    // intentionally NOT reported. Everything else is an optional, low-key
+    // positive beat (kept sparse so the pet isn't chattering every turn).
     switch (evt.kind) {
-      case 'session_start': this.buddyReact('notice', 'tap', L('sessionStart'), 2200); break;
-      case 'prompt': {
-        // Every few prompts, swap the plain ack for a word of encouragement.
-        this._buddyPrompts = (this._buddyPrompts || 0) + 1;
-        const enc = this._buddyPrompts % 3 === 0;
-        this.buddyReact(enc ? 'cheer' : 'notice', enc ? 'hop' : 'tap',
-          enc ? pick(BUDDY.encourage[lang] || BUDDY.encourage.zh) : L('prompt'), enc ? 2400 : 1600);
-        break;
-      }
-      case 'tool_error': this.buddyReact('panic', 'shake', L('error'), 2800); break;
-      case 'tests_fail': this.buddyReact('panic', 'shake', L('testsFail'), 2800); break;
+      // —— always ——
+      case 'needs_input': this.buddyReact('notice', 'tap', L('needInput'), 3000); break;   // paused for a question / permission
+      case 'finish': this.buddyReact('cheer', 'celebrate', L('finish'), 2800); break;       // a task / turn is complete
+      // —— optional positive beats (no errors, no per-prompt chatter) ——
       case 'tests_pass': this.buddyReact('cheer', 'celebrate', evt.say || pick(BUDDY.congrats[lang] || BUDDY.congrats.zh), 3000); this.buddyEncore(3000); break;
-      case 'big_diff': this.buddyReact('cheer', 'hop', L('bigDiff'), 2200); break;
-      case 'git_commit': this.buddyReact('cheer', 'celebrate', evt.say || pick(BUDDY.congrats[lang] || BUDDY.congrats.zh), 2800); this.buddyEncore(2800); break;
-      case 'needs_input': this.buddyReact('notice', 'tap', L('needInput'), 3000); break;
-      case 'finish': this.buddyReact('cheer', 'celebrate', L('finish'), 2800); break;
-      case 'session_end': this.buddyReact('notice', 'tap', L('sessionEnd'), 2200); break;
+      case 'git_commit': this.buddyReact('cheer', 'hop', evt.say || pick(BUDDY.congrats[lang] || BUDDY.congrats.zh), 2400); break;
+      case 'session_start': this.buddyReact('notice', 'tap', L('sessionStart'), 2000); break;
+      case 'session_end': this.buddyReact('notice', 'wave', L('sessionEnd'), 2000); break;
+      // tool_error / tests_fail / big_diff / prompt: no reaction (kept quiet).
       default: break;
     }
   }
@@ -2740,14 +2775,14 @@ export default class App extends React.Component {
   doAuth = async (mode) => {
     const email = (this.state.authEmail || '').trim();
     const pw = this.state.authPw || '';
-    if (!email || !pw) { this.setState({ authMsg: '请输入邮箱和密码' }); return; }
-    if (pw.length < 6) { this.setState({ authMsg: '密码至少 6 位' }); return; }
+    if (!email || !pw) { this.setState({ authMsg: t(this.state.lang, 'login.needBoth') }); return; }
+    if (pw.length < 6) { this.setState({ authMsg: t(this.state.lang, 'login.pwShort') }); return; }
     this.setState({ authBusy: true, authMsg: '' });
     try {
       if (mode === 'up') {
         const res = await signUp(email, pw);
         if (!res.session) { // email confirmation required
-          this.setState({ authBusy: false, authMsg: '注册成功，请到邮箱点击确认后再登录。' });
+          this.setState({ authBusy: false, authMsg: t(this.state.lang, 'login.confirmEmail') });
           return;
         }
       } else {
@@ -2757,7 +2792,7 @@ export default class App extends React.Component {
       this.setState({ user, authPw: '', authMsg: '' });
       if (user) { await this.cloudSyncOnLogin(); this.maybeStartPet(); }
     } catch (e) {
-      this.setState({ authMsg: (e && e.message) || '操作失败，请重试' });
+      this.setState({ authMsg: (e && e.message) || t(this.state.lang, 'login.failed') });
     } finally {
       this.setState({ authBusy: false });
     }
@@ -2783,7 +2818,9 @@ export default class App extends React.Component {
       <div style={{ position: 'absolute', top: 6, left: '50%', transform: 'translateX(-50%)', zIndex: 40, pointerEvents: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#222a55', color: '#fff', padding: '6px 13px', borderRadius: 999, fontSize: 12, fontWeight: 900, boxShadow: '0 4px 0 rgba(34,42,85,.3)', whiteSpace: 'nowrap' }}>
           <span>{ses.kind === 'study' ? '📚' : '💼'}</span>
-          <span>{ses.label}</span>
+          <span>{ses.kind === 'study'
+            ? `${tn((SUBJECTS.find((x) => x.key === ses.subjectKey) || {}).name, this.state.lang)} · ${t(this.state.lang, 'school.title')}`
+            : `${tn((JOBS[ses.jobIdx] || {}).name, this.state.lang)} · ${t(this.state.lang, 'work.title')}`}</span>
           <span style={{ fontFamily: 'monospace', fontSize: 13, color: '#ffe27a' }}>{fmtClock(this.state.sessionLeft)}</span>
         </div>
         <div style={{ background: 'rgba(34,42,85,.82)', color: '#cdd3ee', padding: '2px 9px', borderRadius: 999, fontSize: 9, fontWeight: 800, whiteSpace: 'nowrap' }}>{t(this.state.lang, 'focus.note')}</div>
@@ -2801,25 +2838,25 @@ export default class App extends React.Component {
       <div onClick={this.closeSchool} style={{ position: 'absolute', inset: 0, background: 'rgba(20,24,60,.35)', backdropFilter: 'blur(2px)', WebkitBackdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 72 }}>
         <div onClick={(e) => e.stopPropagation()} style={{ width: 208, maxHeight: 'calc(100% - 16px)', overflowY: 'auto', boxSizing: 'border-box', background: '#fff', border: '3px solid #222a55', borderRadius: 18, padding: 13, boxShadow: '0 8px 0 rgba(34,42,85,.22)', animation: 'popIn .2s ease-out' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-            <span style={{ fontWeight: 900, fontSize: 14, color: '#222a55' }}>📚 上课{sc ? ` · ${sc.name}` : ''}</span>
+            <span style={{ fontWeight: 900, fontSize: 14, color: '#222a55' }}>📚 {t(s.lang, 'school.title')}{sc ? ` · ${tn(sc.name, s.lang)}` : ''}</span>
             <div onClick={this.closeSchool} style={{ width: 22, height: 22, border: '2px solid #222a55', borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontWeight: 900, color: '#222a55', fontSize: 11 }}>✕</div>
           </div>
           {graduated ? (
-            <div style={{ textAlign: 'center', fontSize: 13, fontWeight: 800, color: '#36c98f', padding: '14px 4px' }}>🎓 已从大学毕业！<br />全部课程完成啦~</div>
+            <div style={{ textAlign: 'center', fontSize: 13, fontWeight: 800, color: '#36c98f', padding: '14px 4px' }}>{t(s.lang, 'school.gradA')}<br />{t(s.lang, 'school.gradB')}</div>
           ) : (
             <>
-              <div style={{ fontSize: 10, fontWeight: 700, color: '#9aa3cc', marginBottom: 9, lineHeight: 1.4 }}>每节课 <b style={{ color: '#222a55' }}>{sc.min}分钟</b>，每科要上 <b style={{ color: '#222a55' }}>{sc.per}节</b>。四科全毕业即可升学。</div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#9aa3cc', marginBottom: 9, lineHeight: 1.4 }}>{t(s.lang, 'school.rule', sc.min, sc.per)}</div>
               {SUBJECTS.map((subj) => {
                 const done = s.classDone[subj.key] || 0;
                 const grad = done >= sc.per;
                 return (
                   <div key={subj.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 4px', borderBottom: '1px solid #eef0f7' }}>
                     <span style={{ fontSize: 17, width: 22, textAlign: 'center' }}>{subj.icon}</span>
-                    <span style={{ flex: 1, fontSize: 12, fontWeight: 800, color: '#222a55' }}>{subj.name}</span>
+                    <span style={{ flex: 1, fontSize: 12, fontWeight: 800, color: '#222a55' }}>{tn(subj.name, s.lang)}</span>
                     <span style={{ fontSize: 10, fontWeight: 900, color: grad ? '#36c98f' : '#9aa3cc', width: 30, textAlign: 'right' }}>{done}/{sc.per}</span>
                     {grad
-                      ? <span style={{ fontSize: 11, fontWeight: 900, color: '#36c98f', width: 50, textAlign: 'center' }}>✓毕业</span>
-                      : <button onClick={() => this.startClass(subj.key)} style={{ ...rowBtn, width: 50 }}>上课</button>}
+                      ? <span style={{ fontSize: 11, fontWeight: 900, color: '#36c98f', width: 50, textAlign: 'center' }}>{t(s.lang, 'school.graduated')}</span>
+                      : <button onClick={() => this.startClass(subj.key)} style={{ ...rowBtn, width: 50 }}>{t(s.lang, 'school.classBtn')}</button>}
                   </div>
                 );
               })}
@@ -2838,26 +2875,26 @@ export default class App extends React.Component {
       <div onClick={this.closeWork} style={{ position: 'absolute', inset: 0, background: 'rgba(20,24,60,.35)', backdropFilter: 'blur(2px)', WebkitBackdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 72 }}>
         <div onClick={(e) => e.stopPropagation()} style={{ width: 212, maxHeight: 'calc(100% - 16px)', overflowY: 'auto', boxSizing: 'border-box', background: '#fff', border: '3px solid #222a55', borderRadius: 18, padding: 13, boxShadow: '0 8px 0 rgba(34,42,85,.22)', animation: 'popIn .2s ease-out' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-            <span style={{ fontWeight: 900, fontSize: 14, color: '#222a55' }}>💼 上班 · 💰{s.money}</span>
+            <span style={{ fontWeight: 900, fontSize: 14, color: '#222a55' }}>💼 {t(s.lang, 'work.title')} · 💰{s.money}</span>
             <div onClick={this.closeWork} style={{ width: 22, height: 22, border: '2px solid #222a55', borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontWeight: 900, color: '#222a55', fontSize: 11 }}>✕</div>
           </div>
           {jobs.length === 0 ? (
-            <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 800, color: '#9aa3cc', padding: '14px 4px' }}>先去上学解锁工作吧~ 📚</div>
+            <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 800, color: '#9aa3cc', padding: '14px 4px' }}>{t(s.lang, 'work.locked')}</div>
           ) : (
             <>
-              <div style={{ fontSize: 10, fontWeight: 700, color: '#9aa3cc', marginBottom: 9, lineHeight: 1.4 }}>选择班次，专注到点即可领工资。玩耍或退出会清零。</div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#9aa3cc', marginBottom: 9, lineHeight: 1.4 }}>{t(s.lang, 'work.intro')}</div>
               {jobs.map((job) => {
                 const idx = JOBS.indexOf(job);
                 return (
-                  <div key={job.name} style={{ padding: '7px 4px', borderBottom: '1px solid #eef0f7' }}>
+                  <div key={job.key} style={{ padding: '7px 4px', borderBottom: '1px solid #eef0f7' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
                       <span style={{ fontSize: 17, width: 22, textAlign: 'center' }}>{job.icon}</span>
-                      <span style={{ flex: 1, fontSize: 12, fontWeight: 800, color: '#222a55' }}>{job.name}</span>
-                      <span style={{ fontSize: 9.5, fontWeight: 800, color: '#9aa3cc' }}>💰{job.rate}/分</span>
+                      <span style={{ flex: 1, fontSize: 12, fontWeight: 800, color: '#222a55' }}>{tn(job.name, s.lang)}</span>
+                      <span style={{ fontSize: 9.5, fontWeight: 800, color: '#9aa3cc' }}>💰{job.rate}{t(s.lang, 'work.rateUnit')}</span>
                     </div>
                     <div style={{ display: 'flex', gap: 6 }}>
                       {WORK_MINS.map((m) => (
-                        <button key={m} onClick={() => this.startWork(idx, m)} style={wbtn}>{m}分 · +{Math.round(job.rate * m)}💰</button>
+                        <button key={m} onClick={() => this.startWork(idx, m)} style={wbtn}>{t(s.lang, 'work.shift', m, Math.round(job.rate * m))}</button>
                       ))}
                     </div>
                   </div>
@@ -2966,7 +3003,7 @@ export default class App extends React.Component {
 
           {/* tip pill — above the head, briefly at startup */}
           {s.hint && (
-            <div style={{ position: 'absolute', left: '50%', bottom: 134, transform: 'translateX(-50%)', background: '#222a55', color: '#fff', padding: '6px 12px', borderRadius: 999, fontSize: 11, fontWeight: 800, boxShadow: '0 4px 0 rgba(34,42,85,.3)', zIndex: 25, whiteSpace: 'nowrap', animation: 'hintBob 1.8s ease-in-out infinite', pointerEvents: 'none' }}>单击 · 拖动 · 右键</div>
+            <div style={{ position: 'absolute', left: '50%', bottom: 134, transform: 'translateX(-50%)', background: '#222a55', color: '#fff', padding: '6px 12px', borderRadius: 999, fontSize: 11, fontWeight: 800, boxShadow: '0 4px 0 rgba(34,42,85,.3)', zIndex: 25, whiteSpace: 'nowrap', animation: 'hintBob 1.8s ease-in-out infinite', pointerEvents: 'none' }}>{t(s.lang, 'hint.controls')}</div>
           )}
 
           {bubble && (
@@ -2989,7 +3026,7 @@ export default class App extends React.Component {
               arrowShift={shiftPanel}
               centered={shopOpen}
               fullness={fullness} cleanliness={cleanliness} happiness={happiness} health={health}
-              level={this.levelInfo()} petName={s.name} lang={s.lang}
+              petName={s.name} lang={s.lang}
               onStat={this.setHoverStat} onLeave={this.clearHoverStat}
               onOpenCat={this.openCat} onBuy={this.buyItem} onBack={this.backShop} onPlay={this.playFree}
             />
@@ -3111,10 +3148,10 @@ export default class App extends React.Component {
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 80 }}>
             <div onPointerDown={this.stopDown} style={{ width: 204, background: '#fff', border: '3px solid #222a55', borderRadius: 18, padding: 16, textAlign: 'center', boxShadow: '0 8px 0 rgba(34,42,85,.25)', animation: 'popIn .2s ease-out' }}>
               <div style={{ fontSize: 30, lineHeight: 1 }}>🥀</div>
-              <div style={{ fontFamily: "'Nunito'", fontWeight: 900, fontSize: 14, color: '#222a55', margin: '8px 0 3px' }}>{s.name || 'Pengu'} 离开了…</div>
-              <div style={{ fontSize: 10.5, fontWeight: 700, color: '#8a93c2', marginBottom: 13 }}>太久没人照顾了 💔</div>
-              <div onClick={this.revive} style={{ background: s.money >= 400 ? '#ff6fa5' : '#cfd4e6', color: '#fff', padding: 9, borderRadius: 11, fontWeight: 900, fontSize: 13, cursor: 'pointer', marginBottom: 8, boxShadow: '0 4px 0 rgba(34,42,85,.2)' }}>💊 复活丹 · ¥400</div>
-              <div onClick={this.restart} style={{ background: '#222a55', color: '#fff', padding: 9, borderRadius: 11, fontWeight: 900, fontSize: 13, cursor: 'pointer', boxShadow: '0 4px 0 rgba(34,42,85,.3)' }}>🔄 重新养一只</div>
+              <div style={{ fontFamily: "'Nunito'", fontWeight: 900, fontSize: 14, color: '#222a55', margin: '8px 0 3px' }}>{t(s.lang, 'dead.left', s.name || 'Pengu')}</div>
+              <div style={{ fontSize: 10.5, fontWeight: 700, color: '#8a93c2', marginBottom: 13 }}>{t(s.lang, 'dead.reason')}</div>
+              <div onClick={this.revive} style={{ background: s.money >= 400 ? '#ff6fa5' : '#cfd4e6', color: '#fff', padding: 9, borderRadius: 11, fontWeight: 900, fontSize: 13, cursor: 'pointer', marginBottom: 8, boxShadow: '0 4px 0 rgba(34,42,85,.2)' }}>{t(s.lang, 'dead.revive')}</div>
+              <div onClick={this.restart} style={{ background: '#222a55', color: '#fff', padding: 9, borderRadius: 11, fontWeight: 900, fontSize: 13, cursor: 'pointer', boxShadow: '0 4px 0 rgba(34,42,85,.3)' }}>{t(s.lang, 'dead.restart')}</div>
               <div style={{ fontSize: 9.5, fontWeight: 700, color: '#b9bed3', marginTop: 9 }}>💰 {s.money}</div>
             </div>
           </div>
@@ -3131,7 +3168,7 @@ export default class App extends React.Component {
             onAuthEmail={this.setAuthEmail} onAuthPw={this.setAuthPw}
             onSignIn={() => this.doAuth('in')} onSignUp={() => this.doAuth('up')}
             onSignOut={this.doSignOut} onSyncNow={this.syncNow}
-            lang={s.lang} buddyOn={s.buddyOn} onToggleBuddy={this.toggleBuddy}
+            lang={s.lang} buddyOn={s.buddyOn} onToggleBuddy={this.toggleBuddy} level={this.levelInfo()}
           />
         )}
 
@@ -3141,12 +3178,12 @@ export default class App extends React.Component {
         {this.renderFocusBar()}
 
         {/* 玩耍 — compact picker; the chosen game then plays IN-WINDOW on the pet */}
-        {s.playOpen && !s.playGame && <GamePicker games={GAME_LIST} onPick={this.startGame} onClose={this.closePlay} />}
+        {s.playOpen && !s.playGame && <GamePicker games={GAME_LIST} lang={s.lang} onPick={this.startGame} onClose={this.closePlay} />}
         {/* in-window game HUD: live score + a small exit chip (no modal board) */}
         {s.playGame && (
           <div style={{ position: 'absolute', top: 6, left: 0, right: 0, display: 'flex', justifyContent: 'space-between', padding: '0 8px', zIndex: 40, pointerEvents: 'none' }}>
             <span style={{ background: '#222a55', color: '#fff', fontWeight: 900, fontSize: 11, padding: '3px 9px', borderRadius: 999, boxShadow: '0 2px 0 rgba(34,42,85,.3)' }}>
-              {(GAME_LIST.find((g) => g.key === s.playGame) || {}).name} · {s.gameScore}
+              {tn((GAME_LIST.find((g) => g.key === s.playGame) || {}).name, s.lang)} · {s.gameScore}
             </span>
             <span onClick={this.stopGame} style={{ background: '#fff', color: '#222a55', border: '2px solid #222a55', fontWeight: 900, fontSize: 11, padding: '2px 9px', borderRadius: 999, cursor: 'pointer', pointerEvents: 'auto' }}>{t(s.lang, 'game.end')}</span>
           </div>
