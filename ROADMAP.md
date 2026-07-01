@@ -41,3 +41,20 @@ go through the `pixel-art` skill (author → render → eyeball) per CLAUDE.md.
 - ⏳ Seasonal/weather flavor — folded into the day/night rhythm for now; richer
   seasonal art is a future follow-up.
 - ⏳ More real-event reactions (on the hour) — future follow-up.
+
+## Phase 5 — Personalisation & companionship  (v1.18.0)  ✅ done
+- ✅ **Wardrobe / dress-up** — buy hand-drawn pixel accessories (top hat, beanie,
+  glasses, scarf) with coins; the penguin wears them (stackable by slot) via the
+  withGear/withHat overlay system. Equipped items persist locally + to the cloud.
+- ✅ **Achievements + collection album** — milestone tracking (first class, Lv5,
+  first paycheck, Code-Buddy cheer, dress-up, focus, days played, well-fed
+  streak) with a pixel album UI and an unlock toast/celebration.
+- ✅ **Pomodoro focus companion** — the pet sits through a 15/25/45-min focus
+  block with you (reuses beginFocus/finishFocus + the focus-break confirm) and
+  celebrates at the end.
+- ✅ **Gentle optional SFX** — soft Web-Audio blips behind a Settings toggle (off
+  by default, no shipped audio files).
+- ✅ **Idle CPU** — the RAF loop pauses when the window is hidden and throttles to
+  ~4fps when the pet is settled and untouched.
+
+Deferred (owner): a Buddy stats panel and any friends / multi-pet system.

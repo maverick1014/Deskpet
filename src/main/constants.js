@@ -29,6 +29,18 @@ const DEFAULTS = {
   opacity: 100,
   x: null,
   y: null,
+  // Wardrobe: accessories the owner has bought (owned) and the ones currently
+  // worn (equipped, keyed by slot: hat / face / neck). Persisted + cloud-synced.
+  owned: [],          // e.g. ['tophat','scarf']
+  equipped: {},       // e.g. { hat:'tophat', neck:'scarf', face:'glasses' }
+  // Achievements the pet has unlocked (ids from ACHIEVEMENTS in the renderer).
+  achievements: [],   // e.g. ['firstClass','lv5']
+  // Gentle sound effects toggle (Web Audio beeps). Off by default — opt-in.
+  sfxOn: false,
+  // Fully-fed streak counter (consecutive days the pet stayed well fed) — feeds
+  // the "well cared for" achievement.
+  fedStreak: 0,
+  lastFedDay: null,
 };
 
 const SCHEMA = `

@@ -4,7 +4,7 @@ import { t } from '../i18n.js';
 // Right-click context menu. Feed/Bath open the shop (cost money); Play is a free
 // mini-game. Study/Work are the school→earn loop; 看病 (see a doctor) appears
 // only while the pet is sick. Sit is a free rest; sleep is automatic when tired.
-export default function ContextMenu({ x, y, sick, focusing, lang = 'zh', onClose, onFeed, onBath, onPlay, onSit, onStudy, onWork, onMedicine, onStopFocus, onCenter, onSettings, onQuit }) {
+export default function ContextMenu({ x, y, sick, focusing, lang = 'zh', onClose, onFeed, onBath, onPlay, onSit, onStudy, onWork, onMedicine, onStopFocus, onCenter, onSettings, onQuit, onWardrobe, onAlbum, onPomodoro }) {
   const sep = <div style={{ height: 2, background: '#eef0f7', margin: '4px 6px', borderRadius: 2 }} />;
   return (
     <>
@@ -20,8 +20,12 @@ export default function ContextMenu({ x, y, sick, focusing, lang = 'zh', onClose
           : (<>
               <div className="menu-item" onClick={onStudy}><span>📖</span>{t(lang, 'menu.study')}</div>
               <div className="menu-item" onClick={onWork}><span>💼</span>{t(lang, 'menu.work')}</div>
+              <div className="menu-item" onClick={onPomodoro}><span>⏱</span>{t(lang, 'menu.pomodoro')}</div>
             </>)}
         {sick && <div className="menu-item" onClick={onMedicine}><span>💊</span>{t(lang, 'menu.doctor')}</div>}
+        {sep}
+        <div className="menu-item" onClick={onWardrobe}><span>🎩</span>{t(lang, 'menu.wardrobe')}</div>
+        <div className="menu-item" onClick={onAlbum}><span>🏆</span>{t(lang, 'menu.album')}</div>
         {sep}
         <div className="menu-item" onClick={onCenter}><span>🎯</span>{t(lang, 'menu.center')}</div>
         <div className="menu-item" onClick={onSettings}><span>⚙️</span>{t(lang, 'menu.settings')}</div>

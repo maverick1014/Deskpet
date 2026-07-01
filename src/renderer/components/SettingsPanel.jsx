@@ -19,7 +19,7 @@ export default function SettingsPanel({
   name, speed, opacity, onName, onSpeed, onOpacity, onClose,
   cloudOn, user, authEmail, authPw, authBusy, authMsg, syncedAt,
   onAuthEmail, onAuthPw, onSignIn, onSignUp, onSignOut, onSyncNow,
-  lang = 'zh', buddyOn, onToggleBuddy, level,
+  lang = 'zh', buddyOn, onToggleBuddy, level, sfxOn, onToggleSfx,
 }) {
   const field = { width: '100%', boxSizing: 'border-box', border: '2px solid #222a55', borderRadius: 9, padding: '6px 9px', fontFamily: "'Nunito'", fontWeight: 800, fontSize: 12, color: '#222a55', outline: 'none', marginBottom: 7 };
   const sbtn = (bg) => ({ flex: 1, textAlign: 'center', background: bg, color: '#fff', padding: '7px 0', borderRadius: 9, fontWeight: 900, fontSize: 12, cursor: authBusy ? 'default' : 'pointer', opacity: authBusy ? 0.6 : 1 });
@@ -42,6 +42,17 @@ export default function SettingsPanel({
         <div style={label}><span>{t(lang, 'set.opacity')}</span><span>{opacity}%</span></div>
         <input type="range" min="50" max="100" step="1" value={opacity} onChange={onOpacity}
           style={{ width: '100%', accentColor: '#5a6acf', marginBottom: 12 }} />
+
+        {/* gentle sound effects toggle (off by default) */}
+        {onToggleSfx && (
+          <div style={{ marginBottom: 12 }}>
+            <div style={label}><span>{t(lang, 'set.sfx')}</span></div>
+            <div style={{ fontSize: 9.5, fontWeight: 700, color: '#9aa3cc', marginBottom: 6, lineHeight: 1.35 }}>{t(lang, 'set.sfxBlurb')}</div>
+            <div onClick={onToggleSfx} style={{ textAlign: 'center', background: sfxOn ? '#36c98f' : '#cfd4e6', color: '#fff', padding: '7px 0', borderRadius: 9, fontWeight: 900, fontSize: 12, cursor: 'pointer' }}>
+              {sfxOn ? t(lang, 'set.on') : t(lang, 'set.off')}
+            </div>
+          </div>
+        )}
 
         {/* growth level + experience bar (unlimited) */}
         {level && (
