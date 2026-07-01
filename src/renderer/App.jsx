@@ -59,6 +59,10 @@ const IDLE_ACTIONS = { sit: 1, tv: 1, read: 1, music: 1, stretch: 1, look: 1, wa
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const fmtClock = (sec) => { const m = Math.floor(sec / 60); return `${m}:${String(sec % 60).padStart(2, '0')}`; };
+// Easing helpers for smoother, less-mechanical motion.
+const easeInOutQuad = (x) => (x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2);
+const easeOutCubic = (x) => 1 - Math.pow(1 - x, 3);
+const lerp = (a, b, t) => a + (b - a) * t;
 
 export default class App extends React.Component {
   state = {
@@ -1604,9 +1608,11 @@ export default class App extends React.Component {
     const pen = this.penRef.current;
     if (!pen) return;
     // An idle pet turns to watch the cursor as it moves around the window.
+    const r0 = pen.getBoundingClientRect();
+    const cx0 = (r0.left + r0.right) / 2;
+    this._cursorDir = e.clientX < cx0 ? -1 : 1; // for the look-toward-cursor lean
     if (this.p.action === 'idle' && !this.p.dragging && this.isGrown()) {
-      const r0 = pen.getBoundingClientRect();
-      this.p.facing = e.clientX < (r0.left + r0.right) / 2 ? -1 : 1;
+      this.p.facing = this._cursorDir;
     }
     const pad = 8;
     const inRect = (r) => !!r && e.clientX >= r.left - pad && e.clientX <= r.right + pad &&
@@ -1853,7 +1859,16 @@ export default class App extends React.Component {
     if (p.action === 'walk' || p.action === 'slide') {
       const dir = Math.sign(p.tx - p.x) || 1;
       p.facing = dir < 0 ? -1 : 1;
-      p.x += dir * p.speed * sp * dt / 1000;
+      if (p.action === 'walk') {
+        // Accelerate up to a cruise pace, then ease to a stop on approach, so
+        // walking has weight instead of constant robotic velocity.
+        const dist = Math.abs(p.tx - p.x);
+        const target = p.speed * (0.28 + 0.72 * easeInOutQuad(Math.min(1, dist / 64)));
+        p.vel = lerp(p.vel || 0, target, Math.min(1, dt / 140));
+        p.x += dir * p.vel * sp * dt / 1000;
+      } else {
+        p.x += dir * p.speed * sp * dt / 1000; // belly slide keeps its whee-speed
+      }
       if (Math.abs(p.tx - p.x) < 2 || p.x <= this.minX || p.x >= this.maxX) {
         p.x = clamp(p.x, this.minX, this.maxX);
         if (p.action === 'walk') this.endWalk(); else { p.action = 'idle'; }
@@ -2014,9 +2029,10 @@ export default class App extends React.Component {
     if (p.action === 'play' || p.action === 'dance' || p.action === 'ball') {
       let pr = (t - p.aStart) / p.aDur; if (pr > 1) pr = 1;
       const hops = p.action === 'dance' ? 2 : 3;
-      jy = Math.abs(Math.sin(pr * Math.PI * hops)) * (p.action === 'ball' ? 38 : 42);
+      const hp = (pr * hops) % 1;                              // phase within the current hop
+      jy = Math.sin(hp * Math.PI) * (p.action === 'ball' ? 38 : 42);
       if (p.action === 'dance') rot = pr * 360;
-      sy = 1 + Math.sin(pr * Math.PI * hops * 2) * 0.06;
+      sy = 1 - Math.cos(hp * 2 * Math.PI) * 0.10;              // squash on contact, stretch at apex
     }
     if (p.action === 'badminton') {
       // short hops while the body swings the racket back and forth
@@ -2065,12 +2081,40 @@ export default class App extends React.Component {
       jy = pr < 0.55 ? -3 : 4;
     }
     let faceX = p.facing;
-    if (p.action === 'look') { faceX = Math.sin((t - p.aStart) / 170) >= 0 ? 1 : -1; rot = Math.sin((t - p.aStart) / 170) * 4; } // glancing around
+    const glancing = p.action === 'look';
+    if (glancing) { faceX = Math.sin((t - p.aStart) / 170) >= 0 ? 1 : -1; rot = Math.sin((t - p.aStart) / 170) * 4; } // glancing around
     const bob = p.action === 'walk' ? -Math.abs(Math.sin(t / 110)) * 4 : (p.action === 'idle' ? Math.sin(t / 720) * 2 : 0);
+
+    // Always-on "breathing": a tiny scale pulse while at rest so the pet is never
+    // perfectly frozen. Skipped for busy/animated actions that set their own sy.
+    if (p.action === 'idle' || p.action === 'sit' || p.action === 'wait' || p.action === 'tv') {
+      sy *= 1 + Math.sin(t / 900) * 0.02;
+    }
+
+    // Smooth turning: instead of snapping the mirror, animate |scaleX| through a
+    // thin sliver when the facing flips (except while actively glancing, which
+    // drives faceX itself). Reads like the pet physically pivots.
+    let scaleX = faceX;
+    if (glancing) { this._shownFacing = faceX; this._turnStart = null; }
+    else {
+      if (this._shownFacing == null) this._shownFacing = faceX;
+      if (faceX !== this._shownFacing && this._turnTarget !== faceX) { this._turnFrom = this._shownFacing; this._turnTarget = faceX; this._turnStart = t; }
+      if (this._turnStart != null) {
+        const tp = Math.min(1, (t - this._turnStart) / 170);
+        const mag = Math.abs(Math.cos(tp * Math.PI)) * 0.82 + 0.18;    // 1 → sliver → 1
+        scaleX = (tp < 0.5 ? this._turnFrom : this._turnTarget) * mag;
+        if (tp >= 1) { this._shownFacing = this._turnTarget; this._turnStart = null; this._turnTarget = null; }
+      }
+    }
+
+    // Subtle look-toward-cursor lean while resting and the pointer is hovering.
+    if ((p.action === 'idle' || p.action === 'sit') && this.state.hover && this._cursorDir) {
+      rot += this._cursorDir * 3;
+    }
 
     if (this.spriteRef.current) {
       this.spriteRef.current.style.transform =
-        `translateY(${(bob - jy).toFixed(1)}px) rotate(${(tilt + rot).toFixed(1)}deg) scaleX(${faceX}) scaleY(${sy.toFixed(3)})`;
+        `translateY(${(bob - jy).toFixed(1)}px) rotate(${(tilt + rot).toFixed(1)}deg) scaleX(${scaleX.toFixed(3)}) scaleY(${sy.toFixed(3)})`;
       this.spriteRef.current.style.filter = p.action === 'dead' ? 'grayscale(1) brightness(1.25)' : 'none';
       this.spriteRef.current.style.opacity = p.action === 'dead' ? '0.65' : '1';
     }
@@ -2196,24 +2240,27 @@ export default class App extends React.Component {
             // baby: toddle / sit / play ball
             if (roll < 0.42) this.startWalk(); else if (roll > 0.78) this.ballAct(); else this.sitAct();
           } else {
-            // grown: a varied mix so it always looks busy doing its own thing —
-            // wander, watch TV / read / listen to music, stretch, glance around, sit.
-            // After a long stretch with no owner interaction, it quietly misses you.
+            // grown: pick the next little behaviour by WEIGHTED URGES — needs and
+            // personality nudge the odds — instead of a flat random ladder, and
+            // never repeat the last one back-to-back. Reads as purposeful, not twitchy.
+            const P = this.personality, s = this.state;
             const awayLong = Date.now() - (this._lastInteract || 0) > 90000;
-            if (awayLong && roll < 0.20) this.waitAct();          // miss the owner, wait patiently
-            else if (roll < 0.16) this.startSlide();              // belly slide — whee!
-            else if (roll < 0.40) this.startLeisure();            // TV / read / music
-            else if (roll < 0.52) this.startWalk();
-            else if (roll < 0.61) this.stretchAct();              // yawny stretch
-            else if (roll < 0.67) this.lookAct();                 // glance around
-            else if (roll < 0.73) this.flapAct();                 // happy wing-flap
-            else if (roll < 0.78) this.peckAct();                 // peck at the ground
-            else if (roll < 0.80) this.sneezeAct();               // achoo!
-            else if (this.state.energy < 45 && roll < 0.84) this.dozeAct(); // nodding off
-            else if (this.state.energy < 60 && roll < 0.86) this.yawnAct(); // sleepy yawn
-            else if (roll < 0.90) this.preenAct();                // groom feathers
-            else if (this.state.energy > 60 && roll < 0.95) this.ballAct();
-            else this.sitAct();
+            this._pickBehavior([
+              ['walk',    22 + P.liveliness * 0.14 + P.curiosity * 0.08],
+              ['leisure', 16],
+              ['sit',     13],
+              ['look',    10 + P.curiosity * 0.12],
+              ['preen',   9],
+              ['peck',    7 + P.curiosity * 0.08],
+              ['stretch', 7],
+              ['flap',    6 + P.liveliness * 0.07],
+              ['slide',   s.energy > 55 ? 5 + P.liveliness * 0.06 : 0],
+              ['ball',    s.energy > 60 ? 6 + P.liveliness * 0.08 : 0],
+              ['yawn',    s.energy < 60 ? 9 : 2],
+              ['doze',    s.energy < 45 ? 14 : 0],
+              ['wait',    awayLong ? 16 + P.attachment * 0.15 : 0],  // miss the owner
+              ['sneeze',  2],
+            ]);
           }
         }
       }
@@ -2291,6 +2338,22 @@ export default class App extends React.Component {
   }
 
   // ---- behaviors -----------------------------------------------------------
+  // Weighted pick of the next idle behaviour. `opts` is [key, weight]; zero (or
+  // negative) weights and the immediately-previous behaviour are excluded so the
+  // pet never repeats itself back-to-back.
+  _pickBehavior(opts) {
+    const METHOD = { walk: 'startWalk', leisure: 'startLeisure', sit: 'sitAct', look: 'lookAct', preen: 'preenAct', peck: 'peckAct', stretch: 'stretchAct', flap: 'flapAct', slide: 'startSlide', ball: 'ballAct', yawn: 'yawnAct', doze: 'dozeAct', wait: 'waitAct', sneeze: 'sneezeAct' };
+    let pool = opts.filter(([k, w]) => w > 0 && k !== this._lastBehavior);
+    if (!pool.length) pool = opts.filter(([, w]) => w > 0);
+    const total = pool.reduce((a, [, w]) => a + w, 0);
+    if (total <= 0) return;
+    let r = Math.random() * total, key = pool[pool.length - 1][0];
+    for (const [k, w] of pool) { r -= w; if (r <= 0) { key = k; break; } }
+    this._lastBehavior = key;
+    const m = METHOD[key];
+    if (m && typeof this[m] === 'function') this[m]();
+  }
+
   startWalk = () => {
     if (this.p.busy || this.p.action !== 'idle' || this.minX == null) return;
     const P = this.personality;
@@ -2309,7 +2372,7 @@ export default class App extends React.Component {
     const slow = this.state.fullness < 30 || this.state.energy < 30;
     this.p.speed = slow ? 26 : (46 + P.liveliness * 0.28);
   };
-  endWalk() { if (this.p.action === 'walk') this.p.action = 'idle'; }
+  endWalk() { if (this.p.action === 'walk') { this.p.action = 'idle'; this.p.vel = 0; } }
 
   feed = (fx) => {
     // Feeding is allowed during a focus session — it just tops up the stat
