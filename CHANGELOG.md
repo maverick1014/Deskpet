@@ -9,6 +9,17 @@ is pre-release, so versions are milestone markers rather than published releases
 New lifelike animations being added one at a time.
 See `TODO.md` for the remaining activity-authentic focus animations.
 
+## [1.17.0] — 2026-07-01 — Windows silent auto-update
+
+### Added
+- **Silent background auto-update on Windows.** New versions now download quietly
+  in the background and install automatically when you quit the app — no manual
+  downloading. A **"Restart now"** prompt lets you apply it immediately if you'd
+  rather not wait.
+- macOS still uses the "Update available → Download" prompt (from v1.16.0);
+  silent macOS updates need an Apple Developer ID signing certificate, which is a
+  future step.
+
 ## [1.16.0] — 2026-07-01 — Auto-update prompt, full-screen games & agent docs
 
 ### Added

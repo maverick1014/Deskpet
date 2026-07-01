@@ -57,6 +57,9 @@ export async function appVersion() { return (api && api.appVersion) ? api.appVer
 export async function checkUpdate() { return (api && api.checkUpdate) ? api.checkUpdate() : null; }
 export function openUrl(u) { if (api && api.openUrl) api.openUrl(u); }
 export function stageWindow(on) { if (api && api.stageWindow) api.stageWindow(on); }
+// Option B (Windows silent update): notified when a new version is downloaded.
+export function onUpdateReady(cb) { return (api && api.onUpdateReady) ? api.onUpdateReady(cb) : (() => {}); }
+export function restartToUpdate() { if (api && api.restartToUpdate) api.restartToUpdate(); }
 
 // ---- Code Buddy (Claude Code companion) ------------------------------------
 export async function buddyStatus() {

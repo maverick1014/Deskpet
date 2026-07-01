@@ -4,12 +4,13 @@
 // window that physically walks around the screen. It never covers your desktop —
 // only the penguin's own pixels capture the mouse; everything else is
 // click-through (hit-test bypass), so you keep working normally.
-const { app, BrowserWindow, screen, Tray, Menu, nativeImage } = require('electron');
+const { app, BrowserWindow, screen, Tray, Menu, nativeImage, ipcMain } = require('electron');
 const path = require('path');
 const { WINDOW } = require('./src/main/constants');
 const db = require('./src/main/database');
 const ipc = require('./src/main/ipcHandlers');
 const buddy = require('./src/main/buddy');
+const autoUpdate = require('./src/main/autoUpdate');
 
 let win = null;
 let tray = null;
@@ -125,6 +126,9 @@ app.whenReady().then(() => {
   // file simply stays empty until the hooks are installed).
   require('./src/main/buddyInstall').upgradeIfNeeded();
   buddy.start(() => win);
+  // Windows silent auto-update (installs on quit; renderer can offer restart-now).
+  autoUpdate.start(() => win);
+  ipcMain.on('update:restart', () => autoUpdate.quitAndInstall());
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
