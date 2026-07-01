@@ -9,6 +9,30 @@ is pre-release, so versions are milestone markers rather than published releases
 New lifelike animations being added one at a time.
 See `TODO.md` for the remaining activity-authentic focus animations.
 
+## [1.15.0] — 2026-07-01 — A real little pet: autonomy, memory & bonding (roadmap Phases 2–4)
+
+Completes the remaining roadmap phases (see `ROADMAP.md`).
+
+### Added
+- **Petting / bonding.** Gently stroke the pet — slide the cursor back and forth
+  over it — and it lights up with heart eyes, gains happiness, and builds a
+  persistent **bond** that grows over time.
+- **Sleep spot.** A little pixel cushion now appears under the pet while it naps,
+  so it curls up somewhere instead of dropping on the spot.
+- **Cursor reactions.** It gets **startled** if you whip the cursor across it, and
+  a warm **"welcome back"** when you return after being away a while.
+
+### Changed
+- **Day/night rhythm.** After hours the pet is drowsier and calmer (more dozing,
+  yawning, sitting) and dims slightly; by day it's livelier.
+- **Mood shapes movement.** A happy pet bounces and breathes livelier; a tired or
+  sad one moves slower and droopier.
+- **Smarter, less repetitive idle.** Every idle behaviour now has a cooldown (and
+  still never repeats back-to-back), so it stops doing the same thing too often.
+- **More logical reactions.** A full pet **politely refuses** more food (no
+  wasted coins); a sick pet **coughs** and rests; when it's ignored a while it
+  waddles over to **peek out at the screen edge**.
+
 ## [1.14.0] — 2026-06-30 — Lifelike motion & purposeful idle (roadmap Phase 1)
 
 First phase of the "make it feel like a real pet" roadmap (see `ROADMAP.md`).

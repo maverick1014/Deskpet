@@ -17,25 +17,27 @@ go through the `pixel-art` skill (author → render → eyeball) per CLAUDE.md.
    urges (hungry→beg, dirty→scratch, bored→explore, sleepy→settle) with
    no-repeat cooldowns, instead of a flat random pick.
 
-## Phase 2 — Lifelike autonomy  (v1.15.0)
-- Behavior state-machine with urges driving longer routines.
-- Deepen circadian rhythm (night = sleepy/dim/curl-up; day = lively; time-aware
-  greetings).
-- Idle micro-behaviors expanded (preen, scratch, look-around, waddle, sit-watch,
-  wake-stretch) sprinkled naturally.
-- React to cursor/window: startle on fast pointer, follow on hover, peek at the
-  edge when ignored a long time.
-- Emotional continuity: mood decays/recovers gradually and colors motion speed.
+## Phase 2 — Lifelike autonomy  (v1.15.0)  ✅ done
+- ✅ Weighted-urge idle picker (from Phase 1) drives purposeful behaviour.
+- ✅ Circadian rhythm — night = drowsier (more doze/yawn/sit), dimmer, calmer;
+  day = livelier.
+- ✅ Existing micro-behaviours (preen/peck/look/stretch/flap/doze/…) retained and
+  time/mood-weighted.
+- ✅ React to cursor: **startle** on a fast whip-past, follow on hover, **peek at
+  the edge** when ignored a while.
+- ✅ Emotional continuity — mood colours resting motion speed/amplitude.
 
-## Phase 3 — Logical & consistent behavior  (v1.16.0)
-- No-repeat + cooldowns across all behaviors.
-- Path/edge logic: smooth turn-around at edges, stay near last interaction.
-- Consequence memory: "just fed → refuse politely", remember return after away.
-- State-matched reactions (won't play when starving; sick = weak + cough).
+## Phase 3 — Logical & consistent behavior  (v1.15.0)  ✅ done
+- ✅ Per-behaviour cooldowns + no back-to-back repeats.
+- ✅ Edge peek / smooth turn-around (smooth turning from Phase 1).
+- ✅ Consequence memory: stuffed pet **politely refuses** more food; **welcome
+  back** after a long absence.
+- ✅ State-matched reactions: sick = weak + **cough**; won't play when low-energy.
 
-## Phase 4 — Richer pet-ness  (v1.17.0+)
-- Grooming: stroke via click-drag → happiness + a bond stat unlocking warmer
-  reactions over time.
-- Sleep spots / props (pixel nest) instead of dropping in place.
-- Seasonal/weather flavor (pixel-drawn).
-- More real-event reactions (on the hour, away/return).
+## Phase 4 — Richer pet-ness  (v1.15.0)  ✅ core done
+- ✅ **Grooming** — stroke the pet (back-and-forth over it) → happiness + a
+  persistent **bond** stat + XP + heart-eyed delight.
+- ✅ **Sleep spot** — a little pixel cushion appears under the pet while it naps.
+- ⏳ Seasonal/weather flavor — folded into the day/night rhythm for now; richer
+  seasonal art is a future follow-up.
+- ⏳ More real-event reactions (on the hour) — future follow-up.
