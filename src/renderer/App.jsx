@@ -3,7 +3,11 @@ import StatusBar from './components/StatusBar.jsx';
 import ContextMenu from './components/ContextMenu.jsx';
 import SettingsPanel from './components/SettingsPanel.jsx';
 import GamePicker from './components/MiniGames.jsx';
+import WardrobePanel from './components/WardrobePanel.jsx';
+import AlbumPanel from './components/AlbumPanel.jsx';
+import PomodoroPanel from './components/PomodoroPanel.jsx';
 import { GameEngine, GAME_LIST } from './games.js';
+import { WARDROBE, WARDROBE_MAP, ACCESSORY_ROWS, ACHIEVEMENTS, ACH_MAP } from './wardrobe.js';
 import {
   loadState, saveState, getStage, moveWindow, onStageUpdate, setInteractive, quitApp, onRecenter,
   buddyStatus, buddyConnect, buddyDisconnect, onBuddyEvent,
@@ -58,6 +62,10 @@ const GENDER_COLOR = { boy: '#ff4d57', girl: '#ff8fce' }; // ribbon / scarf colo
 // Low-stakes idle behaviours that a deliberate action (feed/click/drag) interrupts.
 const IDLE_ACTIONS = { sit: 1, tv: 1, read: 1, music: 1, stretch: 1, look: 1, wait: 1, flap: 1, sneeze: 1, peck: 1, yawn: 1, preen: 1, doze: 1, wave: 1 };
 
+// Wardrobe accessories + achievement milestones live in ./wardrobe.js (single
+// source of truth, shared with the panel components). WARDROBE / WARDROBE_MAP /
+// ACCESSORY_ROWS / ACHIEVEMENTS / ACH_MAP are imported at the top of this file.
+
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const fmtClock = (sec) => { const m = Math.floor(sec / 60); return `${m}:${String(sec % 60).padStart(2, '0')}`; };
 // Easing helpers for smoother, less-mechanical motion.
@@ -78,6 +86,11 @@ export default class App extends React.Component {
     session: null, sessionLeft: 0, schoolMenu: false, workMenu: false,
     playOpen: false, playGame: null, gameScore: 0,
     shopCat: null,
+    // Wardrobe: owned accessories + which are worn (by slot). Album/achievements.
+    owned: [], equipped: {}, achievements: [], wardrobeOpen: false, albumOpen: false,
+    sfxOn: false, fedStreak: 0, lastFedDay: null,
+    // Pomodoro focus companion — a plain timer the pet sits through with you.
+    pomoOpen: false,
     menu: null, settingsOpen: false, emote: null, say: null, hint: true, hover: false, hoverStat: null, loaded: false,
     entering: false, traits: '',
     // Cloud account (email+password). REQUIRED — `user` is null until signed in.
@@ -144,6 +157,20 @@ export default class App extends React.Component {
     window.addEventListener('beforeunload', this._onUnload);
     window.addEventListener('online', this._onOnline);
     window.addEventListener('offline', this._onOffline);
+    // Performance: when the window is hidden/minimised, stop the animation loop
+    // entirely (no wasted CPU on an off-screen pet); resume + repaint on show.
+    this._onVisibility = () => {
+      if (typeof document !== 'undefined' && document.hidden) {
+        if (this._raf) { cancelAnimationFrame(this._raf); this._raf = 0; }
+      } else if (this._mounted && !this._raf) {
+        this._last = performance.now();
+        this._raf = requestAnimationFrame(this.loop);
+      }
+    };
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', this._onVisibility);
+      this._offVisibility = () => document.removeEventListener('visibilitychange', this._onVisibility);
+    }
     this._offStage = onStageUpdate((st) => this.applyStage(st));
     this._offRecenter = onRecenter(() => this.recenter());
     // Code Buddy: react to the developer's Claude Code session, and load whether
@@ -209,6 +236,9 @@ export default class App extends React.Component {
     clearTimeout(this._buddyEncT);
     clearTimeout(this._updTimer);
     clearTimeout(this._cloudT);
+    clearTimeout(this._idlePauseT);
+    if (this._offVisibility) this._offVisibility();
+    if (this._audioCtx) { try { this._audioCtx.close(); } catch (e) { /* ignore */ } this._audioCtx = null; }
   }
 
   componentDidUpdate() { this.refreshInteractive(); }
@@ -287,6 +317,94 @@ export default class App extends React.Component {
       energy: clamp(s.energy + (d.energy || 0), 0, 100),
     }));
   }
+
+  // ---- wardrobe / dress-up -------------------------------------------------
+  openWardrobe = () => { this.closeMenu(); this.setState({ wardrobeOpen: true, hover: false, hoverStat: null, shopCat: null, settingsOpen: false }); };
+  closeWardrobe = () => { this.setState({ wardrobeOpen: false }); this.save(); };
+  // Buy an accessory with coins (once owned it's kept forever). Auto-equips it.
+  buyAccessory = (key) => {
+    const item = WARDROBE_MAP[key];
+    if (!item) return;
+    const L = this.state.lang;
+    if ((this.state.owned || []).includes(key)) { this.equipAccessory(key); return; }
+    if (this.state.money < item.cost) { this.speak(t(L, 'say.noMoney'), 1800, true); return; }
+    this.setState((s) => ({
+      money: s.money - item.cost,
+      owned: [...(s.owned || []), key],
+      equipped: { ...(s.equipped || {}), [item.slot]: key },
+    }), () => { this.save(); this.checkAchievements(); });
+    this.awardExp(15);
+    this.speak(t(L, 'say.newFit'), 2200, true);
+  };
+  // Equip (wear) an owned accessory in its slot, or unequip if already worn.
+  equipAccessory = (key) => {
+    const item = WARDROBE_MAP[key];
+    if (!item || !(this.state.owned || []).includes(key)) return;
+    this.setState((s) => {
+      const eq = { ...(s.equipped || {}) };
+      if (eq[item.slot] === key) delete eq[item.slot]; // toggle off
+      else eq[item.slot] = key;
+      return { equipped: eq };
+    }, () => { this.save(); this.checkAchievements(); });
+  };
+  isEquipped = (key) => { const it = WARDROBE_MAP[key]; return !!(it && this.state.equipped && this.state.equipped[it.slot] === key); };
+
+  // ---- achievements --------------------------------------------------------
+  // Unlock an achievement (idempotent): record it, toast a line, celebrate once.
+  unlockAchievement(key) {
+    if (!ACH_MAP[key]) return;
+    if ((this.state.achievements || []).includes(key)) return;
+    this.setState((s) => ({ achievements: [...(s.achievements || []), key] }), () => this.save());
+    const L = this.state.lang;
+    this.speak(t(L, 'say.achUnlock', tn(ACH_MAP[key].name, L)), 3000, true);
+    this.sfx('chirp');
+    // a small joyful hop if the pet is grown and free
+    if (this.isGrown() && !this.state.session && !this.p.busy) {
+      this._buddyReact = { face: 'cheer', motion: 'hop', t0: performance.now(), dur: 1400 };
+    }
+  }
+  // Evaluate every milestone against current state; unlock any newly earned ones.
+  checkAchievements() {
+    const s = this.state;
+    const lvl = this.levelInfo().level;
+    const days = (s.playTime || 0) / 86400;
+    const conds = {
+      lv5: lvl >= 5,
+      dressUp: s.equipped && Object.keys(s.equipped).some((k) => s.equipped[k]),
+      played3: days >= 3,
+      wellFed: (s.fedStreak || 0) >= 3,
+    };
+    for (const k in conds) if (conds[k]) this.unlockAchievement(k);
+  }
+  openAlbum = () => { this.closeMenu(); this.setState({ albumOpen: true, hover: false, hoverStat: null, shopCat: null }); };
+  closeAlbum = () => this.setState({ albumOpen: false });
+  // Track a "fully fed" daily streak: feeding on a new day while well-fed bumps
+  // the streak; a skipped day resets it. Feeds the wellFed achievement.
+  recordFed() {
+    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    if (this.state.fullness < 70) return;                 // only counts when actually well fed
+    this.setState((s) => {
+      if (s.lastFedDay === today) return null;            // already counted today
+      const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+      const streak = s.lastFedDay === yesterday ? (s.fedStreak || 0) + 1 : 1;
+      return { fedStreak: streak, lastFedDay: today };
+    }, () => { this.save(); this.checkAchievements(); });
+  }
+
+  // ---- Pomodoro focus companion --------------------------------------------
+  // The pet sits with you for a focus block (reuses beginFocus/finishFocus). It
+  // shows the remaining time, guards against quitting mid-way (confirmBreak), and
+  // celebrates at the end (finishFocus → doneAnim + a proud line).
+  startPomodoro = (minutes) => {
+    if (this.state.session) return;
+    const L = this.state.lang;
+    if (this.state.sick) { this.speak(t(L, 'say.sickSeeDoc'), 2200, true); return; }
+    const endTs = Date.now() + minutes * 60000;
+    this.setState({ pomoOpen: false });
+    this.beginFocus({ kind: 'pomo', label: `${t(L, 'pomo.title')} · ${minutes}m`, minutes, endTs });
+  };
+  openPomodoro = () => { this.closeMenu(); if (this.state.session) { this.speak(t(this.state.lang, 'focus.busy'), 2000, true); return; } this.setState({ pomoOpen: true, hover: false, hoverStat: null, shopCat: null }); };
+  closePomodoro = () => this.setState({ pomoOpen: false });
 
   // ---- shop / economy ------------------------------------------------------
   openCat = (cat) => { if (this.p.action === 'walk') this.endWalk(); this.setState({ shopCat: cat, hover: true }); };
@@ -474,15 +592,22 @@ export default class App extends React.Component {
     this.stand();
     this.clearProp();
     this.p.busy = true;
-    this.p.action = session.kind === 'study' ? 'study' : 'work';
-    // Pixel scenes (上课 / 发传单 / 拔草) replace the old book/briefcase props.
-    this.startSceneFor(session);
-    if (session.kind === 'study') this.classFaceArc();
-    else if (this._scene && this._scene.type === 'weed') this.weedBeats();
-    else if (!this._scene) this.briefcaseProp(0); // jobs without a scene keep the briefcase (0 = persist)
+    // Pomodoro: the pet simply sits with you — no class/job scene, keeps its
+    // worn wardrobe on. Study/work drive their pixel scenes as before.
+    if (session.kind === 'pomo') {
+      this.p.action = 'sit';
+    } else {
+      this.p.action = session.kind === 'study' ? 'study' : 'work';
+      // Pixel scenes (上课 / 发传单 / 拔草) replace the old book/briefcase props.
+      this.startSceneFor(session);
+      if (session.kind === 'study') this.classFaceArc();
+      else if (this._scene && this._scene.type === 'weed') this.weedBeats();
+      else if (!this._scene) this.briefcaseProp(0); // jobs without a scene keep the briefcase (0 = persist)
+    }
     this.setState({ session, sessionLeft: Math.max(0, Math.ceil((session.endTs - Date.now()) / 1000)) });
     const L = this.state.lang;
-    if (resume) this.speak(t(L, session.kind === 'study' ? 'focus.resumeClass' : 'focus.resumeWork'), 2600, true);
+    if (session.kind === 'pomo') this.speak(t(L, resume ? 'pomo.resume' : 'pomo.start'), 2600, true);
+    else if (resume) this.speak(t(L, session.kind === 'study' ? 'focus.resumeClass' : 'focus.resumeWork'), 2600, true);
     else this.speak(t(L, session.kind === 'study' ? 'focus.startClass' : 'focus.startWork'), 2600, true);
   }
 
@@ -490,7 +615,7 @@ export default class App extends React.Component {
     this.clearProp();
     this.stopScene(); // tear down the pixel scene + face arc + hat, clear scene canvas
     this.p.busy = false;
-    if (this.p.action === 'study' || this.p.action === 'work') this.p.action = 'idle';
+    if (this.p.action === 'study' || this.p.action === 'work' || this.p.action === 'sit') this.p.action = 'idle';
     this.setState({ session: null, sessionLeft: 0 });
     this.recompute();
   }
@@ -530,6 +655,18 @@ export default class App extends React.Component {
       this.speak(graduated
         ? (next ? t(L, 'say.promote', tn(sc.name, L), tn(next.name, L)) : t(L, 'say.gradUni'))
         : t(L, 'say.classDone', tn(subj.name, L), done[ses.subjectKey], sc.per), 3400, true);
+      this.unlockAchievement('firstClass');
+      if (graduated) this.unlockAchievement('graduate');
+    } else if (ses.kind === 'pomo') {
+      // Pomodoro done: a proud little celebration + happiness, and XP for focusing
+      // alongside you. No pay — it's about company, not economy.
+      const L = this.state.lang;
+      this.setState((s) => ({ happiness: Math.min(100, s.happiness + 8) }), () => this.save());
+      this.doneAnim('study');
+      this.sfx('play');
+      this.awardExp(Math.round(ses.minutes * 8));
+      this.speak(t(L, 'pomo.done', ses.minutes), 3400, true);
+      this.unlockAchievement('focus');
     } else {
       const job = JOBS[ses.jobIdx];
       const L = this.state.lang;
@@ -539,6 +676,7 @@ export default class App extends React.Component {
       this.doneAnim('work');
       this.awardExp(Math.round(ses.minutes * 12)); // a shift earns XP scaled by its length
       this.speak(t(L, 'say.payday', tn(job.name, L), pay), 3400, true);
+      this.unlockAchievement('firstJob');
     }
   }
 
@@ -1700,7 +1838,7 @@ export default class App extends React.Component {
     // The login gate + confirm popup are full-window modals: the window MUST be
     // interactive then, or clicks pass through and the inputs can't be focused.
     const gateUp = cloudEnabled() && s.authChecked && !s.user;
-    const v = !!(this._overPen || this.p.dragging || s.hover || s.shopCat || s.menu || s.settingsOpen || s.dead || s.onboard || s.schoolMenu || s.workMenu || s.playOpen || s.playGame || gateUp || s.confirmBreak || s.update || s.updateReady);
+    const v = !!(this._overPen || this.p.dragging || s.hover || s.shopCat || s.menu || s.settingsOpen || s.dead || s.onboard || s.schoolMenu || s.workMenu || s.playOpen || s.playGame || gateUp || s.confirmBreak || s.update || s.updateReady || s.wardrobeOpen || s.albumOpen || s.pomoOpen);
     if (v !== this._iv) { this._iv = v; setInteractive(v); }
   }
   // Show the care panel while the cursor is over the penguin OR the open panel
@@ -1826,7 +1964,25 @@ export default class App extends React.Component {
     const ribbon = GENDER_COLOR[this.state.gender] || SCARF;
     return { '.': null, D: BODY, L: '#ffffff', O: BEAK, S: ribbon, E: '#1a1f3d', C: '#ff9bbb', T: '#5bc8ff', G: '#9c8a63', K: '#fde7c4', R: ribbon, H: '#e7b85c', J: '#f2cf7e',
       // ---- job attire colours (worn on the penguin during work scenes) ----
-      M: '#39507f', N: '#d23b4b', P: '#23262e', W: '#f4f7fc', Y: '#ffc62e', B: '#8a5a2b', I: '#aeb9c8', Q: '#16263f' };
+      M: '#39507f', N: '#d23b4b', P: '#23262e', W: '#f4f7fc', Y: '#ffc62e', B: '#8a5a2b', I: '#aeb9c8', Q: '#16263f',
+      // ---- wardrobe accessory colours (worn cosmetics) ----
+      V: '#e0554e', Z: '#8bd0ff' };
+  }
+  // Apply every currently-equipped wardrobe accessory to a grid (row-swaps, so
+  // several can stack — hat + glasses + scarf). Order: neck, then face, then hat
+  // so a hat's brim sits on top. Used everywhere the pet is drawn.
+  withAccessory(g) {
+    const eq = this.state.equipped;
+    if (!eq) return g;
+    let c = g;
+    for (const slot of ['neck', 'face', 'hat']) {
+      const key = eq[slot];
+      const rows = key && ACCESSORY_ROWS[key];
+      if (!rows) continue;
+      c = c.slice();
+      for (const [i, row] of rows) c[i] = row;
+    }
+    return c;
   }
   swap(g, i, row) { const c = g.slice(); c[i] = row; return c; }
   withClosed(g) { return this.swap(g, 6, this.CLOSED); }
@@ -2008,7 +2164,13 @@ export default class App extends React.Component {
     // rate while walking/playing/blinking/dragging. Saves CPU on an always-on app.
     const lowKey = p.action === 'idle' || p.action === 'weak' || p.action === 'sit' || p.action === 'dead' || p.action === 'wait';
     const animating = !lowKey || p.blinkOn || p.dragging || !!this.state.playGame || !!this._buddyReact;
-    if (animating || t - (this._lastDraw || 0) >= 55) {
+    // Deep idle: a settled pet that hasn't been touched in ~25s and isn't hovered
+    // barely moves (only the subtle breathing sine), so drop it to ~4fps. Any
+    // interaction (touch() updates _lastInteract) snaps it back to the 18fps tier.
+    const deepIdle = lowKey && !animating && !this.state.hover && !this.state.menu
+      && (Date.now() - (this._lastInteract || 0) > 25000);
+    const minGap = deepIdle ? 240 : 55; // ~4fps deep-idle vs ~18fps normal-idle
+    if (animating || t - (this._lastDraw || 0) >= minGap) {
       this._lastDraw = t;
       this.render2d(t, sp);
     }
@@ -2060,6 +2222,7 @@ export default class App extends React.Component {
         let grid = this.G[b.face] || this.G.idle;
         if (p.blinkOn && b.face !== 'panic') grid = this.withClosed(grid);
         if (this.state.cleanliness <= 25) grid = this.withDirt(grid);
+        grid = this.withAccessory(grid);
         if (this.ensureCtx()) this.draw(grid);
         const el = t - b.t0;
         let jy = 0, rot = 0, sy = 1;
@@ -2089,6 +2252,7 @@ export default class App extends React.Component {
       let grid = this.G[this._gameFace];
       if (p.blinkOn) grid = this.withClosed(grid);
       if (this.state.cleanliness <= 25) grid = this.withDirt(grid);
+      grid = this.withAccessory(grid);
       if (this.ensureCtx()) this.draw(grid);
       const jy = Math.sin(t / 220) * 3;
       if (this.spriteRef.current) {
@@ -2154,6 +2318,8 @@ export default class App extends React.Component {
     if (this.state.cleanliness <= 25) grid = this.withDirt(grid);
     if (this._hatOn) grid = this.withHat(grid); // straw hat for the 拔草 scene
     if (this._gear) grid = this.withGear(grid); // job attire for the work scenes
+    // Worn wardrobe cosmetics — skip the head slot while a scene hat/gear owns it.
+    else if (!this._hatOn) grid = this.withAccessory(grid);
     if (this.ensureCtx()) this.draw(grid);
 
     let jy = 0, rot = 0, tilt = 0, sy = 1;
@@ -2321,6 +2487,10 @@ export default class App extends React.Component {
     if (!this._wasGrown && this.state.gender && (this.state.playTime || 0) >= GROW_SECONDS) {
       this._wasGrown = true; this.hatch();
     }
+
+    // Passive achievement milestones (level 5, days played, …) — cheap check once
+    // every ~15s so we don't scan every second.
+    if (((this.state.playTime || 0) % 15) === 0) this.checkAchievements();
 
     // Enter / leave the slumped "too hungry to move" state (hysteresis 15/22).
     const projFull = Math.max(0, this.state.fullness - aRate);
@@ -2535,6 +2705,7 @@ export default class App extends React.Component {
     setTimeout(() => {
       this.applyDeltas(fx || { full: 42, happy: 4 });
       this.p.action = 'idle'; this.p.busy = false; this.recompute(); this.save();
+      this.recordFed();
       this.speak(pick(DIA.fed[this.state.lang]), 2200, true);
     }, 1500);
   };
@@ -2747,11 +2918,48 @@ export default class App extends React.Component {
   setVol = (e) => this.setState({ volume: Number(e.target.value) });
   setSpeed = (e) => this.setState({ speed: Number(e.target.value) });
   setOpacity = (e) => this.setState({ opacity: Number(e.target.value) });
+  // Gentle SFX toggle (persisted). Plays a tiny confirmation blip when turned on.
+  toggleSfx = () => this.setState((s) => ({ sfxOn: !s.sfxOn }), () => { this.save(); if (this.state.sfxOn) this.sfx('pop'); });
 
   // ---- audio (Web Audio API, procedural) -----------------------------------
-  // Action sounds were removed by request — the pet is silent. Kept as a no-op
-  // so the existing call sites (sfx('play'), sfx('eat')…) don't need touching.
-  sfx() { /* sound effects disabled */ }
+  // Soft, optional sound effects synthesised on the fly (no shipped audio files).
+  // Off by default; toggled in Settings (sfxOn). Each cue is a short, quiet blip —
+  // a chirp/pop/eat/etc. — so the pet feels alive without being noisy. Existing
+  // call sites (sfx('play'), sfx('eat')…) are unchanged.
+  sfx(kind) {
+    if (!this.state.sfxOn) return;
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      const ctx = this._audioCtx || (this._audioCtx = new AC());
+      if (ctx.state === 'suspended') ctx.resume();
+      // A cue is a list of {f: freq, t: start offset s, d: dur s, type, g: gain}.
+      // Kept short + quiet (master 0.06) so it's a gentle presence, never harsh.
+      const V = 0.06;
+      const cues = {
+        chirp: [{ f: 900, t: 0, d: 0.07 }, { f: 1250, t: 0.06, d: 0.08 }],
+        pop:   [{ f: 520, t: 0, d: 0.05 }, { f: 780, t: 0.04, d: 0.06 }],
+        eat:   [{ f: 300, t: 0, d: 0.06 }, { f: 240, t: 0.07, d: 0.06 }],
+        play:  [{ f: 660, t: 0, d: 0.07 }, { f: 880, t: 0.07, d: 0.07 }, { f: 1180, t: 0.14, d: 0.09 }],
+        sleep: [{ f: 440, t: 0, d: 0.16, type: 'sine' }, { f: 330, t: 0.16, d: 0.2, type: 'sine' }],
+        bath:  [{ f: 700, t: 0, d: 0.05 }, { f: 1000, t: 0.05, d: 0.05 }, { f: 1300, t: 0.1, d: 0.06 }],
+      };
+      const seq = cues[kind] || cues.chirp;
+      const now = ctx.currentTime;
+      for (const c of seq) {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = c.type || 'triangle';
+        osc.frequency.value = c.f;
+        const t0 = now + c.t;
+        gain.gain.setValueAtTime(0, t0);
+        gain.gain.linearRampToValueAtTime(V, t0 + 0.008);      // soft attack
+        gain.gain.exponentialRampToValueAtTime(0.0001, t0 + c.d); // gentle decay
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.start(t0); osc.stop(t0 + c.d + 0.02);
+      }
+    } catch (e) { /* audio unavailable — stay silent */ }
+  }
 
   // ---- particle burst on feed/play ----------------------------------------
   spawn(kind) {
@@ -2776,7 +2984,7 @@ export default class App extends React.Component {
     this.personality = normPersonality(d && d.personality);
     if (!d) { this.setState({ loaded: true }); return { gender: null, dead: false }; } // brand-new pet → onboarding (boot)
     const st = {};
-    ['fullness', 'energy', 'cleanliness', 'happiness', 'health', 'sick', 'dead', 'education', 'study', 'gender', 'playTime', 'bonusXp', 'bond', 'money', 'mood', 'name', 'volume', 'speed', 'opacity', 'schoolLevel', 'lang'].forEach((k) => {
+    ['fullness', 'energy', 'cleanliness', 'happiness', 'health', 'sick', 'dead', 'education', 'study', 'gender', 'playTime', 'bonusXp', 'bond', 'money', 'mood', 'name', 'volume', 'speed', 'opacity', 'schoolLevel', 'lang', 'owned', 'equipped', 'achievements', 'sfxOn', 'fedStreak', 'lastFedDay'].forEach((k) => {
       if (d[k] != null) st[k] = d[k];
     });
     st.classDone = (d.classDone && typeof d.classDone === 'object') ? { ...FRESH_CLASSES, ...d.classDone } : { ...FRESH_CLASSES };
@@ -2807,7 +3015,7 @@ export default class App extends React.Component {
     // either RESUMES the class/shift or AUTO-COMPLETES it if its time already
     // passed while away (applied in maybeStartPet). Otherwise the study is lost.
     const sv = d.session;
-    this._savedSession = (sv && (sv.kind === 'study' || sv.kind === 'work') && typeof sv.endTs === 'number') ? sv : null;
+    this._savedSession = (sv && (sv.kind === 'study' || sv.kind === 'work' || sv.kind === 'pomo') && typeof sv.endTs === 'number') ? sv : null;
     this.setState(st, () => { this.recompute(); this.save(); });
     return { gender: st.gender, dead: !!st.dead };
   }
@@ -2821,6 +3029,9 @@ export default class App extends React.Component {
       session: s.session, // an in-progress class/shift survives a restart (resumes / auto-completes)
       gender: s.gender, playTime: s.playTime, bonusXp: s.bonusXp, bond: s.bond, money: s.money, mood: s.mood, lang: s.lang,
       name: s.name, volume: s.volume, speed: s.speed, opacity: s.opacity,
+      // wardrobe + achievements + sfx toggle + fed streak
+      owned: s.owned, equipped: s.equipped, achievements: s.achievements,
+      sfxOn: s.sfxOn, fedStreak: s.fedStreak, lastFedDay: s.lastFedDay,
       personality: this.personality,
       x: this.p.x, y: this.p.y, ts: Date.now(),
     };
@@ -2891,7 +3102,7 @@ export default class App extends React.Component {
     if (!d) return;
     this.personality = normPersonality(d.personality);
     const st = {};
-    ['fullness', 'energy', 'cleanliness', 'happiness', 'health', 'sick', 'dead', 'education', 'study', 'gender', 'playTime', 'bonusXp', 'bond', 'money', 'mood', 'name', 'volume', 'speed', 'opacity', 'schoolLevel', 'lang'].forEach((k) => {
+    ['fullness', 'energy', 'cleanliness', 'happiness', 'health', 'sick', 'dead', 'education', 'study', 'gender', 'playTime', 'bonusXp', 'bond', 'money', 'mood', 'name', 'volume', 'speed', 'opacity', 'schoolLevel', 'lang', 'owned', 'equipped', 'achievements', 'sfxOn', 'fedStreak', 'lastFedDay'].forEach((k) => {
       if (d[k] != null) st[k] = d[k];
     });
     if (d.classDone && typeof d.classDone === 'object') st.classDone = { ...FRESH_CLASSES, ...d.classDone };
@@ -2900,7 +3111,7 @@ export default class App extends React.Component {
     // Before the pet starts, let a cloud save's in-progress session resume/finish too.
     if (!this._petStarted) {
       const sv = d.session;
-      this._savedSession = (sv && (sv.kind === 'study' || sv.kind === 'work') && typeof sv.endTs === 'number') ? sv : null;
+      this._savedSession = (sv && (sv.kind === 'study' || sv.kind === 'work' || sv.kind === 'pomo') && typeof sv.endTs === 'number') ? sv : null;
     }
     this.pushWindow(true);
     this.setState(st, () => { this.recompute(); this.save(); });
@@ -2959,8 +3170,8 @@ export default class App extends React.Component {
       case 'needs_input': this.buddyReact('notice', 'tap', L('needInput'), 3000); break;   // paused for a question / permission
       case 'finish': this.buddyReact('cheer', 'celebrate', L('finish'), 2800); break;       // a task / turn is complete
       // —— optional positive beats (no errors, no per-prompt chatter) ——
-      case 'tests_pass': this.buddyReact('cheer', 'celebrate', evt.say || pick(BUDDY.congrats[lang] || BUDDY.congrats.zh), 3000); this.buddyEncore(3000); break;
-      case 'git_commit': this.buddyReact('cheer', 'hop', evt.say || pick(BUDDY.congrats[lang] || BUDDY.congrats.zh), 2400); break;
+      case 'tests_pass': this.buddyReact('cheer', 'celebrate', evt.say || pick(BUDDY.congrats[lang] || BUDDY.congrats.zh), 3000); this.buddyEncore(3000); this.unlockAchievement('buddyCheer'); break;
+      case 'git_commit': this.buddyReact('cheer', 'hop', evt.say || pick(BUDDY.congrats[lang] || BUDDY.congrats.zh), 2400); this.unlockAchievement('buddyCheer'); break;
       case 'session_start': this.buddyReact('notice', 'tap', L('sessionStart'), 2000); break;
       case 'session_end': this.buddyReact('notice', 'wave', L('sessionEnd'), 2000); break;
       // tool_error / tests_fail / big_diff / prompt: no reaction (kept quiet).
@@ -3030,13 +3241,15 @@ export default class App extends React.Component {
     return (
       <div style={{ position: 'absolute', top: 6, left: '50%', transform: 'translateX(-50%)', zIndex: 40, pointerEvents: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#222a55', color: '#fff', padding: '6px 13px', borderRadius: 999, fontSize: 12, fontWeight: 900, boxShadow: '0 4px 0 rgba(34,42,85,.3)', whiteSpace: 'nowrap' }}>
-          <span>{ses.kind === 'study' ? '📚' : '💼'}</span>
+          <span>{ses.kind === 'study' ? '📚' : (ses.kind === 'pomo' ? '⏱' : '💼')}</span>
           <span>{ses.kind === 'study'
             ? `${tn((SUBJECTS.find((x) => x.key === ses.subjectKey) || {}).name, this.state.lang)} · ${t(this.state.lang, 'school.title')}`
-            : `${tn((JOBS[ses.jobIdx] || {}).name, this.state.lang)} · ${t(this.state.lang, 'work.title')}`}</span>
+            : (ses.kind === 'pomo'
+                ? t(this.state.lang, 'pomo.title')
+                : `${tn((JOBS[ses.jobIdx] || {}).name, this.state.lang)} · ${t(this.state.lang, 'work.title')}`)}</span>
           <span style={{ fontFamily: 'monospace', fontSize: 13, color: '#ffe27a' }}>{fmtClock(this.state.sessionLeft)}</span>
         </div>
-        <div style={{ background: 'rgba(34,42,85,.82)', color: '#cdd3ee', padding: '2px 9px', borderRadius: 999, fontSize: 9, fontWeight: 800, whiteSpace: 'nowrap' }}>{t(this.state.lang, 'focus.note')}</div>
+        <div style={{ background: 'rgba(34,42,85,.82)', color: '#cdd3ee', padding: '2px 9px', borderRadius: 999, fontSize: 9, fontWeight: 800, whiteSpace: 'nowrap' }}>{t(this.state.lang, ses.kind === 'pomo' ? 'pomo.note' : 'focus.note')}</div>
       </div>
     );
   }
@@ -3286,6 +3499,7 @@ export default class App extends React.Component {
             onStudy={this.studyAct} onWork={this.workAct} onMedicine={this.openMedicine}
             focusing={!!s.session} onStopFocus={() => { this.closeMenu(); this.requestBreakFocus(); }}
             onCenter={() => { this.closeMenu(); this.recenter(); }}
+            onWardrobe={this.openWardrobe} onAlbum={this.openAlbum} onPomodoro={this.openPomodoro}
             onSettings={this.openSettings} onQuit={this.quit}
           />
         )}
@@ -3331,7 +3545,7 @@ export default class App extends React.Component {
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 96 }}>
             <div onPointerDown={this.stopDown} style={{ width: 200, background: '#fff', border: '3px solid #222a55', borderRadius: 18, padding: 16, textAlign: 'center', boxShadow: '0 8px 0 rgba(34,42,85,.25)', animation: 'popIn .2s ease-out' }}>
               <div style={{ fontWeight: 900, fontSize: 14, color: '#222a55', marginBottom: 4 }}>
-                {t(s.lang, 'focus.breakTitle', t(s.lang, s.session && s.session.kind === 'work' ? 'focus.breakWork' : 'focus.breakClass'))}
+                {t(s.lang, 'focus.breakTitle', t(s.lang, s.session && s.session.kind === 'work' ? 'focus.breakWork' : (s.session && s.session.kind === 'pomo' ? 'focus.breakPomo' : 'focus.breakClass')))}
               </div>
               <div style={{ fontSize: 10.5, fontWeight: 700, color: '#8a93c2', marginBottom: 13, lineHeight: 1.4 }}>
                 {t(s.lang, 'focus.breakBody')}
@@ -3409,7 +3623,25 @@ export default class App extends React.Component {
             onSignIn={() => this.doAuth('in')} onSignUp={() => this.doAuth('up')}
             onSignOut={this.doSignOut} onSyncNow={this.syncNow}
             lang={s.lang} buddyOn={s.buddyOn} onToggleBuddy={this.toggleBuddy} level={this.levelInfo()}
+            sfxOn={s.sfxOn} onToggleSfx={this.toggleSfx}
           />
+        )}
+
+        {/* wardrobe / dress-up */}
+        {s.wardrobeOpen && (
+          <WardrobePanel
+            lang={s.lang} money={s.money} owned={s.owned || []}
+            isEquipped={this.isEquipped} onBuy={this.buyAccessory} onEquip={this.equipAccessory}
+            onClose={this.closeWardrobe}
+          />
+        )}
+        {/* achievements / collection album */}
+        {s.albumOpen && (
+          <AlbumPanel lang={s.lang} petName={s.name} unlocked={s.achievements || []} onClose={this.closeAlbum} />
+        )}
+        {/* pomodoro focus companion picker */}
+        {s.pomoOpen && (
+          <PomodoroPanel lang={s.lang} onPick={this.startPomodoro} onClose={this.closePomodoro} />
         )}
 
         {/* school / work pickers + focus countdown */}

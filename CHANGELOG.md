@@ -9,6 +9,32 @@ is pre-release, so versions are milestone markers rather than published releases
 New lifelike animations being added one at a time.
 See `TODO.md` for the remaining activity-authentic focus animations.
 
+## [1.18.0] — 2026-07-01 — Wardrobe, achievements, focus companion, SFX
+
+### Added
+- **Wardrobe / dress-up.** Buy hand-drawn pixel accessories with coins — a top
+  hat, a beanie, round glasses, and a scarf — and the penguin actually wears
+  them (a hat + glasses + scarf can all be worn at once). Open it from the
+  right-click menu; tap an owned item to wear it or take it off. Equipped items
+  persist locally and to the cloud. Fully bilingual.
+- **Achievements + collection album.** Milestones like your first class, first
+  paycheck, reaching Level 5, a Code-Buddy cheer, dressing up, finishing a focus
+  session, days played, and a well-fed streak. Unlocking one toasts a line + a
+  little celebration; a pixel "album" lists them all (unlocked in gold, locked
+  greyed).
+- **Pomodoro focus companion.** Pick 15 / 25 / 45 minutes and the penguin sits
+  and focuses alongside you, showing the time left and gently discouraging a
+  mid-way quit (the same focus confirm), then celebrates when the timer ends.
+- **Gentle sound effects (optional).** Soft, quiet Web-Audio blips (chirp / pop /
+  eat / play …) with an on/off toggle in Settings. Off by default, no audio
+  files shipped.
+
+### Changed
+- **Lower idle CPU.** The animation loop now fully stops while the window is
+  hidden/minimised and drops to ~4fps when the pet has been settled and
+  untouched for a while — resuming instantly on any interaction. Audio and the
+  new timers clean up on exit.
+
 ## [1.17.0] — 2026-07-01 — Windows silent auto-update
 
 ### Added
