@@ -108,6 +108,8 @@ const STR = {
   'dead.restart': { zh: '🔄 重新养一只', en: '🔄 Raise a new one' },
   // ---- play (玩耍) picker ----
   'hint.controls': { zh: '单击 · 拖动 · 右键', en: 'Click · Drag · Right-click' },
+  'update.available': { zh: '有新版本 {0}', en: 'Update {0} available' },
+  'update.download': { zh: '下载', en: 'Download' },
   'play.title': { zh: '玩耍', en: 'Play' },
   'play.pick': { zh: '选一个，企鹅就在窗口里陪你玩~', en: 'Pick one — the penguin plays right in the window~' },
   // ---- settings panel ----

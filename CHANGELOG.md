@@ -9,6 +9,20 @@ is pre-release, so versions are milestone markers rather than published releases
 New lifelike animations being added one at a time.
 See `TODO.md` for the remaining activity-authentic focus animations.
 
+## [1.16.0] — 2026-07-01 — Auto-update prompt, full-screen games & agent docs
+
+### Added
+- **"Update available" prompt.** On launch the app checks GitHub for a newer
+  release; if one exists, a small green pill appears with a **Download** button
+  that opens the release page. Works on macOS and Windows, no setup. (Silent
+  background auto-install can come later once macOS code-signing is in place.)
+- **Full-screen mini-games.** Games that need the room now grow to the **whole
+  screen** ("stage mode") instead of the little pet window — so in **Bubbles**
+  the penguin stands at the bottom and the bubbles float all the way up the
+  screen. The window shrinks back when the game ends.
+- **`AGENT.md`** — a master prompt documenting the project's rules, architecture,
+  release flow, and testing expectations for anyone continuing the work.
+
 ## [1.15.0] — 2026-07-01 — A real little pet: autonomy, memory & bonding (roadmap Phases 2–4)
 
 Completes the remaining roadmap phases (see `ROADMAP.md`).

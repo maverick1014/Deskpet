@@ -26,6 +26,12 @@ contextBridge.exposeInMainWorld('pengu', {
     return () => ipcRenderer.removeListener('pet:recenter', handler);
   },
 
+  // ---- Auto-update (Option A): version check + open the download page ----
+  appVersion: () => ipcRenderer.invoke('app:version'),
+  checkUpdate: () => ipcRenderer.invoke('update:check'),
+  openUrl: (url) => ipcRenderer.send('open:url', url),
+  stageWindow: (on) => ipcRenderer.send('win:stage', !!on),
+
   // ---- Code Buddy: connect to Claude Code + receive its activity events ----
   buddyStatus: () => ipcRenderer.invoke('buddy:status'),
   buddyConnect: () => ipcRenderer.invoke('buddy:connect'),
