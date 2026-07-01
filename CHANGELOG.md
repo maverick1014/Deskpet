@@ -9,6 +9,25 @@ is pre-release, so versions are milestone markers rather than published releases
 New lifelike animations being added one at a time.
 See `TODO.md` for the remaining activity-authentic focus animations.
 
+## [1.14.0] — 2026-06-30 — Lifelike motion & purposeful idle (roadmap Phase 1)
+
+First phase of the "make it feel like a real pet" roadmap (see `ROADMAP.md`).
+
+### Changed
+- **Smoother, weightier animation.**
+  - **Breathing** — a constant, subtle scale pulse while resting, so the pet is
+    never perfectly frozen.
+  - **Smooth turning** — the pet now visibly *pivots* when it changes direction
+    instead of instantly mirroring.
+  - **Weighted walking** — it accelerates into a stride and eases to a stop
+    instead of moving at a constant robotic speed.
+  - **Bouncier hops** — proper squash-on-landing / stretch-at-apex on jumps.
+  - **Looks toward your cursor** — a slight lean toward the pointer while it rests.
+- **Purposeful idle behaviour.** The pet now chooses its next little action from
+  **weighted urges** — hunger, energy, curiosity, playfulness, and how long
+  you've been away all nudge the odds — and never repeats the same one twice in a
+  row. It reads as a creature doing its own thing, not shuffling at random.
+
 ## [1.13.0] — 2026-06-30 — Full English, unlimited levels & Code Buddy fix
 
 ### Fixed
