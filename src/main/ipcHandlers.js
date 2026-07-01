@@ -1,8 +1,9 @@
 // Main-process IPC listeners.
-const { ipcMain, app, screen } = require('electron');
+const { ipcMain, app, screen, shell } = require('electron');
 const { WINDOW } = require('./constants');
 const db = require('./database');
 const buddyInstall = require('./buddyInstall');
+const REPO = 'maverick1014/Deskpet';
 
 function stageInfo() {
   return {
@@ -36,6 +37,38 @@ function register(getWin) {
   ipcMain.on('win:quit', () => {
     db.close();
     app.quit();
+  });
+
+  // ---- update check: current version + latest GitHub release (Option A) ----
+  ipcMain.handle('app:version', () => app.getVersion());
+  ipcMain.handle('update:check', async () => {
+    try {
+      const res = await fetch('https://api.github.com/repos/' + REPO + '/releases/latest', {
+        headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Deskpet' },
+      });
+      if (!res || !res.ok) return null;
+      const j = await res.json();
+      return { tag: j.tag_name, name: j.name, url: j.html_url };
+    } catch (e) { return null; }
+  });
+  ipcMain.on('open:url', (_e, url) => { try { if (/^https:\/\//.test(String(url))) shell.openExternal(String(url)); } catch (e) { /* ignore */ } });
+
+  // ---- "stage mode": grow the window to the whole work area for full-screen
+  // mini-games/animations, then restore the small pet window afterwards.
+  let stageSaved = null;
+  ipcMain.on('win:stage', (_e, on) => {
+    const w = getWin();
+    if (!w || w.isDestroyed()) return;
+    try {
+      if (on) {
+        if (!stageSaved) stageSaved = w.getBounds();
+        const wa = screen.getPrimaryDisplay().workArea;
+        w.setBounds({ x: wa.x, y: wa.y, width: wa.width, height: wa.height }, false);
+      } else if (stageSaved) {
+        w.setBounds(stageSaved, false);
+        stageSaved = null;
+      }
+    } catch (e) { /* ignore */ }
   });
 
   // ---- Code Buddy: connect/disconnect to Claude Code (manages ~/.claude hooks).

@@ -120,7 +120,7 @@ export const SPR = {
 
 // Game id -> bilingual label (used by the compact picker in App).
 export const GAME_LIST = [
-  { key: 'bubble', name: { zh: '吹泡泡', en: 'Bubbles' } },
+  { key: 'bubble', name: { zh: '吹泡泡', en: 'Bubbles' }, full: true }, // uses the whole screen (bubbles float up)
   { key: 'fish', name: { zh: '接小鱼', en: 'Catch fish' } },
   { key: 'rps', name: { zh: '猜拳', en: 'Rock-paper-scissors' } },
   { key: 'ball', name: { zh: '接球', en: 'Catch ball' } },

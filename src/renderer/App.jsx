@@ -7,6 +7,7 @@ import { GameEngine, GAME_LIST } from './games.js';
 import {
   loadState, saveState, getStage, moveWindow, onStageUpdate, setInteractive, quitApp, onRecenter,
   buddyStatus, buddyConnect, buddyDisconnect, onBuddyEvent,
+  appVersion, checkUpdate, openUrl, stageWindow,
 } from './store.js';
 import { genPersonality, normPersonality, traitLabel } from './personality.js';
 import { DIA, BUDDY, pick, greetingPool, studyLine, knowledgePool } from './dialogue.js';
@@ -151,7 +152,25 @@ export default class App extends React.Component {
     buddyStatus().then((r) => { if (this._mounted) this.setState({ buddyOn: !!(r && r.connected) }); }).catch(() => {});
 
     this._hintTimer = setTimeout(() => { if (this._mounted) this.setState({ hint: false }); }, 7000);
+    // Auto-update (Option A): a little while after launch, ask GitHub if a newer
+    // release exists; if so, show a dismissible "Update available" banner.
+    this._updTimer = setTimeout(() => this.checkForUpdate(), 8000);
     this.refreshInteractive();
+  }
+
+  // Is version string `a` newer than `b`? (accepts "v1.16.0" or "1.16.0")
+  _newer(a, b) {
+    const p = (x) => String(x).replace(/^v/i, '').split('.').map((n) => parseInt(n, 10) || 0);
+    const [a1, a2, a3] = p(a), [b1, b2, b3] = p(b);
+    return a1 > b1 || (a1 === b1 && (a2 > b2 || (a2 === b2 && a3 > b3)));
+  }
+  async checkForUpdate() {
+    try {
+      const [ver, rel] = await Promise.all([appVersion(), checkUpdate()]);
+      if (this._mounted && rel && rel.tag && ver && this._newer(rel.tag, ver)) {
+        this.setState({ update: { tag: rel.tag, url: rel.url } });
+      }
+    } catch (e) { /* offline / rate-limited: silently skip */ }
   }
 
   componentWillUnmount() {
@@ -184,6 +203,7 @@ export default class App extends React.Component {
     if (this._offBuddy) this._offBuddy();
     this._buddyReact = null;
     clearTimeout(this._buddyEncT);
+    clearTimeout(this._updTimer);
     clearTimeout(this._cloudT);
   }
 
@@ -1560,27 +1580,41 @@ export default class App extends React.Component {
       onScore: (g, s) => { if (this.state.gameScore !== s) this.setState({ gameScore: s }); },
     };
   }
-  // Start a chosen game in-window: hide the picker, spin up the engine.
+  // Start a chosen game in-window: hide the picker, spin up the engine. Games
+  // flagged `full` grow the window to the whole screen ("stage mode") so pieces
+  // (e.g. bubbles) can use the full height instead of the small pet window.
   startGame = (key) => {
     if (this.state.session) { this.requestBreakFocus(); return; }
     this.p.busy = false;
-    this.setState({ playOpen: false, playGame: key, gameScore: 0 }, () => {
-      if (!this.ensureGameCtx()) { setTimeout(() => this.startGame(key), 60); return; }
-      const geom = { W: this.GAME_W, H: this.GAME_H, OX: this.GAME_OX, cx: this.GAME_OX + 56, gnd: this.SCENE_GND };
-      if (!this._engine) this._engine = new GameEngine(this._gctx, geom, this.gameHost());
-      else { this._engine.ctx = this._gctx; this._engine.geom = geom; this._engine.host = this.gameHost(); }
-      this._engine.start(key);
-      this.refreshInteractive();
+    const g = GAME_LIST.find((x) => x.key === key);
+    const full = !!(g && g.full) && this.work;
+    if (full) { stageWindow(true); this._stage = true; }
+    this.setState({ playOpen: false, playGame: key, gameScore: 0, stage: full, stageW: full ? this.work.width : 0, stageH: full ? this.work.height : 0 }, () => {
+      // wait a frame so the canvas re-sizes to the stage before wiring the engine
+      setTimeout(() => {
+        this._gctx = null; // canvas dims changed → re-grab its context
+        if (!this.ensureGameCtx()) { setTimeout(() => this.startGame(key), 60); return; }
+        const geom = this.state.stage
+          ? { W: this.state.stageW, H: this.state.stageH, OX: 0, cx: Math.round(this.state.stageW / 2), gnd: this.state.stageH - 40 }
+          : { W: this.GAME_W, H: this.GAME_H, OX: this.GAME_OX, cx: this.GAME_OX + 56, gnd: this.SCENE_GND };
+        if (!this._engine) this._engine = new GameEngine(this._gctx, geom, this.gameHost());
+        else { this._engine.ctx = this._gctx; this._engine.geom = geom; this._engine.host = this.gameHost(); }
+        this._engine.start(key);
+        this.refreshInteractive();
+      }, full ? 60 : 0);
     });
   };
-  // End the active game: tear down pieces/timers, clear the canvas, idle the pet.
+  // End the active game: tear down pieces/timers, clear the canvas, idle the pet,
+  // and restore the small window if we were in stage mode.
   stopGame = () => {
     if (this._engine) this._engine.stop();
     clearTimeout(this._gameFaceT); clearTimeout(this._gameActT);
     this._gameFace = null;
-    if (this.ensureGameCtx()) this._gctx.clearRect(0, 0, this.GAME_W, this.GAME_H);
-    if (!this.p.dragging && (this.p.action === 'play' || this.p.action === 'eat')) this.p.action = 'idle';
-    this.setState({ playGame: null }, () => this.refreshInteractive());
+    if (this.ensureGameCtx()) this._gctx.clearRect(0, 0, this._gctx.canvas.width, this._gctx.canvas.height);
+    if (!this.p.dragging && (this.p.action === 'play' || this.p.action === 'eat' || this.p.action === 'swing')) this.p.action = 'idle';
+    if (this._stage) { stageWindow(false); this._stage = false; }
+    this._gctx = null; // canvas will resize back → re-grab next time
+    this.setState({ playGame: null, stage: false }, () => { this.pushWindow(true); this.refreshInteractive(); });
   };
   // A click on the game canvas -> hand local pixel coords to the engine.
   onGameClick = (e) => {
@@ -1588,8 +1622,8 @@ export default class App extends React.Component {
     const cv = this.gameRef.current;
     if (!cv) return;
     const r = cv.getBoundingClientRect();
-    const gx = (e.clientX - r.left) * (this.GAME_W / r.width);
-    const gy = (e.clientY - r.top) * (this.GAME_H / r.height);
+    const gx = (e.clientX - r.left) * (cv.width / r.width);
+    const gy = (e.clientY - r.top) * (cv.height / r.height);
     this._engine.click(gx, gy);
   };
 
@@ -1647,6 +1681,7 @@ export default class App extends React.Component {
 
   pushWindow(force) {
     if (!this._placed) return;
+    if (this._stage) return; // window is full-screen for a stage-mode game; don't move it
     const xi = Math.round(this.p.x), yi = Math.round(this.p.y);
     if (!force && xi === this._wx && yi === this._wy) return;
     const now = performance.now();
@@ -1661,7 +1696,7 @@ export default class App extends React.Component {
     // The login gate + confirm popup are full-window modals: the window MUST be
     // interactive then, or clicks pass through and the inputs can't be focused.
     const gateUp = cloudEnabled() && s.authChecked && !s.user;
-    const v = !!(this._overPen || this.p.dragging || s.hover || s.shopCat || s.menu || s.settingsOpen || s.dead || s.onboard || s.schoolMenu || s.workMenu || s.playOpen || s.playGame || gateUp || s.confirmBreak);
+    const v = !!(this._overPen || this.p.dragging || s.hover || s.shopCat || s.menu || s.settingsOpen || s.dead || s.onboard || s.schoolMenu || s.workMenu || s.playOpen || s.playGame || gateUp || s.confirmBreak || s.update);
     if (v !== this._iv) { this._iv = v; setInteractive(v); }
   }
   // Show the care panel while the cursor is over the penguin OR the open panel
@@ -3137,7 +3172,11 @@ export default class App extends React.Component {
           onPointerDown={this.onDown}
           onContextMenu={this.onContext}
           onDoubleClick={this.onDouble}
-          style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: 112, height: 130, cursor: 'grab', touchAction: 'none', zIndex: 30, display: (s.onboard || gateUp) ? 'none' : 'block' }}
+          style={{ position: s.stage ? 'fixed' : 'absolute', left: '50%', width: 112, height: 130, cursor: 'grab', touchAction: 'none', zIndex: 30, display: (s.onboard || gateUp) ? 'none' : 'block',
+            // NOTE: no CSS transform in stage mode — a transform here would make the
+            // position:fixed full-screen game canvas relative to this box, not the
+            // viewport. Centre with margin instead.
+            ...(s.stage ? { bottom: 28, top: 'auto', marginLeft: -56 } : { top: '50%', transform: 'translate(-50%,-50%)' }) }}
         >
           {/* Anywhere Door — pops up behind the pet during the launch entrance */}
           {s.entering && (
@@ -3151,7 +3190,12 @@ export default class App extends React.Component {
           {/* pixel focus scene (desk/blackboard/passers-by/weeds) — drawn around the pet */}
           <canvas ref={this.sceneRef} width={this.SCENE_W} height={this.SCENE_H} style={{ position: 'absolute', left: -this.SCENE_OX, top: 0, width: this.SCENE_W, height: this.SCENE_H, imageRendering: 'pixelated', pointerEvents: 'none', zIndex: 2 }} />
           {/* 玩耍 mini-game overlay — interactive pixel pieces drawn around the pet */}
-          <canvas ref={this.gameRef} width={this.GAME_W} height={this.GAME_H} onPointerDown={(e) => { e.stopPropagation(); this.onGameClick(e); }} style={{ position: 'absolute', left: -this.GAME_OX, top: 0, width: this.GAME_W, height: this.GAME_H, imageRendering: 'pixelated', pointerEvents: s.playGame ? 'auto' : 'none', zIndex: 28 }} />
+          <canvas ref={this.gameRef}
+            width={s.stage ? s.stageW : this.GAME_W} height={s.stage ? s.stageH : this.GAME_H}
+            onPointerDown={(e) => { e.stopPropagation(); this.onGameClick(e); }}
+            style={s.stage
+              ? { position: 'fixed', left: 0, top: 0, width: '100vw', height: '100vh', imageRendering: 'pixelated', pointerEvents: s.playGame ? 'auto' : 'none', zIndex: 28 }
+              : { position: 'absolute', left: -this.GAME_OX, top: 0, width: this.GAME_W, height: this.GAME_H, imageRendering: 'pixelated', pointerEvents: s.playGame ? 'auto' : 'none', zIndex: 28 }} />
           <div ref={this.shadowRef} style={{ position: 'absolute', left: '50%', top: 104, width: 80, height: 18, marginLeft: -40, background: 'radial-gradient(ellipse at center,rgba(20,24,60,.34),rgba(20,24,60,0) 70%)', borderRadius: '50%' }} />
           <div ref={this.partRef} style={{ position: 'absolute', left: 0, top: 0, width: 112, height: 112, pointerEvents: 'none', zIndex: 5 }} />
           <div ref={this.spriteRef} style={{ position: 'absolute', left: 0, top: 0, width: 112, height: 112, willChange: 'transform', transformOrigin: '50% 92%', zIndex: 3 }}>
@@ -3178,6 +3222,15 @@ export default class App extends React.Component {
           {/* tip pill — above the head, briefly at startup */}
           {s.hint && (
             <div style={{ position: 'absolute', left: '50%', bottom: 134, transform: 'translateX(-50%)', background: '#222a55', color: '#fff', padding: '6px 12px', borderRadius: 999, fontSize: 11, fontWeight: 800, boxShadow: '0 4px 0 rgba(34,42,85,.3)', zIndex: 25, whiteSpace: 'nowrap', animation: 'hintBob 1.8s ease-in-out infinite', pointerEvents: 'none' }}>{t(s.lang, 'hint.controls')}</div>
+          )}
+
+          {/* Auto-update (Option A): a dismissible "new version" pill with a Download button. */}
+          {s.update && (
+            <div style={{ position: 'absolute', left: '50%', top: 6, transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 7, background: '#36c98f', color: '#fff', padding: '5px 6px 5px 11px', borderRadius: 999, fontSize: 11, fontWeight: 900, boxShadow: '0 4px 0 rgba(34,42,85,.28)', zIndex: 45, whiteSpace: 'nowrap', pointerEvents: 'auto' }}>
+              <span>🐧 {t(s.lang, 'update.available', s.update.tag)}</span>
+              <span onClick={() => openUrl(s.update.url)} style={{ background: '#fff', color: '#1b8f63', borderRadius: 999, padding: '2px 9px', cursor: 'pointer' }}>{t(s.lang, 'update.download')}</span>
+              <span onClick={() => this.setState({ update: null })} style={{ cursor: 'pointer', opacity: 0.85, padding: '0 3px' }}>✕</span>
+            </div>
           )}
 
           {bubble && (

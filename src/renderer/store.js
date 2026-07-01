@@ -52,6 +52,12 @@ export function onRecenter(cb) {
   return () => {};
 }
 
+// ---- Auto-update (Option A) -------------------------------------------------
+export async function appVersion() { return (api && api.appVersion) ? api.appVersion() : '0.0.0'; }
+export async function checkUpdate() { return (api && api.checkUpdate) ? api.checkUpdate() : null; }
+export function openUrl(u) { if (api && api.openUrl) api.openUrl(u); }
+export function stageWindow(on) { if (api && api.stageWindow) api.stageWindow(on); }
+
 // ---- Code Buddy (Claude Code companion) ------------------------------------
 export async function buddyStatus() {
   if (api && api.buddyStatus) return api.buddyStatus();
