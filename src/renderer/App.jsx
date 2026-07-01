@@ -7,7 +7,7 @@ import { GameEngine, GAME_LIST } from './games.js';
 import {
   loadState, saveState, getStage, moveWindow, onStageUpdate, setInteractive, quitApp, onRecenter,
   buddyStatus, buddyConnect, buddyDisconnect, onBuddyEvent,
-  appVersion, checkUpdate, openUrl, stageWindow,
+  appVersion, checkUpdate, openUrl, stageWindow, onUpdateReady, restartToUpdate,
 } from './store.js';
 import { genPersonality, normPersonality, traitLabel } from './personality.js';
 import { DIA, BUDDY, pick, greetingPool, studyLine, knowledgePool } from './dialogue.js';
@@ -155,6 +155,9 @@ export default class App extends React.Component {
     // Auto-update (Option A): a little while after launch, ask GitHub if a newer
     // release exists; if so, show a dismissible "Update available" banner.
     this._updTimer = setTimeout(() => this.checkForUpdate(), 8000);
+    // Auto-update (Option B, Windows): the main process silently downloads new
+    // versions; when one is ready, offer a "restart now to update" prompt.
+    this._offUpdate = onUpdateReady(() => { if (this._mounted) this.setState({ updateReady: true, update: null }); });
     this.refreshInteractive();
   }
 
@@ -201,6 +204,7 @@ export default class App extends React.Component {
     if (this._offRecenter) this._offRecenter();
     if (this._offAuth) this._offAuth();
     if (this._offBuddy) this._offBuddy();
+    if (this._offUpdate) this._offUpdate();
     this._buddyReact = null;
     clearTimeout(this._buddyEncT);
     clearTimeout(this._updTimer);
@@ -1696,7 +1700,7 @@ export default class App extends React.Component {
     // The login gate + confirm popup are full-window modals: the window MUST be
     // interactive then, or clicks pass through and the inputs can't be focused.
     const gateUp = cloudEnabled() && s.authChecked && !s.user;
-    const v = !!(this._overPen || this.p.dragging || s.hover || s.shopCat || s.menu || s.settingsOpen || s.dead || s.onboard || s.schoolMenu || s.workMenu || s.playOpen || s.playGame || gateUp || s.confirmBreak || s.update);
+    const v = !!(this._overPen || this.p.dragging || s.hover || s.shopCat || s.menu || s.settingsOpen || s.dead || s.onboard || s.schoolMenu || s.workMenu || s.playOpen || s.playGame || gateUp || s.confirmBreak || s.update || s.updateReady);
     if (v !== this._iv) { this._iv = v; setInteractive(v); }
   }
   // Show the care panel while the cursor is over the penguin OR the open panel
@@ -3230,6 +3234,15 @@ export default class App extends React.Component {
               <span>🐧 {t(s.lang, 'update.available', s.update.tag)}</span>
               <span onClick={() => openUrl(s.update.url)} style={{ background: '#fff', color: '#1b8f63', borderRadius: 999, padding: '2px 9px', cursor: 'pointer' }}>{t(s.lang, 'update.download')}</span>
               <span onClick={() => this.setState({ update: null })} style={{ cursor: 'pointer', opacity: 0.85, padding: '0 3px' }}>✕</span>
+            </div>
+          )}
+
+          {/* Auto-update (Option B, Windows): silently downloaded → offer restart-now. */}
+          {s.updateReady && (
+            <div style={{ position: 'absolute', left: '50%', top: 6, transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 7, background: '#5a6acf', color: '#fff', padding: '5px 6px 5px 11px', borderRadius: 999, fontSize: 11, fontWeight: 900, boxShadow: '0 4px 0 rgba(34,42,85,.28)', zIndex: 45, whiteSpace: 'nowrap', pointerEvents: 'auto' }}>
+              <span>🐧 {t(s.lang, 'update.ready')}</span>
+              <span onClick={() => restartToUpdate()} style={{ background: '#fff', color: '#3a49b8', borderRadius: 999, padding: '2px 9px', cursor: 'pointer' }}>{t(s.lang, 'update.restart')}</span>
+              <span onClick={() => this.setState({ updateReady: false })} style={{ cursor: 'pointer', opacity: 0.85, padding: '0 3px' }}>✕</span>
             </div>
           )}
 

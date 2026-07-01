@@ -31,6 +31,13 @@ contextBridge.exposeInMainWorld('pengu', {
   checkUpdate: () => ipcRenderer.invoke('update:check'),
   openUrl: (url) => ipcRenderer.send('open:url', url),
   stageWindow: (on) => ipcRenderer.send('win:stage', !!on),
+  // ---- Auto-update (Option B, Windows): silent download → restart to apply ----
+  onUpdateReady: (cb) => {
+    const handler = (_e, p) => cb(p);
+    ipcRenderer.on('update:ready', handler);
+    return () => ipcRenderer.removeListener('update:ready', handler);
+  },
+  restartToUpdate: () => ipcRenderer.send('update:restart'),
 
   // ---- Code Buddy: connect to Claude Code + receive its activity events ----
   buddyStatus: () => ipcRenderer.invoke('buddy:status'),

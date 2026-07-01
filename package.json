@@ -1,6 +1,6 @@
 {
   "name": "deskpet",
-  "version": "1.16.0",
+  "version": "1.17.0",
   "description": "Deskpet — an interactive penguin desktop pet (Electron + React + Canvas 2D + SQLite)",
   "author": "Maverick",
   "license": "MIT",
@@ -15,6 +15,7 @@
     "postinstall": "node scripts/rebuild.js"
   },
   "dependencies": {
+    "electron-updater": "^6.3.9",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
