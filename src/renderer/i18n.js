@@ -156,6 +156,10 @@ const STR = {
   'say.hatOn': { zh: '换上工作帽，开干！', en: "Work hat on — let's go!" },
   'say.backAgain': { zh: '我回来啦~', en: "I'm back~" },
   'say.worseSick': { zh: '好像更严重了…🤒', en: 'Feeling worse… 🤒' },
+  'say.cough': { zh: '咳…咳咳…🤧', en: '*cough… cough*… 🤧' },
+  'say.full': { zh: '我吃饱啦，谢谢~ 😊', en: "I'm full, thanks~ 😊" },
+  'say.welcomeBack': { zh: '你回来啦！好想你~ 🥰', en: 'You\'re back! Missed you~ 🥰' },
+  'say.petted': { zh: '嘿嘿，好舒服~ 💕', en: 'Hehe, that feels nice~ 💕' },
   'say.cloudRestored': { zh: '已从云端恢复~', en: 'Restored from the cloud~' },
   'say.levelUp': { zh: '升级啦！Lv{0}！🎉', en: 'Level up! Lv{0}! 🎉' },
   // ---- mini-game speech (g.*) ----

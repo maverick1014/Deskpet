@@ -270,6 +270,12 @@ export default class App extends React.Component {
   buyItem = (cat, item) => {
     if (cat === 'medicine') return this.useMedicine(item);
     if (this.busyBlocked()) return;            // mid-action: ignore (and don't charge)
+    // Consequence memory: a stuffed pet politely declines more food (no charge).
+    if (cat === 'food' && this.state.fullness >= 92) {
+      this.speak(t(this.state.lang, 'say.full'), 2000, true);
+      this.setState({ shopCat: null });
+      return;
+    }
     if (this.state.money < item.cost) {
       this.speak(t(this.state.lang, 'say.noMoney'), 1800, true);
       this.setState({ shopCat: null });
@@ -691,6 +697,41 @@ export default class App extends React.Component {
     if (Math.random() < 0.4) this.speak(t(this.state.lang, 'say.sneeze'), 1700, true);
     setTimeout(() => { if (this.p.action === 'sneeze') { this.p.action = 'idle'; this.p.busy = false; } }, 950);
   };
+  // A weak little cough while sick (reuses the hunch-forward motion, shorter).
+  coughAct = () => {
+    if (this.busyBlocked()) return;
+    this.p.busy = true; this.p.action = 'sneeze';
+    this.p.aStart = performance.now(); this.p.aDur = 800;
+    if (Math.random() < 0.6) this.speak(t(this.state.lang, 'say.cough'), 1500, true);
+    setTimeout(() => { if (this.p.action === 'sneeze') { this.p.action = 'idle'; this.p.busy = false; } }, 800);
+  };
+  // Wander over to the farther screen edge and peek out (fires when ignored a
+  // while) — just retargets the walk; arrival drops back to idle naturally.
+  edgePeek = () => {
+    if (this.p.busy || this.p.action !== 'idle' || this.minX == null) return;
+    const toMin = Math.abs(this.p.x - this.minX), toMax = Math.abs(this.maxX - this.p.x);
+    this.p.tx = toMin > toMax ? this.minX : this.maxX;
+    this.p.vel = 0; this.p.action = 'walk';
+  };
+  // A quick startled jump when the cursor whips across the pet.
+  startleAct = () => {
+    if (this.busyBlocked()) return;
+    this.p.busy = true; this.p.action = 'enter';         // reuse the single hop arc
+    this.p.aStart = performance.now(); this.p.aDur = 520;
+    this.sfx('chirp');
+    setTimeout(() => { if (this.p.action === 'enter') { this.p.action = 'idle'; this.p.busy = false; } }, 540);
+  };
+  // Stroking the pet (back-and-forth cursor over it) builds affection: happiness,
+  // a persistent bond stat, a little XP, and heart-eyed delight.
+  petReact() {
+    if (this.busyBlocked() && this.p.action !== 'idle') return;
+    this.touch();
+    this.setState((s) => ({ happiness: clamp(s.happiness + 6, 0, 100), bond: (s.bond || 0) + 1 }), () => this.save());
+    this.loveReact();
+    if (this.heartProp) this.heartProp();
+    this.speak(t(this.state.lang, 'say.petted'), 1800, true);
+    this.awardExp(15);
+  }
   loveReact = () => {
     this.p.busy = true; this.p.action = 'love';
     this.p.aStart = performance.now(); this.p.aDur = 1400;
@@ -830,6 +871,16 @@ export default class App extends React.Component {
       'bffffffffffffffffb',
       'bffffffffffffffffb',
       'bbbbbbbbbbbbbbbbbb',
+    ];
+    // A soft round cushion the pet naps on (a "sleep spot"), drawn under it.
+    S.cushion = [
+      '..kkkkkkkkkkkkkk..',
+      '.kuuuuuuuuuuuuuuk.',
+      'kuuWWuuuuuuuuuuuuk',
+      'kuuuuuuuuuuuuuuuuk',
+      'kuuuuuuuuuuuuuuuuk',
+      '.kuuuuuuuuuuuuuuk.',
+      '..kkkkkkkkkkkkkk..',
     ];
     // Chalk content per subject (drawn in chalk 'c' over the felt).
     S.chalk_cn = [ // 语文: 十 stroke (a cross)
@@ -1003,6 +1054,17 @@ export default class App extends React.Component {
     this._sctx = cv.getContext('2d');
     this._sctx.imageSmoothingEnabled = false;
     return true;
+  }
+
+  clearSceneCanvas() { if (this._sctx) this._sctx.clearRect(0, 0, this.SCENE_W, this.SCENE_H); }
+  // Draw the nap cushion on the scene canvas (behind the pet) under its feet.
+  drawSleepProp() {
+    if (!this.ensureSceneCtx()) return;
+    const ctx = this._sctx, PAL = this.scenePal(), cush = this.sceneGrids().cushion, P = 4;
+    ctx.clearRect(0, 0, this.SCENE_W, this.SCENE_H);
+    const w = cush[0].length * P;
+    this.drawSprite(ctx, cush, PAL, this.SCENE_OX + 56 - w / 2, this.SCENE_GND - 10, P);
+    this._sleepPropOn = true;
   }
 
   // Start the scene matching the active focus session. Sets up per-scene runtime
@@ -1619,13 +1681,40 @@ export default class App extends React.Component {
       e.clientY >= r.top - pad && e.clientY <= r.bottom + pad;
     let over = inRect(pen.getBoundingClientRect());
     if (!over && (this.state.hover || this.state.shopCat) && this.hoverRef.current) over = inRect(this.hoverRef.current.getBoundingClientRect());
+
+    // Pointer dynamics over the pet: a fast whip-past startles it; slow
+    // back-and-forth strokes pet it. Both only while it's calmly idle.
+    const nowP = performance.now();
+    if (this._lastPtr && over && this.isGrown() && !this.p.dragging) {
+      const dtp = nowP - this._lastPtr.t;
+      if (dtp > 0) {
+        const dx = e.clientX - this._lastPtr.x;
+        const spd = Math.hypot(dx, e.clientY - this._lastPtr.y) / dtp; // px/ms
+        if (spd > 2.4 && this.p.action === 'idle' && nowP > (this._startleCD || 0)) {
+          this._startleCD = nowP + 6000; this._strokeCount = 0; this.startleAct();
+        } else if (spd < 1.6 && Math.sign(dx)) {
+          // count direction reversals as strokes
+          if (this._strokeDir && Math.sign(dx) !== this._strokeDir) {
+            this._strokeCount = (this._strokeCount || 0) + 1;
+            if (this._strokeCount >= 4 && (this.p.action === 'idle' || this.p.action === 'sit') && nowP > (this._petCD || 0)) {
+              this._petCD = nowP + 8000; this._strokeCount = 0; this.petReact();
+            }
+          }
+          this._strokeDir = Math.sign(dx);
+        }
+      }
+    }
+    this._lastPtr = { x: e.clientX, y: e.clientY, t: nowP };
+
     if (over) {
       if (this._hideHoverT) { clearTimeout(this._hideHoverT); this._hideHoverT = null; }
       if (!this._overPen) {
         this._overPen = true; this.refreshInteractive();
-        // greet the owner with a wave when the cursor first comes near (debounced)
+        // greet when the cursor first comes near (debounced): a warm "welcome
+        // back" after a long absence, otherwise just a little wave.
         if (this.p.action === 'idle' && this.isGrown() && performance.now() > (this._waveCD || 0)) {
           this._waveCD = performance.now() + 16000; this.waveAct();
+          if (Date.now() - (this._lastInteract || 0) > 300000) this.speak(t(this.state.lang, 'say.welcomeBack'), 2600, true);
         }
       }
       if (!this.state.hover) { if (this.p.action === 'walk') this.endWalk(); this.setState({ hover: true }); }
@@ -1886,6 +1975,9 @@ export default class App extends React.Component {
     }
     // Pixel focus scene (上课/发传单/拔草) animates every frame while active.
     if (this._scene) this.drawScene(t);
+    // Sleep spot: a little cushion under the pet while it naps (no focus scene).
+    else if (p.action === 'sleep' && this.isGrown()) this.drawSleepProp();
+    else if (this._sleepPropOn) { this.clearSceneCanvas(); this._sleepPropOn = false; }
     // 玩耍 mini-game pieces animate every frame while a game is active.
     if (this._engine && this.state.playGame && this.ensureGameCtx()) this._engine.update(t, dt);
 
@@ -2083,12 +2175,16 @@ export default class App extends React.Component {
     let faceX = p.facing;
     const glancing = p.action === 'look';
     if (glancing) { faceX = Math.sin((t - p.aStart) / 170) >= 0 ? 1 : -1; rot = Math.sin((t - p.aStart) / 170) * 4; } // glancing around
-    const bob = p.action === 'walk' ? -Math.abs(Math.sin(t / 110)) * 4 : (p.action === 'idle' ? Math.sin(t / 720) * 2 : 0);
+    // Mood colours the resting motion: cheerful/playful = livelier bob & breath,
+    // sad/tired = slower and droopier.
+    const mood = this.state.mood;
+    const moodK = (mood === 'cheerful' || mood === 'playful') ? 1.35 : ((mood === 'sad' || mood === 'tired') ? 0.55 : 1);
+    const bob = p.action === 'walk' ? -Math.abs(Math.sin(t / 110)) * 4 : (p.action === 'idle' ? Math.sin(t / 720) * 2 * moodK : 0);
 
     // Always-on "breathing": a tiny scale pulse while at rest so the pet is never
     // perfectly frozen. Skipped for busy/animated actions that set their own sy.
     if (p.action === 'idle' || p.action === 'sit' || p.action === 'wait' || p.action === 'tv') {
-      sy *= 1 + Math.sin(t / 900) * 0.02;
+      sy *= 1 + Math.sin(t / (900 / moodK)) * 0.02 * moodK;
     }
 
     // Smooth turning: instead of snapping the mirror, animate |scaleX| through a
@@ -2115,7 +2211,8 @@ export default class App extends React.Component {
     if (this.spriteRef.current) {
       this.spriteRef.current.style.transform =
         `translateY(${(bob - jy).toFixed(1)}px) rotate(${(tilt + rot).toFixed(1)}deg) scaleX(${scaleX.toFixed(3)}) scaleY(${sy.toFixed(3)})`;
-      this.spriteRef.current.style.filter = p.action === 'dead' ? 'grayscale(1) brightness(1.25)' : 'none';
+      // Dim slightly at night so the pet reads as sleepy/low-light after hours.
+      this.spriteRef.current.style.filter = p.action === 'dead' ? 'grayscale(1) brightness(1.25)' : (this._night() ? 'brightness(0.86) saturate(0.9)' : 'none');
       this.spriteRef.current.style.opacity = p.action === 'dead' ? '0.65' : '1';
     }
     if (this.shadowRef.current) {
@@ -2234,31 +2331,35 @@ export default class App extends React.Component {
           this.p.walkTimer = Math.max(4, Math.round(13 - L / 12)) + Math.floor(Math.random() * 5);
           const roll = Math.random();
           if (this.state.sick) {
-            // unwell: mostly rest, only the occasional slow shuffle
-            if (roll < 0.18) this.startWalk(); else if (roll > 0.5) this.sitAct();
+            // unwell: mostly rest, a slow shuffle, and the occasional cough
+            this._pickBehavior([['sit', 20], ['cough', 12], ['walk', 8], ['doze', 10], ['look', 5]]);
           } else if (!this.isGrown()) {
             // baby: toddle / sit / play ball
             if (roll < 0.42) this.startWalk(); else if (roll > 0.78) this.ballAct(); else this.sitAct();
           } else {
-            // grown: pick the next little behaviour by WEIGHTED URGES — needs and
-            // personality nudge the odds — instead of a flat random ladder, and
-            // never repeat the last one back-to-back. Reads as purposeful, not twitchy.
+            // grown: pick the next little behaviour by WEIGHTED URGES — needs,
+            // personality AND time of day nudge the odds — instead of a flat random
+            // ladder, and never repeat the last one. Reads as purposeful, not twitchy.
             const P = this.personality, s = this.state;
             const awayLong = Date.now() - (this._lastInteract || 0) > 90000;
+            const night = this._night();           // drowsy & calm at night, lively by day
+            const dayLively = night ? 0.5 : 1;      // scale energetic behaviours down at night
+            const nightRest = night ? 2.2 : 1;      // scale rest behaviours up at night
             this._pickBehavior([
-              ['walk',    22 + P.liveliness * 0.14 + P.curiosity * 0.08],
-              ['leisure', 16],
-              ['sit',     13],
-              ['look',    10 + P.curiosity * 0.12],
+              ['walk',    (22 + P.liveliness * 0.14 + P.curiosity * 0.08) * dayLively],
+              ['leisure', 16 * dayLively],
+              ['sit',     13 * (night ? 1.4 : 1)],
+              ['look',    (10 + P.curiosity * 0.12) * dayLively],
               ['preen',   9],
-              ['peck',    7 + P.curiosity * 0.08],
+              ['peck',    (7 + P.curiosity * 0.08) * dayLively],
               ['stretch', 7],
-              ['flap',    6 + P.liveliness * 0.07],
-              ['slide',   s.energy > 55 ? 5 + P.liveliness * 0.06 : 0],
-              ['ball',    s.energy > 60 ? 6 + P.liveliness * 0.08 : 0],
-              ['yawn',    s.energy < 60 ? 9 : 2],
-              ['doze',    s.energy < 45 ? 14 : 0],
+              ['flap',    (6 + P.liveliness * 0.07) * dayLively],
+              ['slide',   s.energy > 55 ? (5 + P.liveliness * 0.06) * dayLively : 0],
+              ['ball',    s.energy > 60 ? (6 + P.liveliness * 0.08) * dayLively : 0],
+              ['yawn',    (s.energy < 60 ? 9 : 2) * nightRest],
+              ['doze',    (s.energy < 45 ? 14 : night ? 8 : 0) * nightRest],
               ['wait',    awayLong ? 16 + P.attachment * 0.15 : 0],  // miss the owner
+              ['edge',    awayLong ? 8 + P.curiosity * 0.06 : 0],    // wander to an edge and peek out
               ['sneeze',  2],
             ]);
           }
@@ -2338,18 +2439,28 @@ export default class App extends React.Component {
   }
 
   // ---- behaviors -----------------------------------------------------------
+  // Local hour (0–23) and a night flag, for the pet's day/night rhythm.
+  _hour() { return new Date().getHours(); }
+  _night() { const h = this._hour(); return h < 6 || h >= 22; }
+  // Per-behaviour minimum spacing (seconds) so nothing recurs too often.
+  static COOLDOWN = { sneeze: 70, slide: 40, ball: 30, stretch: 24, flap: 24, yawn: 30, cough: 20, edge: 60 };
   // Weighted pick of the next idle behaviour. `opts` is [key, weight]; zero (or
-  // negative) weights and the immediately-previous behaviour are excluded so the
-  // pet never repeats itself back-to-back.
+  // negative) weights, the immediately-previous behaviour, and anything still on
+  // cooldown are excluded, so the pet varies and never repeats back-to-back.
   _pickBehavior(opts) {
-    const METHOD = { walk: 'startWalk', leisure: 'startLeisure', sit: 'sitAct', look: 'lookAct', preen: 'preenAct', peck: 'peckAct', stretch: 'stretchAct', flap: 'flapAct', slide: 'startSlide', ball: 'ballAct', yawn: 'yawnAct', doze: 'dozeAct', wait: 'waitAct', sneeze: 'sneezeAct' };
-    let pool = opts.filter(([k, w]) => w > 0 && k !== this._lastBehavior);
-    if (!pool.length) pool = opts.filter(([, w]) => w > 0);
+    const METHOD = { walk: 'startWalk', leisure: 'startLeisure', sit: 'sitAct', look: 'lookAct', preen: 'preenAct', peck: 'peckAct', stretch: 'stretchAct', flap: 'flapAct', slide: 'startSlide', ball: 'ballAct', yawn: 'yawnAct', doze: 'dozeAct', wait: 'waitAct', sneeze: 'sneezeAct', cough: 'coughAct', edge: 'edgePeek' };
+    const now = Date.now();
+    const cd = this._behavCd || (this._behavCd = {});
+    const ok = ([k, w]) => w > 0 && k !== this._lastBehavior && (!App.COOLDOWN[k] || now - (cd[k] || 0) > App.COOLDOWN[k] * 1000);
+    let pool = opts.filter(ok);
+    if (!pool.length) pool = opts.filter(([, w]) => w > 0); // fallback: ignore cooldown/repeat
+    if (!pool.length) return;
     const total = pool.reduce((a, [, w]) => a + w, 0);
     if (total <= 0) return;
     let r = Math.random() * total, key = pool[pool.length - 1][0];
     for (const [k, w] of pool) { r -= w; if (r <= 0) { key = k; break; } }
     this._lastBehavior = key;
+    cd[key] = now;
     const m = METHOD[key];
     if (m && typeof this[m] === 'function') this[m]();
   }
@@ -2626,7 +2737,7 @@ export default class App extends React.Component {
     this.personality = normPersonality(d && d.personality);
     if (!d) { this.setState({ loaded: true }); return { gender: null, dead: false }; } // brand-new pet → onboarding (boot)
     const st = {};
-    ['fullness', 'energy', 'cleanliness', 'happiness', 'health', 'sick', 'dead', 'education', 'study', 'gender', 'playTime', 'bonusXp', 'money', 'mood', 'name', 'volume', 'speed', 'opacity', 'schoolLevel', 'lang'].forEach((k) => {
+    ['fullness', 'energy', 'cleanliness', 'happiness', 'health', 'sick', 'dead', 'education', 'study', 'gender', 'playTime', 'bonusXp', 'bond', 'money', 'mood', 'name', 'volume', 'speed', 'opacity', 'schoolLevel', 'lang'].forEach((k) => {
       if (d[k] != null) st[k] = d[k];
     });
     st.classDone = (d.classDone && typeof d.classDone === 'object') ? { ...FRESH_CLASSES, ...d.classDone } : { ...FRESH_CLASSES };
@@ -2669,7 +2780,7 @@ export default class App extends React.Component {
       health: s.health, sick: s.sick, dead: s.dead, education: s.education, study: s.study,
       schoolLevel: s.schoolLevel, classDone: s.classDone,
       session: s.session, // an in-progress class/shift survives a restart (resumes / auto-completes)
-      gender: s.gender, playTime: s.playTime, bonusXp: s.bonusXp, money: s.money, mood: s.mood, lang: s.lang,
+      gender: s.gender, playTime: s.playTime, bonusXp: s.bonusXp, bond: s.bond, money: s.money, mood: s.mood, lang: s.lang,
       name: s.name, volume: s.volume, speed: s.speed, opacity: s.opacity,
       personality: this.personality,
       x: this.p.x, y: this.p.y, ts: Date.now(),
@@ -2741,7 +2852,7 @@ export default class App extends React.Component {
     if (!d) return;
     this.personality = normPersonality(d.personality);
     const st = {};
-    ['fullness', 'energy', 'cleanliness', 'happiness', 'health', 'sick', 'dead', 'education', 'study', 'gender', 'playTime', 'bonusXp', 'money', 'mood', 'name', 'volume', 'speed', 'opacity', 'schoolLevel', 'lang'].forEach((k) => {
+    ['fullness', 'energy', 'cleanliness', 'happiness', 'health', 'sick', 'dead', 'education', 'study', 'gender', 'playTime', 'bonusXp', 'bond', 'money', 'mood', 'name', 'volume', 'speed', 'opacity', 'schoolLevel', 'lang'].forEach((k) => {
       if (d[k] != null) st[k] = d[k];
     });
     if (d.classDone && typeof d.classDone === 'object') st.classDone = { ...FRESH_CLASSES, ...d.classDone };

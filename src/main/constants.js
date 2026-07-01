@@ -21,6 +21,7 @@ const DEFAULTS = {
   gender: null,   // 'boy' | 'girl', chosen at onboarding (null → show onboarding)
   playTime: 0,    // total online seconds; ≥ 2 days → egg hatches into a penguin
   bonusXp: 0,     // experience earned from actions (feed/play/class/shift) → level
+  bond: 0,        // affection built by petting/stroking → warmer reactions over time
   mood: 'happy',
   name: 'Pengu',
   volume: 60,
