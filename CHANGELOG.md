@@ -9,6 +9,32 @@ is pre-release, so versions are milestone markers rather than published releases
 New lifelike animations being added one at a time.
 See `TODO.md` for the remaining activity-authentic focus animations.
 
+## [1.19.0] — 2026-07-02 — New trades, new behaviours, more achievements
+
+### Added
+- **Three new jobs, each with its own hand-drawn pixel scene.** The penguin now
+  works as an **angler (钓鱼)** — casting a rod into a little pond where a bobber
+  bobs and a fish leaps out with a splash; a **barista (咖啡师)** — pulling shots
+  at an espresso machine as a cup fills with coffee and steam curls up; and a
+  **painter (画家)** — dabbing colourful strokes onto an easel canvas with a
+  palette by its side. Each comes with its own worn outfit (a khaki bucket hat, a
+  brown apron, a jaunty red beret) and unlocks at the matching school level.
+- **New idle behaviours.** The pet now sometimes does a playful **flop-and-roll**,
+  a quick **itch-scratch** (itchier when it's due for a bath), and a wistful
+  **sky-gaze** daydream — a little cloud drifts by in the day, a star at night.
+  All picked by the same weighted-urge system, so they read as purposeful.
+- **More achievements.** Seven new milestones: an angler / barista / painter badge
+  for each new trade, **Level 10**, **Fashionista** (own every accessory),
+  **Bonded** (reach a bond of 50), and **Night owl** (keep it company late).
+
+### Fixed
+- **Glasses accessory** redrawn as thin round frames with big blue lenses so it
+  reads as spectacles instead of a heavy black mask.
+
+### Changed
+- Continued animation polish across the new poses (full-rotation roll, head-back
+  gaze, itch shimmy) authored and eyeball-checked via the pixel-art skill.
+
 ## [1.18.0] — 2026-07-01 — Wardrobe, achievements, focus companion, SFX
 
 ### Added

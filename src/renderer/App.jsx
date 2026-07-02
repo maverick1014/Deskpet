@@ -50,6 +50,10 @@ const JOBS = [
   { key: 'courier', name: { zh: '快递员',     en: 'Courier' },      lvl: 2, rate: 4.4, icon: '📦' },
   { key: 'coder',   name: { zh: '程序员',     en: 'Programmer' },   lvl: 3, rate: 6.5, icon: '💻' },
   { key: 'teacher', name: { zh: '老师',       en: 'Teacher' },      lvl: 3, rate: 5.8, icon: '🧑‍🏫' },
+  // ---- v1.19.0 new trades (appended so existing jobIdx values stay stable) ----
+  { key: 'fisher',  name: { zh: '钓鱼',       en: 'Fishing' },      lvl: 1, rate: 2.2, icon: '🎣' },
+  { key: 'barista', name: { zh: '咖啡师',     en: 'Barista' },      lvl: 2, rate: 4.0, icon: '☕' },
+  { key: 'painter', name: { zh: '画家',       en: 'Painter' },      lvl: 3, rate: 6.0, icon: '🎨' },
 ];
 const WORK_MINS = [30, 60];
 const FRESH_CLASSES = { cn: 0, en: 0, ma: 0, sc: 0 };
@@ -370,9 +374,13 @@ export default class App extends React.Component {
     const days = (s.playTime || 0) / 86400;
     const conds = {
       lv5: lvl >= 5,
+      lv10: lvl >= 10,
       dressUp: s.equipped && Object.keys(s.equipped).some((k) => s.equipped[k]),
       played3: days >= 3,
       wellFed: (s.fedStreak || 0) >= 3,
+      collector: s.owned && WARDROBE.every((w) => s.owned.includes(w.key)),
+      bonded: (s.bond || 0) >= 50,
+      nightOwl: this._night() && (Date.now() - (this._lastInteract || 0) < 60000),
     };
     for (const k in conds) if (conds[k]) this.unlockAchievement(k);
   }
@@ -677,6 +685,8 @@ export default class App extends React.Component {
       this.awardExp(Math.round(ses.minutes * 12)); // a shift earns XP scaled by its length
       this.speak(t(L, 'say.payday', tn(job.name, L), pay), 3400, true);
       this.unlockAchievement('firstJob');
+      // New-trade milestones (fisher / barista / painter each have their own badge).
+      if (ACH_MAP[job.key]) this.unlockAchievement(job.key);
     }
   }
 
@@ -946,6 +956,50 @@ export default class App extends React.Component {
     this.p.aStart = performance.now(); this.p.aDur = 1400;
     setTimeout(() => { if (this.p.action === 'wave') { this.p.action = 'idle'; this.p.busy = false; } }, 1400);
   };
+  // A playful flop-and-roll: the pet rolls right over and pops back up (lively).
+  rollAct = () => {
+    if (this.busyBlocked()) return;
+    this.p.busy = true; this.p.action = 'roll';
+    this.p.aStart = performance.now(); this.p.aDur = 1200;
+    this.sfx('chirp');
+    setTimeout(() => { if (this.p.action === 'roll') { this.p.action = 'idle'; this.p.busy = false; } }, 1200);
+  };
+  // A quick itch — a little foot-scratch shimmy (itchier when it needs a bath).
+  scratchAct = () => {
+    if (this.busyBlocked()) return;
+    this.p.busy = true; this.p.action = 'scratch';
+    this.p.aStart = performance.now(); this.p.aDur = 1400;
+    setTimeout(() => { if (this.p.action === 'scratch') { this.p.action = 'idle'; this.p.busy = false; } }, 1400);
+  };
+  // Daydreaming: tips its head back and gazes up as a little cloud (day) or a
+  // star (night) drifts above — a calm, wistful beat.
+  gazeAct = () => {
+    if (this.busyBlocked()) return;
+    this.p.busy = true; this.p.action = 'gaze';
+    this.p.aStart = performance.now(); this.p.aDur = 3200;
+    this.skyProp();
+    clearTimeout(this._skyT);
+    this._skyT = setTimeout(() => { if (this.p.action === 'gaze') this.skyProp(); }, 1600);
+    setTimeout(() => { if (this.p.action === 'gaze') { this.p.action = 'idle'; this.p.busy = false; } }, 3200);
+  };
+  // A little cloud (day) or twinkling star (night) that hovers above the head
+  // while the pet daydreams — drawn as CSS shapes (no emoji), like the others.
+  skyProp() {
+    const layer = this.partRef.current;
+    if (!layer) return;
+    const el = document.createElement('div');
+    const x = 44 + Math.floor(Math.random() * 26);
+    el.style.cssText = 'position:absolute;left:' + x + 'px;top:4px;width:26px;height:14px;z-index:6;pointer-events:none;animation:hintBob 1.4s ease-in-out infinite;';
+    if (this._night()) {
+      el.innerHTML = '<div style="position:absolute;left:8px;top:2px;width:10px;height:10px;background:#ffe27a;transform:rotate(45deg);border-radius:2px"></div>';
+    } else {
+      el.innerHTML = '<div style="position:absolute;left:0;top:4px;width:9px;height:9px;border-radius:50%;background:#eef4ff"></div>' +
+        '<div style="position:absolute;left:6px;top:1px;width:12px;height:12px;border-radius:50%;background:#eef4ff"></div>' +
+        '<div style="position:absolute;left:15px;top:4px;width:9px;height:9px;border-radius:50%;background:#eef4ff"></div>';
+    }
+    layer.appendChild(el);
+    setTimeout(() => el.remove(), 1700);
+  }
   // A small downy feather drifting down as the pet preens.
   featherProp() {
     const layer = this.partRef.current;
@@ -1205,6 +1259,34 @@ export default class App extends React.Component {
       '....aaaa....',   // neck
       '...aaaaaa...',   // stand base
     ];
+    // ---- 钓鱼 (fisher): a red-and-white bobber + a little jumping fish ----
+    S.bobber = ['.v.', 'vvv', 'vWv', '.W.'];
+    S.fish = ['..uuu.u', '.uuuuuu', 'kuuuuuu', '.uuuuuu', '..uuu.u']; // eye left, forked tail right
+    // ---- 咖啡师 (barista): an espresso machine, a filling cup ----
+    S.espresso = [
+      'mmmmmmmm',
+      'mMMMMMMm',
+      'mMiiviMm',   // control panel (green ready + red brew lights)
+      'mMMMMMMm',
+      'sm.aa.ms',   // group head
+      '..aaaa..',
+      '...aa...',   // spout
+    ];
+    S.cup = ['aWWWa.', 'aWWWaa', 'aWWWa.', 'aWWWa.', '.aaa..']; // white mug w/ handle (coffee filled live)
+    // ---- 画家 (painter): a canvas easel + a paint palette + a brush ----
+    S.easel = [
+      'hhhhhhhh',
+      'hWWWWWWh',
+      'hWWWWWWh',
+      'hWWWWWWh',
+      'hWWWWWWh',
+      'hWWWWWWh',
+      'hhhhhhhh',
+      '.h....h.',
+      'h......h',
+    ];
+    S.palette = ['.hhhh.', 'hrhuhh', 'hhgyhh', '.hhhh.']; // wood palette w/ red·blue·green·yellow dabs
+    S.pbrush = ['....h', '...h.', '..h..', '.s...', 'r....']; // brush w/ steel ferrule + paint tip
     this._scn = S;
     return S;
   }
@@ -1268,6 +1350,15 @@ export default class App extends React.Component {
       } else if (jk === 'teacher') {
         this._scene = { type: 'teach' };
         this._gear = 'teacher';
+      } else if (jk === 'fisher') {
+        this._scene = { type: 'fish', ripples: [], fish: null, bite: 0 };
+        this._gear = 'fisher';
+      } else if (jk === 'barista') {
+        this._scene = { type: 'cafe', fill: 0, steam: [], done: 0 };
+        this._gear = 'barista';
+      } else if (jk === 'painter') {
+        this._scene = { type: 'paint', strokes: 0, dab: 0 };
+        this._gear = 'painter';
       }
       // other jobs keep no special scene (briefcase prop handles them)
     }
@@ -1691,6 +1782,86 @@ export default class App extends React.Component {
       if (Math.floor(t / 260) % 2) { ctx.fillStyle = '#f4f6ef'; ctx.fillRect(tapX - 2, Math.round(tapY) - 2, 4, 4); }
       return;
     }
+
+    if (sc.type === 'fish') {
+      // The pet (in a bucket hat) casts a rod into a little pond on its facing
+      // side; the bobber bobs, and now and then a fish leaps out with a splash.
+      const right = this.p.facing > 0, dir = right ? 1 : -1;
+      const pondW = 92, pondX = right ? cx + 18 : cx - 18 - pondW, surfY = GND - 4;
+      ctx.fillStyle = '#4a7bd0'; ctx.fillRect(pondX, surfY, pondW, 40);   // water body
+      ctx.fillStyle = '#7fc8ff';                                          // wavy surface glints
+      for (let i = 0; i < pondW; i += 6) {
+        const wy = surfY + Math.sin(t / 300 + (pondX + i) / 14) * 2;
+        ctx.fillRect(pondX + i, Math.round(wy), 5, 3);
+      }
+      const bx = pondX + pondW * 0.5;
+      const biting = sc.bite > 0 && sc.bite < 20;                         // dips under on a bite
+      const bobY = surfY - 6 + (biting ? 7 : Math.sin(t / 260) * 3);
+      const handX = right ? cx + 24 : cx - 24, handY = GND - 52;
+      const rodTipX = handX + dir * 22, rodTipY = handY - 20;
+      ctx.fillStyle = '#7a4a24';                                          // the rod (flipper → tip)
+      for (let i = 0; i <= 10; i++) { const u = i / 10; ctx.fillRect(Math.round(handX + (rodTipX - handX) * u) - 1, Math.round(handY + (rodTipY - handY) * u) - 1, 3, 3); }
+      ctx.fillStyle = '#dfe8f5';                                          // the line (tip → bobber)
+      for (let i = 0; i <= 14; i++) { const u = i / 14; ctx.fillRect(Math.round(rodTipX + (bx + 1 - rodTipX) * u) - 1, Math.round(rodTipY + (bobY - rodTipY) * u) - 1, 2, 2); }
+      this.drawSprite(ctx, G.bobber, PAL, bx - 4, bobY - 6, 4);
+      if (sc.bite <= 0 && Math.random() < 0.006) { sc.bite = 46; sc.fish = { x: bx, y: surfY, vy: -3.4, vx: dir * -1.1 }; }
+      if (sc.bite > 0) sc.bite -= 1;
+      if (sc.fish) {
+        const f = sc.fish; f.x += f.vx; f.y += f.vy; f.vy += 0.13;
+        this.drawSprite(ctx, G.fish, PAL, f.x - 12, f.y - 8, 4, f.vx > 0);
+        if (f.y > surfY + 2) {                                            // splashdown
+          ctx.fillStyle = '#7fc8ff';
+          for (let i = 0; i < 4; i++) ctx.fillRect(Math.round(f.x) + (i - 2) * 4, surfY - 2 - (i % 2) * 3, 2, 2);
+          sc.fish = null;
+        }
+      }
+      return;
+    }
+
+    if (sc.type === 'cafe') {
+      // The pet (in a brown apron) pulls a shot: a cup fills with coffee under the
+      // espresso machine's spout, steam wisps rise, and a shine pops when it's done.
+      const PB = P + 1;
+      const right = this.p.facing > 0;
+      const mW = G.espresso[0].length * PB;
+      const mX = right ? cx + 22 : cx - 22 - mW, mY = GND - G.espresso.length * PB - 18;
+      this.drawSprite(ctx, G.espresso, PAL, mX, mY, PB);
+      const spoutX = mX + mW / 2;
+      const cupW = G.cup[0].length * 4, cupH = G.cup.length * 4;
+      const cupX = spoutX - cupW / 2, cupY = mY + G.espresso.length * PB + 2;
+      this.drawSprite(ctx, G.cup, PAL, cupX, cupY, 4);                    // mug outline first
+      sc.fill += 0.5;                                                     // then coffee rises inside
+      if (sc.fill > 15) { sc.fill = 0; sc.done = 30; }
+      const lvl = Math.min(13, sc.fill);
+      ctx.fillStyle = '#5b3a1e'; ctx.fillRect(cupX + 4, cupY + 15 - lvl, 12, lvl);
+      if (Math.random() < 0.2 && sc.steam.length < 10) sc.steam.push({ x: spoutX + (Math.random() * 10 - 5), y: cupY - 2, vy: -(0.4 + Math.random() * 0.5), life: 30 });
+      sc.steam.forEach((p) => { p.y += p.vy; p.x += Math.sin((t + p.y * 10) / 200) * 0.4; p.life -= 1; ctx.fillStyle = 'rgba(238,247,255,.7)'; ctx.fillRect(Math.round(p.x), Math.round(p.y), 3, 3); });
+      sc.steam = sc.steam.filter((p) => p.life > 0);
+      if (sc.done > 0) { sc.done -= 1; this.drawSprite(ctx, G.shine, PAL, cupX + cupW / 2 - 8, cupY - 20, 4); }
+      return;
+    }
+
+    if (sc.type === 'paint') {
+      // The pet (in a red beret) paints at an easel: colourful strokes fill the
+      // canvas one by one, a brush dabs along, and a palette sits by its side.
+      const PB = P + 1;
+      const right = this.p.facing > 0;
+      const eW = G.easel[0].length * PB;
+      const eX = right ? cx + 24 : cx - 24 - eW, eY = GND - G.easel.length * PB;
+      this.drawSprite(ctx, G.easel, PAL, eX, eY, PB);
+      const colors = ['#ff6f7a', '#4a7bd0', '#3fae4e', '#ffe27a', '#ff9d3d'];
+      sc.dab += 1;
+      if (sc.dab % 44 === 0) sc.strokes = (sc.strokes + 1) % 7;           // a fresh stroke, then it "dries" and resets
+      const ix = eX + PB, iy = eY + PB;                                   // canvas interior origin
+      const lens = [20, 12, 24, 14, 22, 16, 18];
+      for (let i = 0; i < sc.strokes; i++) { ctx.fillStyle = colors[i % colors.length]; ctx.fillRect(ix + 2, iy + 2 + i * 4, lens[i], 3); }
+      const by = iy + 2 + Math.min(sc.strokes, 6) * 4;                    // brush dabs at the working row
+      const bxp = ix + 4 + Math.sin(t / 120) * 8;
+      this.drawSprite(ctx, G.pbrush, PAL, Math.round(bxp), Math.round(by) - 8, 3);
+      const palX = right ? cx - 58 : cx + 40, palY = GND - 30;           // palette at the other side
+      this.drawSprite(ctx, G.palette, PAL, palX, palY + Math.sin(t / 300) * 2, 4);
+      return;
+    }
   }
 
   // ---- 玩耍 mini-games (in-window, penguin-driven, pure pixel art) ----------
@@ -2094,6 +2265,20 @@ export default class App extends React.Component {
             [2, '.....PPPPPP.....'], [3, '....PPPPPPPP....'],
             [4, '..PPPPPPPPPPPP..'], [10, '...SSSSPPSSSS...']]);
         break;
+      case 'fisher': // 钓鱼 — a khaki bucket hat with a wide brown brim
+        sw([[0, '......GGGG......'], [1, '....GGGGGGGG....'],
+            [2, '...GGGGGGGGGG...'], [3, '..GGGGGGGGGGGG..'],
+            [4, '.BBBBBBBBBBBBBB.']]);
+        break;
+      case 'barista': // 咖啡师 — a brown apron with a little white pocket
+        sw([[8, '..DLLBBBBBBLLD..'], [9, '..DDBBBBBBBBDD..'],
+            [11, '..DDDBBBBBBDDD..'], [12, '..DDDBBBBBBDDD..'],
+            [13, '..DDDBWWBBBDDD..'], [14, '...DDBBBBBBDD...']]);
+        break;
+      case 'painter': // 画家 — a jaunty red beret
+        sw([[0, '.......NN.......'], [1, '....NNNNNNNN....'],
+            [2, '...NNNNNNNNNN...'], [3, '..NNNNNNNNNNNN..']]);
+        break;
       default: break;
     }
     return c;
@@ -2300,8 +2485,8 @@ export default class App extends React.Component {
     else if (p.action === 'love') face = this.G.love;        // heart eyes
     else if (p.action === 'yawn') face = this.G.yawn;        // shut eyes + open mouth
     else if (p.action === 'doze') face = this.G.sleepy;      // drowsy half-closed eyes
-    else if (p.action === 'tv' || p.action === 'music' || p.action === 'stretch' || p.action === 'flap' || p.action === 'slide' || p.action === 'wave') face = this.G.happy;
-    else if (p.action === 'study' || p.action === 'read' || p.action === 'look' || p.action === 'wait' || p.action === 'sneeze' || p.action === 'peck' || p.action === 'preen') face = this.G.idle;
+    else if (p.action === 'tv' || p.action === 'music' || p.action === 'stretch' || p.action === 'flap' || p.action === 'slide' || p.action === 'wave' || p.action === 'roll') face = this.G.happy;
+    else if (p.action === 'study' || p.action === 'read' || p.action === 'look' || p.action === 'wait' || p.action === 'sneeze' || p.action === 'peck' || p.action === 'preen' || p.action === 'scratch' || p.action === 'gaze') face = this.G.idle;
     else if (p.action === 'enter') face = this.G.happy;
     else if (p.action === 'eat') face = (Math.floor(t / 170) % 2 ? this.G.eat : this.G.idle);
     else {
@@ -2372,6 +2557,9 @@ export default class App extends React.Component {
     if (p.action === 'preen') { tilt = (10 + Math.sin(t / 90) * 7) * p.facing; jy = -2; } // leans to its side, nibbling its feathers
     if (p.action === 'doze') { const cyc = ((t - p.aStart) / 800) % 1; const droop = cyc < 0.85 ? cyc / 0.85 : 0; tilt = droop * 16 * p.facing; jy = -droop * 8; } // head sinks… then jerks awake
     if (p.action === 'wave') { rot = Math.sin(t / 110) * 16; jy = Math.abs(Math.sin(t / 220)) * 5; } // cheery side-to-side hello
+    if (p.action === 'roll') { let pr = (t - p.aStart) / p.aDur; if (pr > 1) pr = 1; rot = pr * 360 * p.facing; jy = Math.sin(pr * Math.PI) * 10; sy = 1 - Math.sin(pr * Math.PI * 2) * 0.08; } // a full flop-and-roll
+    if (p.action === 'scratch') { tilt = 8 * p.facing; jy = Math.abs(Math.sin(t / 60)) * 3; rot = Math.sin(t / 55) * 4 * p.facing; } // quick itch-shimmy
+    if (p.action === 'gaze') { tilt = -10 * p.facing; jy = Math.sin(t / 600) * 2; } // head tipped back, daydreaming up at the sky
     if (p.action === 'sneeze') {
       let pr = (t - p.aStart) / p.aDur; if (pr > 1) pr = 1;
       tilt = (pr < 0.55 ? -(pr / 0.55) : (1 - (pr - 0.55) / 0.45)) * 15 * p.facing; // lean back… then ACHOO forward
@@ -2569,6 +2757,9 @@ export default class App extends React.Component {
               ['doze',    (s.energy < 45 ? 14 : night ? 8 : 0) * nightRest],
               ['wait',    awayLong ? 16 + P.attachment * 0.15 : 0],  // miss the owner
               ['edge',    awayLong ? 8 + P.curiosity * 0.06 : 0],    // wander to an edge and peek out
+              ['roll',    s.energy > 55 ? (6 + P.liveliness * 0.07) * dayLively : 0], // playful flop-and-roll
+              ['scratch', 6 + (s.cleanliness < 60 ? 6 : 0)],         // itchier when it needs a bath
+              ['gaze',    (7 + P.curiosity * 0.06) * (night ? 1.5 : 1)], // daydream (dreamier at night)
               ['sneeze',  2],
             ]);
           }
@@ -2652,12 +2843,12 @@ export default class App extends React.Component {
   _hour() { return new Date().getHours(); }
   _night() { const h = this._hour(); return h < 6 || h >= 22; }
   // Per-behaviour minimum spacing (seconds) so nothing recurs too often.
-  static COOLDOWN = { sneeze: 70, slide: 40, ball: 30, stretch: 24, flap: 24, yawn: 30, cough: 20, edge: 60 };
+  static COOLDOWN = { sneeze: 70, slide: 40, ball: 30, stretch: 24, flap: 24, yawn: 30, cough: 20, edge: 60, roll: 50, scratch: 34, gaze: 52 };
   // Weighted pick of the next idle behaviour. `opts` is [key, weight]; zero (or
   // negative) weights, the immediately-previous behaviour, and anything still on
   // cooldown are excluded, so the pet varies and never repeats back-to-back.
   _pickBehavior(opts) {
-    const METHOD = { walk: 'startWalk', leisure: 'startLeisure', sit: 'sitAct', look: 'lookAct', preen: 'preenAct', peck: 'peckAct', stretch: 'stretchAct', flap: 'flapAct', slide: 'startSlide', ball: 'ballAct', yawn: 'yawnAct', doze: 'dozeAct', wait: 'waitAct', sneeze: 'sneezeAct', cough: 'coughAct', edge: 'edgePeek' };
+    const METHOD = { walk: 'startWalk', leisure: 'startLeisure', sit: 'sitAct', look: 'lookAct', preen: 'preenAct', peck: 'peckAct', stretch: 'stretchAct', flap: 'flapAct', slide: 'startSlide', ball: 'ballAct', yawn: 'yawnAct', doze: 'dozeAct', wait: 'waitAct', sneeze: 'sneezeAct', cough: 'coughAct', edge: 'edgePeek', roll: 'rollAct', scratch: 'scratchAct', gaze: 'gazeAct' };
     const now = Date.now();
     const cd = this._behavCd || (this._behavCd = {});
     const ok = ([k, w]) => w > 0 && k !== this._lastBehavior && (!App.COOLDOWN[k] || now - (cd[k] || 0) > App.COOLDOWN[k] * 1000);

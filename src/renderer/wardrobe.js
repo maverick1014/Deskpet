@@ -21,7 +21,7 @@ export const WARDROBE_MAP = WARDROBE.reduce((m, w) => { m[w.key] = w; return m; 
 export const ACCESSORY_ROWS = {
   tophat: [[0, '......PPPP......'], [1, '......PPPP......'], [2, '.....PPPPPP.....'], [3, '...PPPPPPPPPP...'], [4, '..DDPPPPPPPPDD..']],
   beanie: [[0, '.......WW.......'], [1, '....MMMMMMMM....'], [2, '...MMMMMMMMMM...'], [3, '..MMMMMMMMMMMM..'], [4, '..IIIIIIIIIIII..']],
-  glasses: [[5, '..DLPPPLLPPPLD..'], [6, '..DPZEPLLPEZPD..'], [7, '..DPPPLOOLPPPD..']],
+  glasses: [[5, '..DLPPPLLPPPLD..'], [6, '..DPZEZLLZEZPD..'], [7, '..DLPPPOOPPPLD..']],
   scarf: [[9, '..DVVVVVVVVVVD..'], [10, '..VVVVVVVVVVVV..'], [11, '..DDDLLLLLLVVD..']],
 };
 
@@ -36,6 +36,14 @@ export const ACHIEVEMENTS = [
   { key: 'focus', name: { zh: '专注一刻', en: 'Focus friend' }, desc: { zh: '完成一次番茄专注', en: 'Finish a Pomodoro focus' } },
   { key: 'played3', name: { zh: '老朋友', en: 'Old friend' }, desc: { zh: '陪伴满 3 天', en: 'Play for 3 days' } },
   { key: 'wellFed', name: { zh: '顿顿吃饱', en: 'Well fed' }, desc: { zh: '连续 3 天吃得饱饱的', en: 'Stay well fed 3 days' } },
+  // ---- v1.19.0 new milestones (new trades + growth/collection/bond/night) ----
+  { key: 'fisher', name: { zh: '钓鱼高手', en: 'Angler' }, desc: { zh: '完成一次钓鱼', en: 'Finish a fishing shift' } },
+  { key: 'barista', name: { zh: '咖啡师', en: 'Barista' }, desc: { zh: '冲出第一杯咖啡', en: 'Pull your first shot' } },
+  { key: 'painter', name: { zh: '小画家', en: 'Painter' }, desc: { zh: '完成第一幅画', en: 'Finish a painting' } },
+  { key: 'lv10', name: { zh: '十级达成', en: 'Level 10' }, desc: { zh: '成长到 10 级', en: 'Reach level 10' } },
+  { key: 'collector', name: { zh: '时尚达人', en: 'Fashionista' }, desc: { zh: '集齐所有配饰', en: 'Own every accessory' } },
+  { key: 'bonded', name: { zh: '形影不离', en: 'Bonded' }, desc: { zh: '羁绊值达到 50', en: 'Reach a bond of 50' } },
+  { key: 'nightOwl', name: { zh: '夜猫子', en: 'Night owl' }, desc: { zh: '深夜还陪着企鹅', en: 'Keep it company late at night' } },
 ];
 export const ACH_MAP = ACHIEVEMENTS.reduce((m, a) => { m[a.key] = a; return m; }, {});
 
