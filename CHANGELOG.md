@@ -9,6 +9,21 @@ is pre-release, so versions are milestone markers rather than published releases
 New lifelike animations being added one at a time.
 See `TODO.md` for the remaining activity-authentic focus animations.
 
+## [1.20.0] — 2026-07-09 — Tidier right-click menu + hover shortcuts
+
+### Fixed
+- **Right-click menu no longer gets cropped.** In the small pet window a long
+  menu could run off the bottom edge with no way to reach the hidden items. The
+  menu is now height-capped and scrolls, so every item is always reachable.
+
+### Changed
+- **Slimmer context menu.** 喂食 / 洗澡 / 玩耍 / 坐下 (Feed / Bath / Play / Sit)
+  were removed from the right-click menu — they're already reachable directly
+  (the hover care panel, and interacting with the pet), so the menu stays short.
+- **上学 / 上班 (School / Work) shortcuts on hover.** The hover panel gained a
+  second row with School and Work buttons, so you can start a study or work
+  session without opening the right-click menu every time.
+
 ## [1.19.0] — 2026-07-02 — New trades, new behaviours, more achievements
 
 ### Added

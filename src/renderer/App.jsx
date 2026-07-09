@@ -3095,7 +3095,9 @@ export default class App extends React.Component {
     const r = this.rootRef.current.getBoundingClientRect();
     const W = this.WIN_W || r.width, H = this.WIN_H || r.height;
     const x = clamp(e.clientX - r.left, 0, Math.max(0, W - 162));
-    const y = clamp(e.clientY - r.top, 0, Math.max(0, H - 320));
+    // Menu is now short (Feed/Bath/Play/Sit moved to the hover panel); reserve a
+    // smaller height, and ContextMenu's maxH caps it so it can never crop.
+    const y = clamp(e.clientY - r.top, 0, Math.max(0, H - 260));
     this.setState({ menu: { x, y } });
   };
   closeMenu = () => { if (this.state.menu) this.setState({ menu: null }); };
@@ -3673,6 +3675,7 @@ export default class App extends React.Component {
               petName={s.name} lang={s.lang}
               onStat={this.setHoverStat} onLeave={this.clearHoverStat}
               onOpenCat={this.openCat} onBuy={this.buyItem} onBack={this.backShop} onPlay={this.playFree}
+              onStudy={this.studyAct} onWork={this.workAct}
             />
           </div>
         </div>
@@ -3681,12 +3684,9 @@ export default class App extends React.Component {
         {s.menu && (
           <ContextMenu
             x={s.menu.x} y={s.menu.y}
+            maxH={(this.WIN_H || 400) - s.menu.y - 10}
             sick={s.sick} lang={s.lang}
             onClose={this.closeMenu}
-            onFeed={() => { this.closeMenu(); this.openCat('food'); }}
-            onBath={() => { this.closeMenu(); this.openCat('bath'); }}
-            onPlay={() => { this.closeMenu(); this.playFree(); }}
-            onSit={this.sitAct}
             onStudy={this.studyAct} onWork={this.workAct} onMedicine={this.openMedicine}
             focusing={!!s.session} onStopFocus={() => { this.closeMenu(); this.requestBreakFocus(); }}
             onCenter={() => { this.closeMenu(); this.recenter(); }}
