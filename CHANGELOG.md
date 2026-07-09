@@ -9,6 +9,33 @@ is pre-release, so versions are milestone markers rather than published releases
 New lifelike animations being added one at a time.
 See `TODO.md` for the remaining activity-authentic focus animations.
 
+## [1.21.0] — 2026-07-09 — Career Path: study grows into a career
+
+A big overhaul that ties **studying** to **work**: the penguin grows up through
+age-appropriate school stages, and what it studies is what qualifies it for a
+job. Full spec in `docs/CAREER_PATH.md`.
+
+### Added
+- **Age-realistic curriculum by stage.** 幼儿园 (识字·数数·画画·唱歌·手工) →
+  小学 (语文·数学·英语·科学·体育·音乐·美术) → 中学 (+物理·化学·生物·历史·地理·信息)
+  → 大学: **enroll in one faculty** (计算机/商/医/教育/艺术) and study its majors.
+  Graduate a stage by finishing its subjects. Every subject has its own
+  hand-drawn **chalkboard glyph** and bilingual "learn out loud" facts.
+- **Careers hard-gated by study.** A job unlocks only once the pet has reached
+  its stage AND studied the right course(s) — chores anytime, 便利店←数学,
+  咖啡师←英语, 快递员←体育+地理, 程序员←计算机+数学, 医生←医学+生物+化学, etc.
+  The Work menu lists every career and shows locked ones with **what to study**.
+- **Three new professions**, each with its own outfit + pixel scene: **家教
+  Tutor** (study glasses; desk, book, a green ✓), **会计 Accountant** (green
+  eyeshade; abacus, ledger, a growing coin stack), **医生 Doctor** (head mirror +
+  stethoscope; medical cross, chart, a ticking heartbeat monitor). Plus an
+  achievement badge for each.
+
+### Changed
+- Study progress now records a persistent **learned** set (subjects mastered),
+  and college enrollment persists a chosen **faculty**. Existing pets are
+  migrated so their jobs stay unlocked.
+
 ## [1.20.0] — 2026-07-09 — Tidier right-click menu + hover shortcuts
 
 ### Fixed
