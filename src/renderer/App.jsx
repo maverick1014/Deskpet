@@ -1423,8 +1423,9 @@ export default class App extends React.Component {
     this._scene = null;
     if (!session) return;
     if (session.kind === 'study') {
-      const sub = { cn: 'chalk_cn', en: 'chalk_en', ma: 'chalk_ma', sc: 'chalk_sc' };
-      this._scene = { type: 'class', subj: session.subjectKey, chalk: sub[session.subjectKey] || 'chalk_cn', t0: performance.now(), beat: 'listen', chalkThrow: null };
+      // Each subject has its own chalkboard glyph (chalk_<key>); drawScene falls
+      // back to chalk_cn for any not yet authored.
+      this._scene = { type: 'class', subj: session.subjectKey, chalk: 'chalk_' + session.subjectKey, t0: performance.now(), beat: 'listen', chalkThrow: null };
       this._faceOverride = 'confused';
       // 英语 class — the pet dresses up as a dapper little gentleman.
       if (session.subjectKey === 'en') this._gear = 'english';
@@ -1629,7 +1630,7 @@ export default class App extends React.Component {
       if (beat === 'think') {
         const bx = cx - 120, by = 6;
         this.drawSprite(ctx, G.board, PAL, bx, by, P);
-        const chalk = G[sc.chalk];
+        const chalk = G[sc.chalk] || G.chalk_cn;
         const cw = chalk[0].length * P, ch = chalk.length * P;
         this.drawSprite(ctx, chalk, PAL, bx + (G.board[0].length * P - cw) / 2, by + (G.board.length * P - ch) / 2, P);
       }
