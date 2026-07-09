@@ -26,37 +26,113 @@ const SCARF = '#ff4d6d';
 // subjects, and each subject needs `per` focus classes to graduate. Graduating
 // all 4 subjects promotes the pet to the next level. A class runs for `min`
 // REAL minutes of focused study (the pet keeps studying the whole time).
-const SUBJECTS = [
-  { key: 'cn', name: { zh: '语文', en: 'Chinese' }, icon: '📖' },
-  { key: 'en', name: { zh: '英语', en: 'English' }, icon: '🔤' },
-  { key: 'ma', name: { zh: '数学', en: 'Math' }, icon: '➗' },
-  { key: 'sc', name: { zh: '科学', en: 'Science' }, icon: '🔬' },
+// ---- Curriculum: age-appropriate subjects per school stage -----------------
+// Every subject the pet can study, keyed. Some recur across stages (语文/数学/
+// 英语/体育 = harder rounds); `learned` records any subject ever completed, which
+// is what qualifies the pet for the careers that need it (see JOB_REQ). Menu
+// icons are emoji chrome (like the jobs); the on-canvas study art is pixels.
+const SUBJECT_INFO = {
+  // 幼儿园 Kindergarten
+  read:  { name: { zh: '识字', en: 'Literacy' },  icon: '🔤' },
+  count: { name: { zh: '数数', en: 'Numbers' },   icon: '🔢' },
+  draw:  { name: { zh: '画画', en: 'Drawing' },   icon: '🖍️' },
+  sing:  { name: { zh: '唱歌', en: 'Singing' },   icon: '🎵' },
+  craft: { name: { zh: '手工', en: 'Crafts' },    icon: '✂️' },
+  // 小学 Primary
+  cn:    { name: { zh: '语文', en: 'Chinese' },   icon: '📖' },
+  ma:    { name: { zh: '数学', en: 'Math' },      icon: '➗' },
+  en:    { name: { zh: '英语', en: 'English' },   icon: '🔡' },
+  sc:    { name: { zh: '科学', en: 'Science' },   icon: '🔬' },
+  pe:    { name: { zh: '体育', en: 'PE' },        icon: '⚽' },
+  music: { name: { zh: '音乐', en: 'Music' },     icon: '🎶' },
+  art:   { name: { zh: '美术', en: 'Art' },       icon: '🖌️' },
+  // 中学 Secondary
+  phys:  { name: { zh: '物理', en: 'Physics' },   icon: '🧲' },
+  chem:  { name: { zh: '化学', en: 'Chemistry' }, icon: '⚗️' },
+  bio:   { name: { zh: '生物', en: 'Biology' },   icon: '🧬' },
+  hist:  { name: { zh: '历史', en: 'History' },   icon: '📜' },
+  geo:   { name: { zh: '地理', en: 'Geography' }, icon: '🗺️' },
+  it:    { name: { zh: '信息', en: 'IT' },        icon: '💻' },
+  // 大学 College majors (studied after enrolling in a faculty)
+  cs:    { name: { zh: '计算机', en: 'CompSci' },  icon: '💻' },
+  ai:    { name: { zh: '人工智能', en: 'AI' },     icon: '🤖' },
+  acct:  { name: { zh: '会计', en: 'Accounting' }, icon: '🧮' },
+  fin:   { name: { zh: '金融', en: 'Finance' },   icon: '📈' },
+  med:   { name: { zh: '医学', en: 'Medicine' },  icon: '💉' },
+  nurse: { name: { zh: '护理', en: 'Nursing' },   icon: '🩺' },
+  edu:   { name: { zh: '教育', en: 'Education' },  icon: '🎓' },
+  psy:   { name: { zh: '心理', en: 'Psychology' },icon: '🧠' },
+  fa:    { name: { zh: '美术', en: 'Fine Art' },  icon: '🖼️' },
+  design:{ name: { zh: '设计', en: 'Design' },    icon: '✏️' },
+};
+const subj = (key) => ({ key, ...SUBJECT_INFO[key] });
+// Subjects taught at each stage (index = schoolLevel). College (3) is handled
+// via COLLEGE faculties — the pet enrolls in one and studies its majors.
+const STAGE_SUBJECTS = [
+  ['read', 'count', 'draw', 'sing', 'craft'],
+  ['cn', 'ma', 'en', 'sc', 'pe', 'music', 'art'],
+  ['cn', 'ma', 'en', 'phys', 'chem', 'bio', 'hist', 'geo', 'pe', 'it'],
 ];
+const COLLEGE = [
+  { key: 'cs_fac',  name: { zh: '计算机学院', en: 'Computing' }, majors: ['cs', 'ai'] },
+  { key: 'biz_fac', name: { zh: '商学院',     en: 'Business' },  majors: ['acct', 'fin'] },
+  { key: 'med_fac', name: { zh: '医学院',     en: 'Medicine' },  majors: ['med', 'nurse'] },
+  { key: 'edu_fac', name: { zh: '教育学院',   en: 'Education' }, majors: ['edu', 'psy'] },
+  { key: 'art_fac', name: { zh: '艺术学院',   en: 'Arts' },      majors: ['fa', 'design'] },
+];
+// Subjects for a given school level (college → the enrolled faculty's majors).
+function subjectsForLevel(lvl, facultyKey) {
+  if (lvl < STAGE_SUBJECTS.length) return STAGE_SUBJECTS[lvl].map(subj);
+  const fac = COLLEGE.find((f) => f.key === facultyKey);
+  return fac ? fac.majors.map(subj) : [];
+}
 const SCHOOL = [
-  { name: { zh: '幼儿园', en: 'Kindergarten' }, per: 2,  min: 15 },
-  { name: { zh: '小学',   en: 'Primary' },      per: 4,  min: 30 },
-  { name: { zh: '中学',   en: 'Secondary' },    per: 8,  min: 60 },
-  { name: { zh: '大学',   en: 'University' },    per: 16, min: 120 },
+  { name: { zh: '幼儿园', en: 'Kindergarten' }, per: 1, min: 15 },
+  { name: { zh: '小学',   en: 'Primary' },      per: 1, min: 30 },
+  { name: { zh: '中学',   en: 'Secondary' },    per: 1, min: 60 },
+  { name: { zh: '大学',   en: 'University' },    per: 1, min: 120 },
 ];
-// Jobs unlock by school level reached (lvl ≤ schoolLevel). Higher tiers pay
-// more. A shift is 30 or 60 real minutes; pay = rate × minutes. `key` drives the
-// scene/attire (stable across languages); `name` is display-only.
+// A career unlocks by school stage reached (minStage) AND having studied the
+// required course(s) — some need a combo. `anyCount` = at least N subjects
+// learned (used by 家教/tutor). Chores need nothing (minStage 0, no courses).
+const JOB_REQ = {
+  weed:       { minStage: 0, courses: [] },
+  flyer:      { minStage: 0, courses: [] },
+  dish:       { minStage: 0, courses: [] },
+  fisher:     { minStage: 1, courses: [] },
+  clean:      { minStage: 1, courses: [] },
+  store:      { minStage: 2, courses: ['ma'] },
+  barista:    { minStage: 2, courses: ['en'] },
+  courier:    { minStage: 2, courses: ['pe', 'geo'] },
+  tutor:      { minStage: 2, courses: [], anyCount: 1 },
+  coder:      { minStage: 3, courses: ['cs', 'ma'] },
+  accountant: { minStage: 3, courses: ['acct', 'ma'] },
+  teacher:    { minStage: 3, courses: ['edu'] },
+  painter:    { minStage: 3, courses: ['fa'] },
+  doctor:     { minStage: 3, courses: ['med', 'bio', 'chem'] },
+};
+// Careers. Gating lives in JOB_REQ (stage + course combo); `rate` sets pay
+// (pay = rate × minutes). `key` drives the scene/attire (stable across
+// languages); `name` is display-only. Appended over time so jobIdx stays stable.
 const JOBS = [
-  { key: 'flyer',   name: { zh: '发传单',     en: 'Flyering' },     lvl: 0, rate: 1.2, icon: '📰' },
-  { key: 'weed',    name: { zh: '拔草',       en: 'Weeding' },      lvl: 0, rate: 1.6, icon: '🌿' },
-  { key: 'dish',    name: { zh: '洗碗',       en: 'Dishwashing' },  lvl: 1, rate: 2.4, icon: '🍽️' },
-  { key: 'clean',   name: { zh: '清洁工',     en: 'Cleaner' },      lvl: 1, rate: 3.0, icon: '🧹' },
-  { key: 'store',   name: { zh: '便利店店员', en: 'Store clerk' },  lvl: 2, rate: 3.8, icon: '🏪' },
-  { key: 'courier', name: { zh: '快递员',     en: 'Courier' },      lvl: 2, rate: 4.4, icon: '📦' },
-  { key: 'coder',   name: { zh: '程序员',     en: 'Programmer' },   lvl: 3, rate: 6.5, icon: '💻' },
-  { key: 'teacher', name: { zh: '老师',       en: 'Teacher' },      lvl: 3, rate: 5.8, icon: '🧑‍🏫' },
-  // ---- v1.19.0 new trades (appended so existing jobIdx values stay stable) ----
-  { key: 'fisher',  name: { zh: '钓鱼',       en: 'Fishing' },      lvl: 1, rate: 2.2, icon: '🎣' },
-  { key: 'barista', name: { zh: '咖啡师',     en: 'Barista' },      lvl: 2, rate: 4.0, icon: '☕' },
-  { key: 'painter', name: { zh: '画家',       en: 'Painter' },      lvl: 3, rate: 6.0, icon: '🎨' },
+  { key: 'flyer',      name: { zh: '发传单',     en: 'Flyering' },     rate: 1.2, icon: '📰' },
+  { key: 'weed',       name: { zh: '拔草',       en: 'Weeding' },      rate: 1.6, icon: '🌿' },
+  { key: 'dish',       name: { zh: '洗碗',       en: 'Dishwashing' },  rate: 2.4, icon: '🍽️' },
+  { key: 'clean',      name: { zh: '清洁工',     en: 'Cleaner' },      rate: 3.0, icon: '🧹' },
+  { key: 'store',      name: { zh: '便利店店员', en: 'Store clerk' },  rate: 3.8, icon: '🏪' },
+  { key: 'courier',    name: { zh: '快递员',     en: 'Courier' },      rate: 4.4, icon: '📦' },
+  { key: 'coder',      name: { zh: '程序员',     en: 'Programmer' },   rate: 6.5, icon: '💻' },
+  { key: 'teacher',    name: { zh: '老师',       en: 'Teacher' },      rate: 5.8, icon: '🧑‍🏫' },
+  { key: 'fisher',     name: { zh: '钓鱼',       en: 'Fishing' },      rate: 2.2, icon: '🎣' },
+  { key: 'barista',    name: { zh: '咖啡师',     en: 'Barista' },      rate: 4.0, icon: '☕' },
+  { key: 'painter',    name: { zh: '画家',       en: 'Painter' },      rate: 6.0, icon: '🎨' },
+  // ---- career-path additions (higher-ed professions + a teen tutor) ----
+  { key: 'tutor',      name: { zh: '家教',       en: 'Tutor' },        rate: 4.6, icon: '📝' },
+  { key: 'accountant', name: { zh: '会计',       en: 'Accountant' },   rate: 6.8, icon: '🧮' },
+  { key: 'doctor',     name: { zh: '医生',       en: 'Doctor' },       rate: 9.0, icon: '🩺' },
 ];
 const WORK_MINS = [30, 60];
-const FRESH_CLASSES = { cn: 0, en: 0, ma: 0, sc: 0 };
+const FRESH_CLASSES = {}; // classDone resets to empty each stage (counts default 0)
 const SICK_TIER = { mild: 1, medium: 2, severe: 3 };
 
 // Growth: a freshly hatched pet starts as an egg/baby and becomes a full penguin
@@ -86,7 +162,7 @@ export default class App extends React.Component {
     // Timed school/work: schoolLevel 0..4 (4 = graduated 大学); classDone tracks
     // classes finished per subject at the CURRENT level. session is the active
     // focus block (null when idle); schoolMenu/workMenu open the pickers.
-    schoolLevel: 0, classDone: { cn: 0, en: 0, ma: 0, sc: 0 },
+    schoolLevel: 0, classDone: {}, learned: [], faculty: null,
     session: null, sessionLeft: 0, schoolMenu: false, workMenu: false,
     playOpen: false, playGame: null, gameScore: 0,
     shopCat: null,
@@ -483,7 +559,7 @@ export default class App extends React.Component {
       dead: false, sick: null, health: 100,
       fullness: 70, energy: 80, cleanliness: 100, happiness: 80,
       education: 0, study: 0, money: 200, mood: 'happy',
-      schoolLevel: 0, classDone: { cn: 0, en: 0, ma: 0, sc: 0 }, session: null, sessionLeft: 0,
+      schoolLevel: 0, classDone: {}, learned: [], faculty: null, session: null, sessionLeft: 0,
       traits: traitLabel(this.personality),
     }, () => this.save());
     this.rebirth(t(this.state.lang, 'say.newHello'));
@@ -561,10 +637,34 @@ export default class App extends React.Component {
     this.setState({ workMenu: true, schoolMenu: false, hover: false, shopCat: null });
   };
   closeSchool = () => this.setState({ schoolMenu: false });
+  // Enroll in a 大学 faculty — this picks the pet's career direction (its majors).
+  enrollFaculty = (facKey) => { this.setState({ faculty: facKey }, () => this.save()); };
   closeWork = () => this.setState({ workMenu: false });
 
   // Jobs the pet has unlocked at its current school level.
-  unlockedJobs() { return JOBS.filter((j) => j.lvl <= this.state.schoolLevel); }
+  // A career is available once the pet has reached its stage AND studied its
+  // required course(s) — the hard gate that ties work to study. `anyCount` needs
+  // at least N subjects learned overall (家教). Chores need nothing.
+  jobUnlocked(jobKey) {
+    const req = JOB_REQ[jobKey] || { minStage: 0, courses: [] };
+    if ((this.state.schoolLevel || 0) < req.minStage) return false;
+    const learned = this.state.learned || [];
+    if (req.courses && !req.courses.every((c) => learned.includes(c))) return false;
+    if (req.anyCount && learned.length < req.anyCount) return false;
+    return true;
+  }
+  // Why a locked job is locked (for the work menu): missing stage or courses.
+  jobLock(jobKey) {
+    const req = JOB_REQ[jobKey] || { minStage: 0, courses: [] };
+    const L = this.state.lang;
+    if ((this.state.schoolLevel || 0) < req.minStage) return tn((SCHOOL[req.minStage] || {}).name, L);
+    const learned = this.state.learned || [];
+    const missing = (req.courses || []).filter((c) => !learned.includes(c));
+    if (missing.length) return missing.map((c) => tn(SUBJECT_INFO[c].name, L)).join(' + ');
+    if (req.anyCount && learned.length < req.anyCount) return t(L, 'school.title');
+    return '';
+  }
+  unlockedJobs() { return JOBS.filter((j) => this.jobUnlocked(j.key)); }
 
   // ---- focus sessions (timed study / work) --------------------------------
   // Start a class for one subject. Runs SCHOOL[level].min real minutes.
@@ -575,10 +675,11 @@ export default class App extends React.Component {
     if (lvl >= SCHOOL.length) { this.speak(t(L, 'say.gradAll'), 2200, true); return; }
     if (this.state.sick) { this.speak(t(L, 'say.sickSeeDoc'), 2200, true); return; }
     const sc = SCHOOL[lvl];
-    const subj = SUBJECTS.find((s) => s.key === subjKey);
-    if ((this.state.classDone[subjKey] || 0) >= sc.per) { this.speak(t(L, 'say.subjDone', tn(subj.name, L)), 2000, true); return; }
+    const info = SUBJECT_INFO[subjKey];
+    if (!info) return;
+    if ((this.state.classDone[subjKey] || 0) >= sc.per) { this.speak(t(L, 'say.subjDone', tn(info.name, L)), 2000, true); return; }
     const endTs = Date.now() + sc.min * 60000;
-    this.beginFocus({ kind: 'study', subjectKey: subjKey, label: `${tn(subj.name, L)}·${t(L, 'school.title')}`, level: lvl, minutes: sc.min, endTs });
+    this.beginFocus({ kind: 'study', subjectKey: subjKey, label: `${tn(info.name, L)}·${t(L, 'school.title')}`, level: lvl, minutes: sc.min, endTs });
     this.setState({ schoolMenu: false });
   };
 
@@ -587,7 +688,7 @@ export default class App extends React.Component {
     if (this.state.session) return;
     const L = this.state.lang;
     const job = JOBS[jobIdx];
-    if (!job || job.lvl > this.state.schoolLevel) return;
+    if (!job || !this.jobUnlocked(job.key)) return;
     if (this.state.sick) { this.speak(t(L, 'say.sickNoWork'), 2200, true); return; }
     const endTs = Date.now() + minutes * 60000;
     this.beginFocus({ kind: 'work', jobIdx, label: `${tn(job.name, L)}·${t(L, 'work.title')}`, minutes, endTs });
@@ -650,19 +751,24 @@ export default class App extends React.Component {
     if (ses.kind === 'study') {
       const sc = SCHOOL[ses.level];
       const done = { ...this.state.classDone, [ses.subjectKey]: Math.min(sc.per, (this.state.classDone[ses.subjectKey] || 0) + 1) };
-      const graduated = SUBJECTS.every((s) => (done[s.key] || 0) >= sc.per);
-      const subj = SUBJECTS.find((s) => s.key === ses.subjectKey);
+      // Graduate a stage once every subject of THIS stage is complete (college =
+      // the enrolled faculty's majors). Record the subject as "learned" forever.
+      const stageSubjects = subjectsForLevel(ses.level, this.state.faculty);
+      const graduated = stageSubjects.length > 0 && stageSubjects.every((sj) => (done[sj.key] || 0) >= sc.per);
+      const info = SUBJECT_INFO[ses.subjectKey] || { name: { zh: '', en: '' } };
+      const learned = Array.from(new Set([...(this.state.learned || []), ses.subjectKey]));
       let schoolLevel = this.state.schoolLevel;
       let classDone = done;
-      if (graduated) { schoolLevel = Math.min(SCHOOL.length, ses.level + 1); classDone = { ...FRESH_CLASSES }; }
-      this.setState((s) => ({ classDone, schoolLevel, happiness: Math.min(100, s.happiness + 5), energy: Math.max(0, s.energy - 10) }), () => this.save());
+      let faculty = this.state.faculty;
+      if (graduated) { schoolLevel = Math.min(SCHOOL.length, ses.level + 1); classDone = {}; faculty = null; }
+      this.setState((s) => ({ classDone, schoolLevel, faculty, learned, happiness: Math.min(100, s.happiness + 5), energy: Math.max(0, s.energy - 10) }), () => this.save());
       this.doneAnim('study');
       this.awardExp(graduated ? 1500 : 600); // finishing a class (or graduating) earns lots of XP
       const next = SCHOOL[schoolLevel];
       const L = this.state.lang;
       this.speak(graduated
         ? (next ? t(L, 'say.promote', tn(sc.name, L), tn(next.name, L)) : t(L, 'say.gradUni'))
-        : t(L, 'say.classDone', tn(subj.name, L), done[ses.subjectKey], sc.per), 3400, true);
+        : t(L, 'say.classDone', tn(info.name, L), done[ses.subjectKey], sc.per), 3400, true);
       this.unlockAchievement('firstClass');
       if (graduated) this.unlockAchievement('graduate');
     } else if (ses.kind === 'pomo') {
@@ -2833,9 +2939,11 @@ export default class App extends React.Component {
   // Subjects the pet has studied (and can now talk about): everything once it has
   // graduated a level, plus any subject it has started at the current level.
   learnedSubjects() {
+    // Everything the pet has ever finished a class in (persisted), plus anything
+    // started at the current stage — the subjects it can talk about / show off.
     const done = this.state.classDone || {};
-    if ((this.state.schoolLevel || 0) > 0) return SUBJECTS.map((s) => s.key);
-    return SUBJECTS.filter((s) => (done[s.key] || 0) > 0).map((s) => s.key);
+    const started = Object.keys(done).filter((k) => (done[k] || 0) > 0);
+    return Array.from(new Set([...(this.state.learned || []), ...started]));
   }
 
   // ---- behaviors -----------------------------------------------------------
@@ -3177,11 +3285,20 @@ export default class App extends React.Component {
     this.personality = normPersonality(d && d.personality);
     if (!d) { this.setState({ loaded: true }); return { gender: null, dead: false }; } // brand-new pet → onboarding (boot)
     const st = {};
-    ['fullness', 'energy', 'cleanliness', 'happiness', 'health', 'sick', 'dead', 'education', 'study', 'gender', 'playTime', 'bonusXp', 'bond', 'money', 'mood', 'name', 'volume', 'speed', 'opacity', 'schoolLevel', 'lang', 'owned', 'equipped', 'achievements', 'sfxOn', 'fedStreak', 'lastFedDay'].forEach((k) => {
+    ['fullness', 'energy', 'cleanliness', 'happiness', 'health', 'sick', 'dead', 'education', 'study', 'gender', 'playTime', 'bonusXp', 'bond', 'money', 'mood', 'name', 'volume', 'speed', 'opacity', 'schoolLevel', 'faculty', 'learned', 'lang', 'owned', 'equipped', 'achievements', 'sfxOn', 'fedStreak', 'lastFedDay'].forEach((k) => {
       if (d[k] != null) st[k] = d[k];
     });
     st.classDone = (d.classDone && typeof d.classDone === 'object') ? { ...FRESH_CLASSES, ...d.classDone } : { ...FRESH_CLASSES };
     if (st.schoolLevel == null) st.schoolLevel = 0;
+    if (!Array.isArray(st.learned)) st.learned = [];
+    // Migrate pre-career-path saves: a pet that already advanced past a stage has
+    // "learned" every subject of the stages it graduated, so its jobs stay open.
+    if (!st.learned.length && (st.schoolLevel || 0) > 0) {
+      const acc = new Set();
+      for (let l = 0; l < st.schoolLevel && l < STAGE_SUBJECTS.length; l++) STAGE_SUBJECTS[l].forEach((k) => acc.add(k));
+      st.learned = Array.from(acc);
+    }
+    if (st.faculty === undefined) st.faculty = null;
     // No gender saved → this pet hasn't been onboarded (fresh install or a
     // pre-onboarding save), so boot() will show the egg-choice + name screen.
     this._wasGrown = (st.playTime != null ? st.playTime : 0) >= GROW_SECONDS;
@@ -3218,7 +3335,7 @@ export default class App extends React.Component {
     return {
       fullness: s.fullness, energy: s.energy, cleanliness: s.cleanliness, happiness: s.happiness,
       health: s.health, sick: s.sick, dead: s.dead, education: s.education, study: s.study,
-      schoolLevel: s.schoolLevel, classDone: s.classDone,
+      schoolLevel: s.schoolLevel, classDone: s.classDone, faculty: s.faculty, learned: s.learned,
       session: s.session, // an in-progress class/shift survives a restart (resumes / auto-completes)
       gender: s.gender, playTime: s.playTime, bonusXp: s.bonusXp, bond: s.bond, money: s.money, mood: s.mood, lang: s.lang,
       name: s.name, volume: s.volume, speed: s.speed, opacity: s.opacity,
@@ -3295,7 +3412,7 @@ export default class App extends React.Component {
     if (!d) return;
     this.personality = normPersonality(d.personality);
     const st = {};
-    ['fullness', 'energy', 'cleanliness', 'happiness', 'health', 'sick', 'dead', 'education', 'study', 'gender', 'playTime', 'bonusXp', 'bond', 'money', 'mood', 'name', 'volume', 'speed', 'opacity', 'schoolLevel', 'lang', 'owned', 'equipped', 'achievements', 'sfxOn', 'fedStreak', 'lastFedDay'].forEach((k) => {
+    ['fullness', 'energy', 'cleanliness', 'happiness', 'health', 'sick', 'dead', 'education', 'study', 'gender', 'playTime', 'bonusXp', 'bond', 'money', 'mood', 'name', 'volume', 'speed', 'opacity', 'schoolLevel', 'faculty', 'learned', 'lang', 'owned', 'equipped', 'achievements', 'sfxOn', 'fedStreak', 'lastFedDay'].forEach((k) => {
       if (d[k] != null) st[k] = d[k];
     });
     if (d.classDone && typeof d.classDone === 'object') st.classDone = { ...FRESH_CLASSES, ...d.classDone };
@@ -3436,7 +3553,7 @@ export default class App extends React.Component {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#222a55', color: '#fff', padding: '6px 13px', borderRadius: 999, fontSize: 12, fontWeight: 900, boxShadow: '0 4px 0 rgba(34,42,85,.3)', whiteSpace: 'nowrap' }}>
           <span>{ses.kind === 'study' ? '📚' : (ses.kind === 'pomo' ? '⏱' : '💼')}</span>
           <span>{ses.kind === 'study'
-            ? `${tn((SUBJECTS.find((x) => x.key === ses.subjectKey) || {}).name, this.state.lang)} · ${t(this.state.lang, 'school.title')}`
+            ? `${tn((SUBJECT_INFO[ses.subjectKey] || {}).name, this.state.lang)} · ${t(this.state.lang, 'school.title')}`
             : (ses.kind === 'pomo'
                 ? t(this.state.lang, 'pomo.title')
                 : `${tn((JOBS[ses.jobIdx] || {}).name, this.state.lang)} · ${t(this.state.lang, 'work.title')}`)}</span>
@@ -3462,20 +3579,31 @@ export default class App extends React.Component {
           </div>
           {graduated ? (
             <div style={{ textAlign: 'center', fontSize: 13, fontWeight: 800, color: '#36c98f', padding: '14px 4px' }}>{t(s.lang, 'school.gradA')}<br />{t(s.lang, 'school.gradB')}</div>
+          ) : (lvl === SCHOOL.length - 1 && !s.faculty) ? (
+            // 大学: choose a faculty (career direction) before studying its majors.
+            <>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#9aa3cc', marginBottom: 9, lineHeight: 1.4 }}>{t(s.lang, 'school.pickFaculty')}</div>
+              {COLLEGE.map((f) => (
+                <div key={f.key} onClick={() => this.enrollFaculty(f.key)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 6px', marginBottom: 5, borderRadius: 10, border: '2px solid #222a55', cursor: 'pointer' }}>
+                  <span style={{ flex: 1, fontSize: 12, fontWeight: 900, color: '#222a55' }}>{tn(f.name, s.lang)}</span>
+                  <span style={{ fontSize: 9.5, fontWeight: 800, color: '#9aa3cc' }}>{f.majors.map((m) => tn(SUBJECT_INFO[m].name, s.lang)).join(' · ')}</span>
+                </div>
+              ))}
+            </>
           ) : (
             <>
               <div style={{ fontSize: 10, fontWeight: 700, color: '#9aa3cc', marginBottom: 9, lineHeight: 1.4 }}>{t(s.lang, 'school.rule', sc.min, sc.per)}</div>
-              {SUBJECTS.map((subj) => {
-                const done = s.classDone[subj.key] || 0;
+              {subjectsForLevel(lvl, s.faculty).map((subject) => {
+                const done = s.classDone[subject.key] || 0;
                 const grad = done >= sc.per;
                 return (
-                  <div key={subj.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 4px', borderBottom: '1px solid #eef0f7' }}>
-                    <span style={{ fontSize: 17, width: 22, textAlign: 'center' }}>{subj.icon}</span>
-                    <span style={{ flex: 1, fontSize: 12, fontWeight: 800, color: '#222a55' }}>{tn(subj.name, s.lang)}</span>
+                  <div key={subject.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 4px', borderBottom: '1px solid #eef0f7' }}>
+                    <span style={{ fontSize: 17, width: 22, textAlign: 'center' }}>{subject.icon}</span>
+                    <span style={{ flex: 1, fontSize: 12, fontWeight: 800, color: '#222a55' }}>{tn(subject.name, s.lang)}</span>
                     <span style={{ fontSize: 10, fontWeight: 900, color: grad ? '#36c98f' : '#9aa3cc', width: 30, textAlign: 'right' }}>{done}/{sc.per}</span>
                     {grad
                       ? <span style={{ fontSize: 11, fontWeight: 900, color: '#36c98f', width: 50, textAlign: 'center' }}>{t(s.lang, 'school.graduated')}</span>
-                      : <button onClick={() => this.startClass(subj.key)} style={{ ...rowBtn, width: 50 }}>{t(s.lang, 'school.classBtn')}</button>}
+                      : <button onClick={() => this.startClass(subject.key)} style={{ ...rowBtn, width: 50 }}>{t(s.lang, 'school.classBtn')}</button>}
                   </div>
                 );
               })}
@@ -3488,8 +3616,9 @@ export default class App extends React.Component {
 
   renderWorkMenu() {
     const s = this.state;
-    const jobs = this.unlockedJobs();
     const wbtn = { border: 'none', background: '#36c98f', color: '#fff', fontFamily: "'Nunito'", fontWeight: 900, fontSize: 10, padding: '5px 6px', borderRadius: 8, cursor: 'pointer', whiteSpace: 'nowrap', flex: 1 };
+    // Every career is listed; locked ones show what to study to unlock them, so
+    // the career path is visible and motivating.
     return (
       <div onClick={this.closeWork} style={{ position: 'absolute', inset: 0, background: 'rgba(20,24,60,.35)', backdropFilter: 'blur(2px)', WebkitBackdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 72 }}>
         <div onClick={(e) => e.stopPropagation()} style={{ width: 212, maxHeight: 'calc(100% - 16px)', overflowY: 'auto', boxSizing: 'border-box', background: '#fff', border: '3px solid #222a55', borderRadius: 18, padding: 13, boxShadow: '0 8px 0 rgba(34,42,85,.22)', animation: 'popIn .2s ease-out' }}>
@@ -3497,30 +3626,28 @@ export default class App extends React.Component {
             <span style={{ fontWeight: 900, fontSize: 14, color: '#222a55' }}>💼 {t(s.lang, 'work.title')} · 💰{s.money}</span>
             <div onClick={this.closeWork} style={{ width: 22, height: 22, border: '2px solid #222a55', borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontWeight: 900, color: '#222a55', fontSize: 11 }}>✕</div>
           </div>
-          {jobs.length === 0 ? (
-            <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 800, color: '#9aa3cc', padding: '14px 4px' }}>{t(s.lang, 'work.locked')}</div>
-          ) : (
-            <>
-              <div style={{ fontSize: 10, fontWeight: 700, color: '#9aa3cc', marginBottom: 9, lineHeight: 1.4 }}>{t(s.lang, 'work.intro')}</div>
-              {jobs.map((job) => {
-                const idx = JOBS.indexOf(job);
-                return (
-                  <div key={job.key} style={{ padding: '7px 4px', borderBottom: '1px solid #eef0f7' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
-                      <span style={{ fontSize: 17, width: 22, textAlign: 'center' }}>{job.icon}</span>
-                      <span style={{ flex: 1, fontSize: 12, fontWeight: 800, color: '#222a55' }}>{tn(job.name, s.lang)}</span>
-                      <span style={{ fontSize: 9.5, fontWeight: 800, color: '#9aa3cc' }}>💰{job.rate}{t(s.lang, 'work.rateUnit')}</span>
-                    </div>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      {WORK_MINS.map((m) => (
-                        <button key={m} onClick={() => this.startWork(idx, m)} style={wbtn}>{t(s.lang, 'work.shift', m, Math.round(job.rate * m))}</button>
-                      ))}
-                    </div>
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#9aa3cc', marginBottom: 9, lineHeight: 1.4 }}>{t(s.lang, 'work.intro')}</div>
+          {JOBS.map((job, idx) => {
+            const unlocked = this.jobUnlocked(job.key);
+            return (
+              <div key={job.key} style={{ padding: '7px 4px', borderBottom: '1px solid #eef0f7', opacity: unlocked ? 1 : 0.72 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: unlocked ? 5 : 3 }}>
+                  <span style={{ fontSize: 17, width: 22, textAlign: 'center', filter: unlocked ? 'none' : 'grayscale(1)' }}>{job.icon}</span>
+                  <span style={{ flex: 1, fontSize: 12, fontWeight: 800, color: unlocked ? '#222a55' : '#9aa3cc' }}>{tn(job.name, s.lang)}</span>
+                  <span style={{ fontSize: 9.5, fontWeight: 800, color: '#9aa3cc' }}>{unlocked ? `💰${job.rate}${t(s.lang, 'work.rateUnit')}` : '🔒'}</span>
+                </div>
+                {unlocked ? (
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {WORK_MINS.map((m) => (
+                      <button key={m} onClick={() => this.startWork(idx, m)} style={wbtn}>{t(s.lang, 'work.shift', m, Math.round(job.rate * m))}</button>
+                    ))}
                   </div>
-                );
-              })}
-            </>
-          )}
+                ) : (
+                  <div style={{ fontSize: 9, fontWeight: 800, color: '#b9a24a', paddingLeft: 30 }}>{t(s.lang, 'work.needs')}: {this.jobLock(job.key)}</div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     );

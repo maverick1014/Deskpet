@@ -117,7 +117,8 @@ const STR = {
   'school.title': { zh: '上课', en: 'Class' },
   'school.gradA': { zh: '🎓 已从大学毕业！', en: '🎓 Graduated university!' },
   'school.gradB': { zh: '全部课程完成啦~', en: 'All courses complete~' },
-  'school.rule': { zh: '每节课 {0} 分钟，每科上 {1} 节；四科全毕业即可升学。', en: '{0} min per class, {1} classes per subject. Finish all four to level up.' },
+  'school.rule': { zh: '每节课 {0} 分钟，每科上 {1} 节；修完全部科目即可升学。', en: '{0} min per class, {1} per subject. Finish every subject to advance.' },
+  'school.pickFaculty': { zh: '选择学院（你的职业方向），再修读它的专业。', en: 'Pick a faculty (your career path), then study its majors.' },
   'school.graduated': { zh: '✓毕业', en: '✓ Done' },
   'school.classBtn': { zh: '上课', en: 'Study' },
   // ---- work (上班) picker ----
@@ -125,6 +126,7 @@ const STR = {
   'work.locked': { zh: '先去上学解锁工作吧~ 📚', en: 'Go to school to unlock jobs~ 📚' },
   'work.intro': { zh: '选择班次，专注到点即可领工资。玩耍或退出会清零。', en: 'Pick a shift — focus to the end to get paid. Playing or quitting resets it.' },
   'work.rateUnit': { zh: '/分', en: '/min' },
+  'work.needs': { zh: '需要', en: 'Needs' },
   'work.shift': { zh: '{0}分 · +{1}💰', en: '{0}m · +{1}💰' },
   // ---- death screen ----
   'dead.left': { zh: '{0} 离开了…', en: '{0} has left…' },
