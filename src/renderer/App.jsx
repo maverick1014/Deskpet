@@ -1236,6 +1236,36 @@ export default class App extends React.Component {
       'cccccccc',
       '.cccccc.',
     ];
+    // ---- per-subject chalkboard glyphs (career-path curriculum) — authored as
+    // monochrome chalk ('c') via the pixel-art skill; drawn centred on the board.
+    // 幼儿园
+    S.chalk_read = ['.............', '..c..cc...cc.', '.c.c.c.c.c...', '.ccc.cc..c...', '.c.c.c.c.c...', '.c.c.cc...cc.']; // ABC
+    S.chalk_count = ['.............', '..c..cc..cc..', '.cc....c...c.', '..c...c...c..', '..c..c.....c.', '.ccc.ccc.cc..']; // 123
+    S.chalk_draw = ['..c...c...c..', '.....ccc.....', '..c.ccccc.c..', '..c.ccccc.c..', '.....ccc.....', '..c...c...c..']; // a sun
+    S.chalk_sing = ['.....cccc....', '.....c..c....', '.....c.cc....', '.....c.......', '.ccccc.......', '.cccc........']; // a note
+    S.chalk_craft = ['.cc.......cc.', '.c.c.....c.c.', '..cc.....cc..', '...cc...cc...', '....cc.cc....', '.....ccc.....']; // scissors
+    // 小学
+    S.chalk_pe = ['....ccccc....', '..ccccccccc..', '.cc.ccc.cc.c.', '.ccc.c.c.ccc.', '..ccccccccc..', '....ccccc....']; // a ball
+    S.chalk_music = ['...ccccccc...', '...ccccccc...', '...c.....c...', '...c.....c...', '.ccc...ccc...', '.ccc...ccc...']; // two notes
+    S.chalk_art = ['.ccccccccccc.', '.c......c..c.', '.c...c.....c.', '.c..ccc....c.', '.c.ccccc...c.', '.ccccccccccc.']; // framed picture
+    // 中学
+    S.chalk_phys = ['.cc......cc..', '.cc......cc..', '.cc......cc..', '.cc......cc..', '.ccc....ccc..', '..cccccccc...']; // horseshoe magnet
+    S.chalk_chem = ['.....ccc.....', '.....c.c.....', '....c...c....', '...c.c...c...', '..c....c..c..', '..ccccccccc..']; // flask
+    S.chalk_bio = ['......c......', '....ccccc....', '..cccc.cccc..', '..cccc.cccc..', '....ccccc....', '......c......']; // leaf
+    S.chalk_hist = ['..ccccccccc..', '.cc.......cc.', '.c.ccccccc.c.', '.c.ccccccc.c.', '.cc.......cc.', '..ccccccccc..']; // scroll
+    S.chalk_geo = ['....ccccc....', '..cc..c..cc..', '.c....c....c.', '.ccccccccccc.', '..cc..c..cc..', '....ccccc....']; // globe
+    S.chalk_it = ['.ccccccccccc.', '.c.cc.cc.c.c.', '.c.c.c.cc..c.', '.ccccccccccc.', '.....ccc.....', '...ccccccc...']; // monitor
+    // 大学 majors
+    S.chalk_cs = ['...c...c.c...', '..c....c..c..', '.c....c....c.', '.c....c....c.', '..c..c....c..', '...c.c...c...']; // </>
+    S.chalk_ai = ['....c...c....', '...ccccccc...', '...c.c.c.c...', '...c.....c...', '...c.ccc.c...', '...ccccccc...']; // robot head
+    S.chalk_acct = ['.ccccccccccc.', '.c.ccccccc.c.', '.c.........c.', '.c.c.c.c.c.c.', '.c.c.c.c.c.c.', '.ccccccccccc.']; // calculator
+    S.chalk_fin = ['..........c..', '.........ccc.', '..........c..', '.......cc.cc.', '....cc.cc.cc.', '.cc.cc.cc.cc.']; // rising chart
+    S.chalk_med = ['.....ccc.....', '.....ccc.....', '..ccccccccc..', '..ccccccccc..', '.....ccc.....', '.....ccc.....']; // medical cross
+    S.chalk_nurse = ['...cc...cc...', '.ccccc.ccccc.', '.ccccc.ccccc.', '..ccc...ccc..', '....cc.cc....', '......c......']; // caring heart
+    S.chalk_edu = ['......c......', '.ccccccccccc.', '...ccccccc.c.', '....ccccc..c.', '....ccccc..c.', '..........cc.']; // grad cap
+    S.chalk_psy = ['..c...c...c..', '..c...c...c..', '..c...c...c..', '..ccccccccc..', '......c......', '......c......']; // Ψ
+    S.chalk_fa = ['.ccccccccccc.', '.c.c.......c.', '.c.....c...c.', '.c....ccc..c.', '.c.ccccccc.c.', '.ccccccccccc.']; // framed art
+    S.chalk_design = ['..ccccccccc..', '..cccc.cccc..', '...ccc.ccc...', '....cc.cc....', '.....ccc.....', '......c......']; // pen nib
     // ---- 上课 lively beats: a raised flipper (举手), a thrown chalk, a sleepy Z ----
     S.handUp = ['.KK.', '.KK.', '.KK.', 'KKKK', '.KK.'];   // a navy flipper raised to answer (K = navy in scenePal)
     S.chalkpiece = ['cc', 'cc'];                            // a flying piece of chalk
