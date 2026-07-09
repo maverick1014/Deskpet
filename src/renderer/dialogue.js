@@ -80,6 +80,35 @@ export const KNOWLEDGE = {
     zh: ['Hello! Nice to meet you!', 'How are you? I am fine, thank you!', 'Apple, banana, and a cat!', 'The sky is blue and very big!', 'I love learning English!', 'One, two, three, let us count!', 'Good morning! Have a nice day!'],
     en: ['Hello! Nice to meet you!', 'How are you? I am fine, thank you!', 'Apple, banana, and a cat!', 'The sky is blue and very big!', 'I love learning English!', 'One, two, three, let us count!', 'Good morning! Have a nice day!'],
   },
+  // ---- career-path curriculum: the pet shows off what it learned ----
+  // 幼儿园
+  read: { zh: ['“人”字像一个人在走路~', '大声念出来：a、o、e！', '“日”是太阳，“月”是月亮！'], en: ['The character 人 looks like a walking person~', 'Read aloud: a, o, e!', '日 means sun, 月 means moon!'] },
+  count: { zh: ['1、2、3、4、5，我会数到五！', '十个手指头，数得清清楚楚~', '大的在前，小的在后！'], en: ['1, 2, 3, 4, 5 — I can count to five!', 'Ten little fingers, easy to count~', 'Big ones first, small ones after!'] },
+  draw: { zh: ['红加黄，变成橙色啦！', '先画圆圆的太阳~', '涂色要涂在线里面哦！'], en: ['Red plus yellow makes orange!', 'First draw a round sun~', 'Colour inside the lines!'] },
+  sing: { zh: ['哆来咪发嗦~ 唱起来！', '跟着节拍拍拍手！', '唱歌要用肚子呼吸哦~'], en: ['Do re mi fa sol — sing along~', 'Clap along to the beat!', 'Sing from your belly~'] },
+  craft: { zh: ['折一只小纸船!', '剪刀要小心用哦~', '贴一贴，做只小花猫！'], en: ['Fold a little paper boat!', 'Use scissors carefully~', 'Glue it up into a kitty!'] },
+  // 小学
+  pe: { zh: ['运动前要先热身！', '拍球要用手腕的力~', '深呼吸，跑得更远！'], en: ['Warm up before exercise!', 'Bounce the ball with your wrist~', 'Breathe deep to run farther!'] },
+  music: { zh: ['一首歌有节拍和旋律~', '高音在上，低音在下！', '四分音符打一拍！'], en: ['A song has beat and melody~', 'High notes up, low notes down!', 'A quarter note is one beat!'] },
+  art: { zh: ['三原色是红、黄、蓝！', '近大远小，才有立体感~', '冷色让人安静，暖色让人开心！'], en: ['The primary colours are red, yellow, blue!', 'Near is big, far is small — depth~', 'Cool colours calm, warm colours cheer!'] },
+  // 中学
+  phys: { zh: ['力有大小，也有方向！', '同名磁极相斥，异名相吸~', '光速是每秒约 30 万公里！'], en: ['A force has size and direction!', 'Like poles repel, opposites attract~', 'Light travels ~300,000 km per second!'] },
+  chem: { zh: ['水就是 H₂O！', '酸和碱会中和~', '空气里大部分是氮气哦！'], en: ['Water is H₂O!', 'Acids and bases neutralise~', 'Most of the air is nitrogen!'] },
+  bio: { zh: ['心脏一直在扑通扑通跳~', '植物靠叶子进行光合作用！', '细胞是生命的基本单位！'], en: ['The heart keeps going thump-thump~', 'Leaves do photosynthesis!', 'Cells are the units of life!'] },
+  hist: { zh: ['长城很长很长~', '四大发明真了不起！', '读史使人明智！'], en: ['The Great Wall is very, very long~', 'The Four Great Inventions are amazing!', 'History makes us wise!'] },
+  geo: { zh: ['地球有七大洲、四大洋！', '赤道是最热的地方~', '指南针总是指向北方！'], en: ['Earth has seven continents, four oceans!', 'The equator is the hottest~', 'A compass always points north!'] },
+  it: { zh: ['电脑用 0 和 1 来思考！', '记得常常备份文件哦~', '一个字节有八个比特！'], en: ['Computers think in 0s and 1s!', 'Remember to back up your files~', 'One byte is eight bits!'] },
+  // 大学 majors
+  cs: { zh: ['写代码要一步一步来~', '先想清楚，再动手写！', '循环能帮我们少写很多代码！'], en: ['Write code step by step~', 'Think first, then type!', 'Loops save us so much typing!'] },
+  ai: { zh: ['AI 从很多数据里学习~', '训练越多，答得越准！', '别忘了，AI 也会犯错哦！'], en: ['AI learns from lots of data~', 'More training, better answers!', "Don't forget — AI makes mistakes too!"] },
+  acct: { zh: ['收入减支出，就是利润！', '每一笔账都要记清楚~', '借贷要平衡才对！'], en: ['Income minus costs equals profit!', 'Record every transaction~', 'Debits and credits must balance!'] },
+  fin: { zh: ['别把鸡蛋放在一个篮子里~', '复利是世界第八大奇迹！', '花钱前先存一点吧！'], en: ["Don't put all your eggs in one basket~", 'Compound interest is a wonder!', 'Save a little before you spend!'] },
+  med: { zh: ['多喝水、多休息，好得快~', '饭前要洗手哦！', '预防胜于治疗！'], en: ['Rest and water help you heal~', 'Wash your hands before meals!', 'Prevention beats cure!'] },
+  nurse: { zh: ['照顾病人要有耐心和爱心~', '量体温，记得先甩一甩！', '一个微笑就是良药！'], en: ['Care needs patience and heart~', 'Take the temperature gently!', 'A smile is good medicine!'] },
+  edu: { zh: ['教学相长，一起进步~', '因材施教最重要！', '鼓励比批评更有用哦！'], en: ['Teaching and learning grow together~', 'Teach each to their strengths!', 'Encouragement beats scolding!'] },
+  psy: { zh: ['深呼吸能让心情平静~', '情绪没有好坏之分！', '多倾听，少评判~'], en: ['Deep breaths calm the mind~', 'No emotion is good or bad!', 'Listen more, judge less~'] },
+  fa: { zh: ['光和影让画更有立体感~', '留白也是一种美！', '临摹是练习的好方法！'], en: ['Light and shadow give depth~', 'Empty space is beauty too!', 'Copying masters is great practice!'] },
+  design: { zh: ['好设计既好看又好用~', '少即是多！', '先想用户，再想样式！'], en: ['Good design is pretty AND useful~', 'Less is more!', 'Think of the user first, style second!'] },
 };
 
 export function studyLine(subjectKey, lang = 'zh') {
