@@ -33,7 +33,7 @@ function Bar({ which, value, lang = 'zh' }) {
 
 export default function StatusBar(props) {
   const { stat, shopCat, money = 0, placement, arrowShift = 0, centered = false, fullness, cleanliness, happiness, health = 100,
-    level, petName, lang = 'zh', onStat, onLeave, onOpenCat, onBuy, onBack, onPlay } = props;
+    level, petName, lang = 'zh', onStat, onLeave, onOpenCat, onBuy, onBack, onPlay, onStudy, onWork } = props;
   const vals = { fullness, clean: cleanliness, happy: happiness, health };
   const below = placement === 'below';
 
@@ -91,6 +91,13 @@ export default function StatusBar(props) {
       <span style={{ fontSize: 8.5 }}>{label}</span>
     </div>
   );
+  // Activity shortcut (no stat readout) — School/Work straight from the hover panel.
+  const actBtn = (emoji, label, onClick) => (
+    <div className="act" onClick={onClick} style={pill}>
+      <span style={{ fontSize: 18, lineHeight: 1 }}>{emoji}</span>
+      <span style={{ fontSize: 8.5 }}>{label}</span>
+    </div>
+  );
   const m = stat ? META[stat] : null;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
@@ -111,6 +118,13 @@ export default function StatusBar(props) {
         {btn('🛁', t(lang, 'act.bath'), 'clean', () => onOpenCat('bath'))}
         {btn('🎈', t(lang, 'act.play'), 'happy', onPlay)}
       </div>
+      {/* 上学 / 上班 shortcuts — start a study/work session without the right-click menu */}
+      {(onStudy || onWork) && (
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+          {onStudy && actBtn('📖', t(lang, 'menu.study'), onStudy)}
+          {onWork && actBtn('💼', t(lang, 'menu.work'), onWork)}
+        </div>
+      )}
     </div>
   );
 }
