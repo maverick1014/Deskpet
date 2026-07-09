@@ -44,6 +44,10 @@ export const ACHIEVEMENTS = [
   { key: 'collector', name: { zh: '时尚达人', en: 'Fashionista' }, desc: { zh: '集齐所有配饰', en: 'Own every accessory' } },
   { key: 'bonded', name: { zh: '形影不离', en: 'Bonded' }, desc: { zh: '羁绊值达到 50', en: 'Reach a bond of 50' } },
   { key: 'nightOwl', name: { zh: '夜猫子', en: 'Night owl' }, desc: { zh: '深夜还陪着企鹅', en: 'Keep it company late at night' } },
+  // ---- career-path professions ----
+  { key: 'tutor', name: { zh: '小老师', en: 'Tutor' }, desc: { zh: '完成一次家教', en: 'Finish a tutoring shift' } },
+  { key: 'accountant', name: { zh: '账房先生', en: 'Accountant' }, desc: { zh: '完成一次会计工作', en: 'Balance the books once' } },
+  { key: 'doctor', name: { zh: '白衣天使', en: 'Doctor' }, desc: { zh: '完成一次坐诊', en: 'Finish a clinic shift' } },
 ];
 export const ACH_MAP = ACHIEVEMENTS.reduce((m, a) => { m[a.key] = a; return m; }, {});
 

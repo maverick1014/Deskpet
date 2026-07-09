@@ -1465,6 +1465,15 @@ export default class App extends React.Component {
       } else if (jk === 'painter') {
         this._scene = { type: 'paint', strokes: 0, dab: 0 };
         this._gear = 'painter';
+      } else if (jk === 'tutor') {
+        this._scene = { type: 'tutor', beat: 0 };
+        this._gear = 'tutor';
+      } else if (jk === 'accountant') {
+        this._scene = { type: 'acct', bead: 0, coins: [] };
+        this._gear = 'accountant';
+      } else if (jk === 'doctor') {
+        this._scene = { type: 'doctor', pulse: 0 };
+        this._gear = 'doctor';
       }
       // other jobs keep no special scene (briefcase prop handles them)
     }
@@ -1968,6 +1977,59 @@ export default class App extends React.Component {
       this.drawSprite(ctx, G.palette, PAL, palX, palY + Math.sin(t / 300) * 2, 4);
       return;
     }
+
+    if (sc.type === 'tutor') {
+      // The pet (in study glasses) tutors at a desk: an open book, a pencil
+      // marking a worksheet, and a green ✓ that flashes for a right answer.
+      const right = this.p.facing > 0, PB = P + 1;
+      this.drawSprite(ctx, G.desk, PAL, cx - 60, GND - 24, P);
+      const bx = right ? cx + 20 : cx - 20 - G.book[0].length * PB;
+      this.drawSprite(ctx, G.book, PAL, bx, GND - 32, PB);
+      const px = right ? cx - 56 : cx + 40, py = GND - 30;
+      this.drawSprite(ctx, G.paper, PAL, px, py, PB);
+      const sx = px + 6 + (Math.sin(t / 200) * 0.5 + 0.5) * 12;
+      this.drawSprite(ctx, G.pencil, PAL, sx, py + 4 + Math.abs(Math.sin(t / 95)) * 6, PB);
+      if (Math.floor(t / 1400) % 3 === 0) {                              // ✓ correct!
+        ctx.fillStyle = '#3fae4e';
+        const kx = bx + 8, ky = GND - 46;
+        ctx.fillRect(kx, ky + 6, 3, 3); ctx.fillRect(kx + 3, ky + 9, 3, 3); ctx.fillRect(kx + 6, ky + 3, 3, 3); ctx.fillRect(kx + 9, ky - 3, 3, 3);
+      }
+      return;
+    }
+
+    if (sc.type === 'acct') {
+      // The pet (in a green eyeshade) works an abacus beside a ledger while a
+      // stack of gold coins grows.
+      const right = this.p.facing > 0, PB = P + 1;
+      const ax = right ? cx + 20 : cx - 20 - G.abacus[0].length * PB;
+      this.drawSprite(ctx, G.abacus, PAL, ax, GND - 40, PB);
+      ctx.fillStyle = '#ffd23d'; ctx.fillRect(ax + 6 + (Math.floor(t / 350) % 4) * 6, GND - 34, 5, 5); // flicked bead
+      this.drawSprite(ctx, G.paper, PAL, right ? cx - 54 : cx + 38, GND - 30, PB);
+      const coinN = 1 + (Math.floor(t / 900) % 5), coinX = right ? cx - 40 : cx + 46;
+      for (let i = 0; i < coinN; i++) {
+        ctx.fillStyle = '#e8a01a'; ctx.fillRect(coinX, GND - 6 - i * 5, 14, 4);
+        ctx.fillStyle = '#ffd23d'; ctx.fillRect(coinX + 2, GND - 6 - i * 5, 10, 2);
+      }
+      return;
+    }
+
+    if (sc.type === 'doctor') {
+      // The pet (in a head mirror + stethoscope) reads a chart by a red cross,
+      // with a little heartbeat monitor ticking.
+      const right = this.p.facing > 0, PB = P + 1;
+      this.drawSprite(ctx, G.paper, PAL, right ? cx + 22 : cx - 22 - G.paper[0].length * PB, GND - 32, PB);
+      const crX = right ? cx - 46 : cx + 40, crY = GND - 40;             // medical cross
+      ctx.fillStyle = '#ff5a5f'; ctx.fillRect(crX + 5, crY, 6, 16); ctx.fillRect(crX, crY + 5, 16, 6);
+      const mx = right ? cx + 20 : cx - 66, my = GND - 56;               // heartbeat monitor
+      ctx.fillStyle = '#0e1630'; ctx.fillRect(mx, my, 46, 15);
+      ctx.fillStyle = '#5ad0a0';
+      for (let i = 0; i < 46; i += 2) {
+        const phase = (i + Math.floor(t / 30)) % 46;
+        const spike = phase === 20 ? -8 : (phase === 22 ? 7 : 0);
+        ctx.fillRect(mx + i, my + 8 + spike, 2, 2);
+      }
+      return;
+    }
   }
 
   // ---- 玩耍 mini-games (in-window, penguin-driven, pure pixel art) ----------
@@ -2243,7 +2305,9 @@ export default class App extends React.Component {
       // ---- job attire colours (worn on the penguin during work scenes) ----
       M: '#39507f', N: '#d23b4b', P: '#23262e', W: '#f4f7fc', Y: '#ffc62e', B: '#8a5a2b', I: '#aeb9c8', Q: '#16263f',
       // ---- wardrobe accessory colours (worn cosmetics) ----
-      V: '#e0554e', Z: '#8bd0ff' };
+      V: '#e0554e', Z: '#8bd0ff',
+      // ---- career-path attire extras ----
+      A: '#3fae4e' };  // accountant's green eyeshade
   }
   // Apply every currently-equipped wardrobe accessory to a grid (row-swaps, so
   // several can stack — hat + glasses + scarf). Order: neck, then face, then hat
@@ -2384,6 +2448,15 @@ export default class App extends React.Component {
       case 'painter': // 画家 — a jaunty red beret
         sw([[0, '.......NN.......'], [1, '....NNNNNNNN....'],
             [2, '...NNNNNNNNNN...'], [3, '..NNNNNNNNNNNN..']]);
+        break;
+      case 'tutor': // 家教 — studious round glasses (blue lenses, thin frame)
+        sw([[5, '..DLPPPLLPPPLD..'], [6, '..DPZEZLLZEZPD..'], [7, '..DLPPPOOPPPLD..']]);
+        break;
+      case 'accountant': // 会计 — a green eyeshade visor across the brow
+        sw([[4, '.AAAAAAAAAAAAAA.']]);
+        break;
+      case 'doctor': // 医生 — head mirror + a stethoscope round the neck + chestpiece
+        sw([[5, '..DLLLLIWILLLD..'], [10, '...QQQQQQQQQQ...'], [12, '..DDDLLIILLDDD..']]);
         break;
       default: break;
     }
