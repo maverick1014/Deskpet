@@ -9,6 +9,14 @@ is pre-release, so versions are milestone markers rather than published releases
 New lifelike animations being added one at a time.
 See `TODO.md` for the remaining activity-authentic focus animations.
 
+## [1.22.0] — 2026-07-09 — Career Path polish
+
+### Changed
+- **Per-subject study flashcards.** Every subject now studies a little framed
+  blackboard showing its own chalk glyph (the classics 语文/数学/科学/英语 keep
+  their brush / abacus / flask / open book), so each class reads distinctly.
+- Tidied `docs/CAREER_PATH.md` to reflect that the whole system shipped in v1.21.0.
+
 ## [1.21.0] — 2026-07-09 — Career Path: study grows into a career
 
 A big overhaul that ties **studying** to **work**: the penguin grows up through

@@ -1632,14 +1632,23 @@ export default class App extends React.Component {
       const bxp = cx + 44, byp = GND - 50 + Math.abs(Math.sin(t / 260)) * 8;
       this.drawSprite(ctx, G.inkpot, PAL, cx + 38, GND - 18, PB);
       this.drawSprite(ctx, G.brush, PAL, bxp, byp, PB);
-    } else {
+    } else if (sc.chalk === 'chalk_en') {
       const kx = cx + 40, ky = GND - 50;
-      this.drawSprite(ctx, G.book, PAL, kx, ky, PB);
+      this.drawSprite(ctx, G.book, PAL, kx, ky, PB);   // 英语: an open book with drifting pages
       if (!sc.fb) sc.fb = [];
       if (Math.random() < 0.04 && sc.fb.length < 4) sc.fb.push({ x: kx + 6 + Math.random() * 14, y: ky - 2, vy: -0.5 });
       ctx.fillStyle = '#f4f6ef';
       sc.fb.forEach((b) => { b.y += b.vy; ctx.fillRect(b.x, b.y, 4, 6); });
       sc.fb = sc.fb.filter((b) => b.y > ky - 22);
+    } else {
+      // Every other subject studies a little flashcard showing its own chalk
+      // glyph — a mini blackboard the pet holds up beside it (bobs gently).
+      const g = G[sc.chalk] || G.book;
+      const sp = 3, gw = g[0].length * sp, gh = g.length * sp;
+      const kx = cx + 40, ky = GND - 56 + Math.sin(t / 300) * 3;
+      ctx.fillStyle = '#6b4a2a'; ctx.fillRect(kx - 4, ky - 4, gw + 8, gh + 8);   // wood frame
+      ctx.fillStyle = '#2c3a2c'; ctx.fillRect(kx - 2, ky - 2, gw + 4, gh + 4);   // felt board
+      this.drawSprite(ctx, g, PAL, kx, ky, sp);
     }
   }
 
