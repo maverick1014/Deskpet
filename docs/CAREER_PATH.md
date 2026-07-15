@@ -63,14 +63,16 @@ majors. The faculty decides which top career it can reach.
 | 画家 Painter | 大学 College | 美术(major, 艺术学院) | 🟡 | $$$ |
 | 医生 Doctor *(new)* | 大学 College | 医学(major) + 生物 + 化学 | 🟣 | $$$$ |
 
-## D. Build phases
+## D. Build — shipped in v1.21.0
 
-- **Phase 1 — foundation (v1.20.0):** stage-based curriculum for 幼儿园 / 小学 /
-  中学 (all school subjects, each a pixel study-scene + facts); re-gate the
-  existing jobs + chores by stage/course (hard gate); 家教 (Secondary).
-- **Phase 2 — higher ed & professions (v1.21.0):** 大学 faculties + majors +
-  faculty enrollment UI; the professional careers 程序员/会计/老师/画家/医生 gated
-  by major-combos; new job scenes/attire for 会计 + 医生.
+The whole system landed in **v1.21.0** (one release, not phased):
+- Stage-based curriculum for 幼儿园 / 小学 / 中学, each subject with its own
+  chalkboard glyph + bilingual "learn out loud" facts, and a mini-flashcard
+  study prop.
+- 大学 faculty enrollment (pick one path) + its majors.
+- Careers hard-gated by stage + course; the Work menu shows locked ones with
+  what to study. New professions 家教 / 会计 / 医生 with outfits + scenes + badges.
+- Persistent `learned` set + `faculty`, with save-migration for existing pets.
 
-Every new subject scene, job scene, and attire is authored as an ASCII grid,
+Every subject scene, job scene, and attire was authored as an ASCII grid,
 rendered, and eyeball-checked via `.claude/skills/pixel-art/SKILL.md` before wiring.
